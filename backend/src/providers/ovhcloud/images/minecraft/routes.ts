@@ -8,7 +8,6 @@ import {
     optionalString,
     requireBodyObject,
     requirePositiveInt,
-    requireRecord,
     requireTrimmedString,
 } from '../../../../utils/httpValidation.js';
 import { sendRouteError } from '../../../../utils/routeErrors.js';
@@ -28,11 +27,11 @@ import {
 } from './addonsInstalled.js';
 import {
     listMinecraftIpBans,
-    listMinecraftSettings,
+
     listMinecraftOperators,
     listMinecraftPlayerBans,
     listMinecraftWhitelist,
-    patchMinecraftSettings,
+
     runMinecraftIpBanCommand,
     runMinecraftIpPardonCommand,
     runMinecraftOperatorCommand,
@@ -62,10 +61,6 @@ async function getServerOrThrow(serverId: number): Promise<GameServerWithContain
     return server as GameServerWithContainer;
 }
 
-function getSettingsPatch(body: unknown): Record<string, unknown> {
-    return requireRecord(requireBodyObject(body).settings, 'settings must be an object');
-}
-
 function routeServerId(req: AuthenticatedRequest): number {
     return requirePositiveInt(req.params.id, 'Invalid server id');
 }
@@ -89,46 +84,6 @@ async function logCommandResult(params: {
 function routeActor(req: AuthenticatedRequest): string {
     return req.user?.username || '';
 }
-
-// GET /api/servers/:id/minecraft/settings
-router.get('/settings', requireServerPermission(PERMISSIONS.minecraft.settings.read), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const serverId = routeServerId(req);
-        const server = await getServerOrThrow(serverId);
-        const settings = await listMinecraftSettings(server);
-        return res.json({ settings });
-    } catch (error) {
-        return sendRouteError(res, error, {
-            route: 'ROUTE:MINECRAFT:SETTINGS_READ',
-            logContext: { serverId: req.params.id },
-            fallbackMessage: 'Failed to read Minecraft settings',
-        });
-    }
-});
-
-// PATCH /api/servers/:id/minecraft/settings
-router.patch('/settings', requireServerPermission(PERMISSIONS.minecraft.settings.write), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const serverId = routeServerId(req);
-        const server = await getServerOrThrow(serverId);
-        const result = await patchMinecraftSettings(server, getSettingsPatch(req.body));
-
-        await actionsRepository.create(
-            serverId,
-            'success',
-            `Minecraft settings updated: ${result.updated.join(', ')}`,
-            routeActor(req)
-        );
-
-        return res.json(result);
-    } catch (error) {
-        return sendRouteError(res, error, {
-            route: 'ROUTE:MINECRAFT:SETTINGS_WRITE',
-            logContext: { serverId: req.params.id },
-            fallbackMessage: 'Failed to update Minecraft settings',
-        });
-    }
-});
 
 // /api/servers/:id/minecraft/addons
 router.use('/addons', createScopedFileAreaRouter({

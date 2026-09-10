@@ -3,9 +3,6 @@ import { AlertTriangle, Check, Loader2, Save } from 'lucide-react';
 import { AppButton, AppInput, AppSelect, AppSlider, AppToggle, InfoTip } from '../../src/ui/components';
 import { RestartToApplyNote } from './RestartToApplyNote';
 
-// Shared settings form for games exposing a generic `{ settings: [...] }` API.
-// Each game injects its own `load`/`save`; field rendering lives here.
-
 export type GameSettingOption = { label: string; value: string };
 
 export type GameSettingField = {
@@ -33,9 +30,6 @@ export interface GameSettingsSectionProps {
   contentBg: string;
   textPrimary: string;
   textSecondary: string;
-  // When true, settings can only be edited while the server is stopped (the
-  // backend rewrites its config on shutdown and returns 409 otherwise, e.g.
-  // Project Zomboid). Controls are locked while running.
   editableOnlyWhenStopped?: boolean;
 }
 
@@ -120,7 +114,6 @@ export function GameSettingsSection({
   const loaded = useRef(false);
 
   const isRunning = serverStatus === 'running';
-  // Editing is blocked while running only for games that require a stopped server.
   const editingLocked = editableOnlyWhenStopped && isRunning;
   const canEdit = canWrite && !editingLocked;
 

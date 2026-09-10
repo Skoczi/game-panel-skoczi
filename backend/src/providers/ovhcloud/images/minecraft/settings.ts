@@ -2,30 +2,13 @@ import { promises as fs } from 'node:fs';
 import type { GameServerRow } from '../../../../types/gameServer.js';
 import { ensureIsFile } from '../../../../utils/fsBrowser.js';
 import { getOvhcloudMinecraftMetadata } from '../../../serverMetadata.js';
-import {
-    assertOvhcloudMinecraftBedrockServer,
-    assertOvhcloudMinecraftJavaServer,
-    invalidInput,
-    resolveDataFile,
-} from './shared.js';
+import type {
+    FileSettingsAccessor,
+    SettingDefinition,
+    SettingValue,
+} from '../../settings/types.js';
+import { assertOvhcloudMinecraftJavaServer, resolveDataFile } from './shared.js';
 
-type MinecraftSettingType = 'boolean' | 'integer' | 'select' | 'string';
-
-type MinecraftSettingDefinition = {
-    key: string;
-    label: string;
-    description: string;
-    type: MinecraftSettingType;
-    options?: string[];
-    min?: number;
-    max?: number;
-};
-
-type MinecraftSettingValue = string | number | boolean;
-
-export type MinecraftSetting = MinecraftSettingDefinition & {
-    value: MinecraftSettingValue;
-};
 
 type ParsedPropertyLine =
     | { type: 'property'; raw: string; key: string; value: string }
@@ -39,15 +22,18 @@ type ParsedPropertiesFile = {
 
 const MAX_STRING_PROPERTY_LENGTH = 2048;
 
-export const MINECRAFT_JAVA_SETTING_DEFINITIONS: MinecraftSettingDefinition[] = [
+const MINECRAFT_JAVA_SETTING_DEFINITIONS: SettingDefinition[] = [
     {
         key: 'motd',
+        group: 'branding',
         label: 'Server MOTD',
         description: 'Text displayed in the Minecraft multiplayer server list.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'max-players',
+        group: 'players',
         label: 'Maximum players',
         description: 'Maximum number of players that can connect to the server at the same time.',
         type: 'integer',
@@ -56,120 +42,153 @@ export const MINECRAFT_JAVA_SETTING_DEFINITIONS: MinecraftSettingDefinition[] = 
     },
     {
         key: 'online-mode',
+        group: 'security',
         label: 'Account verification',
         description: 'Checks that players use an official Microsoft/Mojang Minecraft account.',
         type: 'boolean',
     },
     {
         key: 'difficulty',
+        group: 'gameplay',
         label: 'Difficulty',
         description: 'Sets the global world difficulty.',
         type: 'select',
-        options: ['peaceful', 'easy', 'normal', 'hard'],
+        options: [
+            { value: 'peaceful', label: 'peaceful' },
+            { value: 'easy', label: 'easy' },
+            { value: 'normal', label: 'normal' },
+            { value: 'hard', label: 'hard' },
+        ],
     },
     {
         key: 'gamemode',
+        group: 'gameplay',
         label: 'Game mode',
         description: 'Sets the default game mode for new players.',
         type: 'select',
-        options: ['survival', 'creative', 'adventure', 'spectator'],
+        options: [
+            { value: 'survival', label: 'survival' },
+            { value: 'creative', label: 'creative' },
+            { value: 'adventure', label: 'adventure' },
+            { value: 'spectator', label: 'spectator' },
+        ],
     },
     {
         key: 'hardcore',
+        group: 'gameplay',
         label: 'Hardcore mode',
         description: 'Enables Hardcore mode with maximum difficulty and permanent death.',
         type: 'boolean',
     },
     {
         key: 'pvp',
+        group: 'gameplay',
         label: 'PvP',
         description: 'Allows players to fight each other.',
         type: 'boolean',
     },
     {
         key: 'allow-flight',
+        group: 'gameplay',
         label: 'Allow flight',
         description: 'Allows players to fly without being automatically kicked by the server.',
         type: 'boolean',
     },
     {
         key: 'spawn-monsters',
+        group: 'world',
         label: 'Hostile monsters',
         description: 'Allows hostile monsters to spawn in the world.',
         type: 'boolean',
     },
     {
         key: 'allow-nether',
+        group: 'world',
         label: 'Nether',
         description: 'Allows access to and generation of the Nether.',
         type: 'boolean',
     },
     {
         key: 'generate-structures',
+        group: 'world',
         label: 'Structures',
         description: 'Generates villages, temples, dungeons, and other natural structures.',
         type: 'boolean',
     },
     {
         key: 'level-seed',
+        group: 'world',
         label: 'World seed',
         description: 'Seed used to generate the Minecraft world.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'level-name',
+        group: 'world',
         label: 'World name',
         description: 'Name of the world folder loaded by the server.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'view-distance',
+        group: 'performance',
         label: 'View distance',
         description: 'Maximum chunk view distance visible to players.',
         type: 'integer',
-        min: 2,
+        min: 3,
         max: 32,
     },
     {
         key: 'simulation-distance',
+        group: 'performance',
         label: 'Simulation distance',
         description: 'Maximum chunk simulation distance for entities and redstone.',
         type: 'integer',
-        min: 2,
+        min: 3,
         max: 32,
     },
     {
         key: 'hide-online-players',
+        group: 'branding',
         label: 'Hide online players',
         description: 'Hides the connected player list in the multiplayer server list.',
         type: 'boolean',
     },
     {
         key: 'require-resource-pack',
+        group: 'branding',
         label: 'Require resource pack',
         description: 'Requires players to accept the resource pack before joining the server.',
         type: 'boolean',
     },
     {
         key: 'resource-pack',
+        group: 'branding',
         label: 'Resource pack URL',
         description: 'Direct URL of the resource pack downloaded by players.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'resource-pack-prompt',
+        group: 'branding',
         label: 'Resource pack prompt',
         description: 'Message displayed when players are asked to download the resource pack.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'enable-command-block',
+        group: 'gameplay',
         label: 'Command blocks',
         description: 'Allows command blocks to be used on the server.',
         type: 'boolean',
     },
     {
         key: 'spawn-protection',
+        group: 'world',
         label: 'Spawn protection',
         description: 'Protection radius around the world spawn point.',
         type: 'integer',
@@ -178,6 +197,7 @@ export const MINECRAFT_JAVA_SETTING_DEFINITIONS: MinecraftSettingDefinition[] = 
     },
     {
         key: 'player-idle-timeout',
+        group: 'players',
         label: 'AFK kick timeout',
         description: 'Minutes before inactive players are automatically kicked. 0 disables this feature.',
         type: 'integer',
@@ -186,19 +206,18 @@ export const MINECRAFT_JAVA_SETTING_DEFINITIONS: MinecraftSettingDefinition[] = 
     },
 ];
 
-const SETTING_DEFINITIONS_BY_KEY = new Map(
-    MINECRAFT_JAVA_SETTING_DEFINITIONS.map((definition) => [definition.key, definition])
-);
-
-export const MINECRAFT_BEDROCK_SETTING_DEFINITIONS: MinecraftSettingDefinition[] = [
+const MINECRAFT_BEDROCK_SETTING_DEFINITIONS: SettingDefinition[] = [
     {
         key: 'server-name',
+        group: 'branding',
         label: 'Server name',
         description: 'Name displayed for the Bedrock dedicated server.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'max-players',
+        group: 'players',
         label: 'Maximum players',
         description: 'Maximum number of players that can play on the server at the same time.',
         type: 'integer',
@@ -207,44 +226,62 @@ export const MINECRAFT_BEDROCK_SETTING_DEFINITIONS: MinecraftSettingDefinition[]
     },
     {
         key: 'gamemode',
+        group: 'gameplay',
         label: 'Game mode',
         description: 'Sets the game mode for new players.',
         type: 'select',
-        options: ['survival', 'creative', 'adventure'],
+        options: [
+            { value: 'survival', label: 'survival' },
+            { value: 'creative', label: 'creative' },
+            { value: 'adventure', label: 'adventure' },
+        ],
     },
     {
         key: 'difficulty',
+        group: 'gameplay',
         label: 'Difficulty',
         description: 'Sets the difficulty of the world.',
         type: 'select',
-        options: ['peaceful', 'easy', 'normal', 'hard'],
+        options: [
+            { value: 'peaceful', label: 'peaceful' },
+            { value: 'easy', label: 'easy' },
+            { value: 'normal', label: 'normal' },
+            { value: 'hard', label: 'hard' },
+        ],
     },
     {
         key: 'allow-cheats',
+        group: 'gameplay',
         label: 'Allow cheats',
         description: 'Allows cheat commands to be used on the server.',
         type: 'boolean',
     },
     {
         key: 'online-mode',
+        group: 'security',
         label: 'Account verification',
         description: 'Requires connected players to be authenticated with Xbox Live.',
         type: 'boolean',
     },
     {
         key: 'level-name',
+        group: 'world',
         label: 'World name',
         description: 'Name of the world folder used or generated by the server.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'level-seed',
+        group: 'world',
         label: 'World seed',
         description: 'Seed used to generate the Bedrock world. Leave empty to generate a random seed.',
         type: 'string',
+        maxLength: MAX_STRING_PROPERTY_LENGTH,
     },
     {
         key: 'view-distance',
+        group: 'performance',
         label: 'View distance',
         description: 'Maximum chunk view distance sent to players.',
         type: 'integer',
@@ -253,6 +290,7 @@ export const MINECRAFT_BEDROCK_SETTING_DEFINITIONS: MinecraftSettingDefinition[]
     },
     {
         key: 'tick-distance',
+        group: 'performance',
         label: 'Simulation distance',
         description: 'Number of chunks around each player where the world is actively ticked.',
         type: 'integer',
@@ -261,6 +299,7 @@ export const MINECRAFT_BEDROCK_SETTING_DEFINITIONS: MinecraftSettingDefinition[]
     },
     {
         key: 'player-idle-timeout',
+        group: 'players',
         label: 'AFK kick timeout',
         description: 'Minutes before inactive players are automatically kicked. 0 disables this feature.',
         type: 'integer',
@@ -269,34 +308,38 @@ export const MINECRAFT_BEDROCK_SETTING_DEFINITIONS: MinecraftSettingDefinition[]
     },
     {
         key: 'texturepack-required',
+        group: 'branding',
         label: 'Require texture pack',
         description: 'Requires players to use the texture packs configured for the world.',
         type: 'boolean',
     },
     {
         key: 'default-player-permission-level',
+        group: 'security',
         label: 'Default player permission',
         description: 'Permission level assigned to new players when they join for the first time.',
         type: 'select',
-        options: ['visitor', 'member', 'operator'],
+        options: [
+            { value: 'visitor', label: 'visitor' },
+            { value: 'member', label: 'member' },
+            { value: 'operator', label: 'operator' },
+        ],
     },
     {
         key: 'force-gamemode',
+        group: 'gameplay',
         label: 'Force game mode',
         description: 'Forces players to use the game mode configured in the server properties.',
         type: 'boolean',
     },
     {
         key: 'disable-custom-skins',
+        group: 'security',
         label: 'Disable custom skins',
         description: 'Disables custom skins that were created outside the Minecraft Store or in-game assets.',
         type: 'boolean',
     },
 ];
-
-const BEDROCK_SETTING_DEFINITIONS_BY_KEY = new Map(
-    MINECRAFT_BEDROCK_SETTING_DEFINITIONS.map((definition) => [definition.key, definition])
-);
 
 function splitPropertiesContent(content: string): { lines: string[]; newline: string; finalNewline: boolean } {
     const newline = content.includes('\r\n') ? '\r\n' : '\n';
@@ -405,7 +448,7 @@ function serializePropertiesFile(parsed: ParsedPropertiesFile): string {
     return parsed.finalNewline ? `${content}${parsed.newline}` : content;
 }
 
-function convertSettingValue(definition: MinecraftSettingDefinition, rawValue: string): MinecraftSettingValue {
+function parsePropertyValue(definition: SettingDefinition, rawValue: string): SettingValue {
     if (definition.type === 'boolean') return rawValue.trim().toLowerCase() === 'true';
 
     if (definition.type === 'integer') {
@@ -416,56 +459,26 @@ function convertSettingValue(definition: MinecraftSettingDefinition, rawValue: s
     return rawValue;
 }
 
-function serializeSettingValue(definition: MinecraftSettingDefinition, value: unknown): string {
-    if (definition.type === 'boolean') {
-        if (typeof value !== 'boolean') invalidInput(`${definition.key} must be a boolean`);
-        return value ? 'true' : 'false';
-    }
-
-    if (definition.type === 'integer') {
-        const integer = typeof value === 'number'
-            ? value
-            : typeof value === 'string' && value.trim() !== ''
-                ? Number(value)
-                : Number.NaN;
-
-        if (!Number.isInteger(integer)) invalidInput(`${definition.key} must be an integer`);
-        if (definition.min !== undefined && integer < definition.min) {
-            invalidInput(`${definition.key} must be greater than or equal to ${definition.min}`);
-        }
-        if (definition.max !== undefined && integer > definition.max) {
-            invalidInput(`${definition.key} must be less than or equal to ${definition.max}`);
-        }
-
-        return String(integer);
-    }
-
-    if (definition.type === 'select') {
-        if (typeof value !== 'string') invalidInput(`${definition.key} must be a string`);
-        const normalized = value.trim();
-        if (!definition.options?.includes(normalized)) {
-            invalidInput(`${definition.key} must be one of: ${definition.options?.join(', ')}`);
-        }
-        return normalized;
-    }
-
-    if (typeof value !== 'string') invalidInput(`${definition.key} must be a string`);
-    if (value.length > MAX_STRING_PROPERTY_LENGTH || /[\0\r\n]/.test(value)) {
-        invalidInput(`${definition.key} is invalid`);
-    }
-    return value;
+function renderPropertyValue(definition: SettingDefinition, value: SettingValue): string {
+    if (definition.type === 'boolean') return value ? 'true' : 'false';
+    return String(value);
 }
 
-async function readServerPropertiesFile(serverId: number): Promise<{ path: string; parsed: ParsedPropertiesFile }> {
+function getPropertyLine(
+    parsed: ParsedPropertiesFile,
+    key: string
+): Extract<ParsedPropertyLine, { type: 'property' }> | null {
+    const line = parsed.lines.find((entry) => entry.type === 'property' && entry.key === key);
+    return line?.type === 'property' ? line : null;
+}
+
+type MinecraftPropertiesSnapshot = { filePath: string; parsed: ParsedPropertiesFile };
+
+async function readServerPropertiesFile(serverId: number): Promise<MinecraftPropertiesSnapshot> {
     const resolved = await resolveDataFile(serverId, '/server.properties');
     await ensureIsFile(resolved.absPath, resolved.rootDir);
     const content = await fs.readFile(resolved.absPath, 'utf8');
-    return { path: resolved.absPath, parsed: parsePropertiesContent(content) };
-}
-
-function getPropertyLine(parsed: ParsedPropertiesFile, key: string): Extract<ParsedPropertyLine, { type: 'property' }> | null {
-    const line = parsed.lines.find((entry) => entry.type === 'property' && entry.key === key);
-    return line?.type === 'property' ? line : null;
+    return { filePath: resolved.absPath, parsed: parsePropertiesContent(content) };
 }
 
 function propertiesToMap(parsed: ParsedPropertiesFile): Map<string, string> {
@@ -483,51 +496,38 @@ async function readMinecraftPropertiesMap(server: GameServerRow): Promise<Map<st
     return propertiesToMap(parsed);
 }
 
-async function listMinecraftSettingsFromDefinitions(
-    server: GameServerRow,
-    definitions: MinecraftSettingDefinition[]
-): Promise<MinecraftSetting[]> {
-    const values = await readMinecraftPropertiesMap(server);
-    return definitions
-        .filter((definition) => values.has(definition.key))
-        .map((definition) => ({
-            ...definition,
-            value: convertSettingValue(definition, values.get(definition.key) ?? ''),
-        }));
-}
+const MINECRAFT_FILE_SETTINGS: FileSettingsAccessor<MinecraftPropertiesSnapshot> = {
+    onMissing: 'omit',
 
-async function patchMinecraftSettingsFromDefinitions(
-    server: GameServerRow,
-    definitionsByKey: Map<string, MinecraftSettingDefinition>,
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: MinecraftSetting[] }> {
-    const entries = Object.entries(updates);
-    if (entries.length === 0) invalidInput('settings must contain at least one value');
+    definitions(server: GameServerRow): SettingDefinition[] {
+        return getOvhcloudMinecraftMetadata(server).edition === 'bedrock'
+            ? MINECRAFT_BEDROCK_SETTING_DEFINITIONS
+            : MINECRAFT_JAVA_SETTING_DEFINITIONS;
+    },
 
-    const { path: filePath, parsed } = await readServerPropertiesFile(server.id);
-    const updated: string[] = [];
+    async load(server: GameServerRow): Promise<MinecraftPropertiesSnapshot> {
+        getOvhcloudMinecraftMetadata(server);
+        return readServerPropertiesFile(server.id);
+    },
 
-    for (const [key, value] of entries) {
-        const definition = definitionsByKey.get(key);
-        if (!definition) invalidInput(`Unsupported Minecraft setting: ${key}`);
+    read(snapshot: MinecraftPropertiesSnapshot, definition: SettingDefinition): SettingValue | null {
+        const line = getPropertyLine(snapshot.parsed, definition.key);
+        return line === null ? null : parsePropertyValue(definition, line.value);
+    },
 
-        const line = getPropertyLine(parsed, key);
-        if (!line) {
-            throw Object.assign(new Error(`Minecraft setting is not present in server.properties: ${key}`), { statusCode: 404 });
-        }
+    write(snapshot: MinecraftPropertiesSnapshot, definition: SettingDefinition, value: SettingValue): boolean {
+        const line = getPropertyLine(snapshot.parsed, definition.key);
+        if (!line) return false;
 
-        line.value = serializeSettingValue(definition, value);
-        line.raw = `${key}=${escapeJavaPropertyValue(line.value)}`;
-        updated.push(key);
-    }
+        line.value = renderPropertyValue(definition, value);
+        line.raw = `${definition.key}=${escapeJavaPropertyValue(line.value)}`;
+        return true;
+    },
 
-    await fs.writeFile(filePath, serializePropertiesFile(parsed), 'utf8');
-
-    return {
-        updated,
-        settings: await listMinecraftSettings(server),
-    };
-}
+    async save(_server: GameServerRow, snapshot: MinecraftPropertiesSnapshot): Promise<void> {
+        await fs.writeFile(snapshot.filePath, serializePropertiesFile(snapshot.parsed), 'utf8');
+    },
+};
 
 export async function readMinecraftJavaPropertiesMap(server: GameServerRow): Promise<Map<string, string>> {
     assertOvhcloudMinecraftJavaServer(server);
@@ -544,43 +544,6 @@ export async function readMinecraftLevelName(server: GameServerRow): Promise<str
     }
 }
 
-export async function listMinecraftJavaSettings(server: GameServerRow): Promise<MinecraftSetting[]> {
-    assertOvhcloudMinecraftJavaServer(server);
-    return listMinecraftSettingsFromDefinitions(server, MINECRAFT_JAVA_SETTING_DEFINITIONS);
-}
-
-export async function patchMinecraftJavaSettings(
-    server: GameServerRow,
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: MinecraftSetting[] }> {
-    assertOvhcloudMinecraftJavaServer(server);
-    return patchMinecraftSettingsFromDefinitions(server, SETTING_DEFINITIONS_BY_KEY, updates);
-}
-
-export async function listMinecraftBedrockSettings(server: GameServerRow): Promise<MinecraftSetting[]> {
-    assertOvhcloudMinecraftBedrockServer(server);
-    return listMinecraftSettingsFromDefinitions(server, MINECRAFT_BEDROCK_SETTING_DEFINITIONS);
-}
-
-export async function patchMinecraftBedrockSettings(
-    server: GameServerRow,
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: MinecraftSetting[] }> {
-    assertOvhcloudMinecraftBedrockServer(server);
-    return patchMinecraftSettingsFromDefinitions(server, BEDROCK_SETTING_DEFINITIONS_BY_KEY, updates);
-}
-
-export async function listMinecraftSettings(server: GameServerRow): Promise<MinecraftSetting[]> {
-    const metadata = getOvhcloudMinecraftMetadata(server);
-    if (metadata.edition === 'bedrock') return listMinecraftBedrockSettings(server);
-    return listMinecraftJavaSettings(server);
-}
-
-export async function patchMinecraftSettings(
-    server: GameServerRow,
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: MinecraftSetting[] }> {
-    const metadata = getOvhcloudMinecraftMetadata(server);
-    if (metadata.edition === 'bedrock') return patchMinecraftBedrockSettings(server, updates);
-    return patchMinecraftJavaSettings(server, updates);
+export function minecraftFileSettingsAccessor(): FileSettingsAccessor<MinecraftPropertiesSnapshot> {
+    return MINECRAFT_FILE_SETTINGS;
 }

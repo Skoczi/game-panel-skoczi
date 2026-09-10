@@ -14,7 +14,7 @@
 
 <br>
 
-OVHcloud Game Panel is an **open-source, self-hosted** control panel to deploy, run, and monitor your game servers — **without ever touching the command line**. Spin up a Minecraft, Counter-Strike 2, Hytale, Palworld, Project Zomboid, or Rust server in a few clicks, then manage its files, backups, player access, and performance from a single modern dashboard. 🚀
+OVHcloud Game Panel is an **open-source, self-hosted** control panel to deploy, run, and monitor your game servers — **without ever touching the command line**. Spin up a Minecraft, Counter-Strike 2, Hytale, Palworld, Project Zomboid, Rust, or Valheim server in a few clicks, then manage its files, backups, player access, and performance from a single modern dashboard. 🚀
 
 ## ✨ Features
 
@@ -41,6 +41,7 @@ OVHcloud Game Panel is an **open-source, self-hosted** control panel to deploy, 
 - **Palworld**
 - **Project Zomboid**
 - **Rust**
+- **Valheim**
 
 **And many more.** Game Panel integrates the full [LinuxGSM](https://linuxgsm.com/servers/) library, giving you a huge catalogue of additional dedicated game servers out of the box.
 
@@ -50,7 +51,7 @@ Your game isn't listed? You can also **add any external Docker image** and run i
 
 ### ⚡ Automatic — OVHcloud VPS or Dedicated Server (recommended)
 
-Game Panel can be installed **automatically, in one click**, when you deploy an OVHcloud **VPS** or **Dedicated Server**. *(Guide coming soon.)*
+Game Panel can be installed **automatically, in one click**, when you deploy an OVHcloud **VPS** or **Dedicated Server**. See the [installation guide](https://docs.ovhcloud.com/en/guides/bare-metal-cloud/virtual-private-servers/game-panel-install-on-vps).
 
 ### 🛠️ Manual installation
 

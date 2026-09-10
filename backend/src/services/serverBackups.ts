@@ -1,6 +1,8 @@
 import { getOvhcloudServerAdapter } from '../providers/ovhcloud/adapters/registry.js';
 import type {
     OvhcloudBackupCreateResult,
+    OvhcloudBackupDirectory,
+    OvhcloudBackupFilePair,
     OvhcloudBackupRestoreInput,
     OvhcloudBackupRestoreResult,
     OvhcloudBackupSupport,
@@ -8,6 +10,7 @@ import type {
 import { getLinuxGsmMetadata } from '../providers/serverMetadata.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import * as dockerUtils from '../utils/docker.js';
+import type { FsEntry } from '../utils/fsBrowser.js';
 
 const LINUXGSM_BACKUP_EXTENSIONS = ['.tar.zst'];
 
@@ -71,12 +74,38 @@ export async function getBackupFileLocation(server: GameServerRow): Promise<Back
     throw Object.assign(new Error('Backups are not supported for external servers'), { statusCode: 501 });
 }
 
-export function getBackupKind(server: GameServerRow): 'archive' | 'directory' {
+export function getBackupKind(server: GameServerRow): 'archive' | 'directory' | 'file-pair' {
     if (server.provider === 'ovhcloud') {
         return getOvhcloudBackupSupport(server).kind ?? 'archive';
     }
 
     return 'archive';
+}
+
+export function getBackupFilePair(server: GameServerRow): OvhcloudBackupFilePair {
+    const filePair = server.provider === 'ovhcloud' ? getOvhcloudBackupSupport(server).filePair : undefined;
+    if (!filePair) {
+        throw Object.assign(new Error('File-pair backups are not supported for this server'), { statusCode: 501 });
+    }
+    return filePair;
+}
+
+function getBackupDirectory(server: GameServerRow): OvhcloudBackupDirectory | undefined {
+    return server.provider === 'ovhcloud' ? getOvhcloudBackupSupport(server).directory : undefined;
+}
+
+export function listBackupDirectories(server: GameServerRow, entries: FsEntry[]): FsEntry[] {
+    const directory = getBackupDirectory(server);
+    return entries.filter((entry) => (
+        entry.type === 'dir' && (!directory || directory.isBackup(entry.name))
+    ));
+}
+
+export function assertSupportedBackupDirectory(server: GameServerRow, name: string): void {
+    const directory = getBackupDirectory(server);
+    if (directory && !directory.isBackup(name)) {
+        throw Object.assign(new Error(`'${name}' is not a backup`), { statusCode: 400 });
+    }
 }
 
 export function assertSupportedBackupArchive(server: GameServerRow, name: string): void {

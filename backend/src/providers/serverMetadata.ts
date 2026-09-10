@@ -36,6 +36,11 @@ export type OvhcloudRustMetadata = OvhcloudProviderMetadata & {
     serverType: 'rust';
 };
 
+export type OvhcloudValheimMetadata = OvhcloudProviderMetadata & {
+    family: 'valheim';
+    serverType: 'valheim';
+};
+
 export function getLinuxGsmMetadata(server: GameServerRow): LinuxGsmProviderMetadata {
     if (server.provider !== 'linuxgsm') {
         throw Object.assign(new Error('Feature is only available for LinuxGSM servers'), { statusCode: 501 });
@@ -168,4 +173,14 @@ export function getOvhcloudRustMetadata(server: GameServerRow): OvhcloudRustMeta
     }
 
     return metadata as OvhcloudRustMetadata;
+}
+
+export function getOvhcloudValheimMetadata(server: GameServerRow): OvhcloudValheimMetadata {
+    const metadata = getOvhcloudMetadata(server);
+
+    if (metadata.family !== 'valheim' || metadata.serverType !== 'valheim') {
+        throw Object.assign(new Error('Feature is only available for OVHcloud Valheim servers'), { statusCode: 501 });
+    }
+
+    return metadata as OvhcloudValheimMetadata;
 }

@@ -1,4 +1,4 @@
-ARG COMPOSE_VERSION=v5.4.0
+ARG COMPOSE_VERSION=v5.5.1
 FROM docker/compose-bin:${COMPOSE_VERSION} AS compose
 
 FROM alpine:3.24
@@ -18,7 +18,8 @@ LABEL org.opencontainers.image.title="Game Panel Updater Image" \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.base.name="alpine:3.24"
 
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache \
     bash \
     ca-certificates \
     curl \

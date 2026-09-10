@@ -2,13 +2,6 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { apiClient, type RealtimeConnectionStatus } from '../utils/api';
 
-/**
- * Self-contained banner that surfaces a lost realtime connection. It subscribes to
- * the WebSocket gateway's status (no prop drilling) and only appears while the
- * gateway is actively retrying, so operators know the live data is stale instead of
- * silently seeing frozen metrics/logs. Intentional disconnects ('closed', e.g. logout)
- * are not shown.
- */
 export function RealtimeStatusBanner() {
   const [status, setStatus] = useState<RealtimeConnectionStatus>(() =>
     apiClient.getConnectionStatus()

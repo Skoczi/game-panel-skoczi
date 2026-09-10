@@ -15,8 +15,6 @@ export interface FileItem {
 // files into the browser. Mirror that limit so we never open the editor for one.
 export const MAX_INLINE_EDIT_BYTES = 2 * 1024 * 1024;
 
-// Kick off a native browser download by clicking a hidden same-origin anchor. The
-// saved filename comes from the server's Content-Disposition header.
 function triggerDownload(url: string) {
   const a = document.createElement('a');
   a.href = url;
@@ -109,7 +107,6 @@ export const createFileManagerHandlers = (deps: CreateFileManagerHandlersDeps) =
     setDeleteMultiNames,
   } = deps;
 
-  // Checkbox click: toggle selection only (never navigates)
   const handleFileClick = (file: FileItem) => {
     if (renamingFile || file.name === '..') return;
     setSelectedItems((prev) =>
@@ -117,7 +114,6 @@ export const createFileManagerHandlers = (deps: CreateFileManagerHandlersDeps) =
     );
   };
 
-  // Double click: navigate into folder or open file in editor
   const handleFileDoubleClick = async (file: FileItem) => {
     if (renamingFile) return;
 
@@ -161,8 +157,6 @@ export const createFileManagerHandlers = (deps: CreateFileManagerHandlersDeps) =
         const content = await apiClient.readServerFile(serverId, filePath, currentRoot);
         setFileContent(content ?? '');
       } catch (error: any) {
-        // Safety net if the size wasn't known up front: close the editor and show
-        // the clear message instead of a raw "status code 413".
         if (error?.response?.status === 413) {
           setSelectedFile(null);
           setFilesError(tooLargeMsg);
@@ -181,7 +175,6 @@ export const createFileManagerHandlers = (deps: CreateFileManagerHandlersDeps) =
     setShowDeleteEntryModal(true);
   };
 
-  // Move entries into targetDir; backed by the rename route (fs.rename, moves whole subtrees).
   const handleMoveEntries = async (names: string[], targetDir: string) => {
     if (!canWriteFiles || !serverId) return;
     const movable = names.filter((name) => name && name !== '..');

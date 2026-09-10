@@ -26,8 +26,6 @@ import { useDropzone } from 'react-dropzone';
 import { AppButton, AppInput } from '../../src/ui/components';
 import { useCoarsePointer } from '../../src/ui/utils/useCoarsePointer';
 
-// Lazily loaded so CodeMirror (editor + 7 language grammars) is only fetched when a
-// file is actually opened for editing, not on initial app load.
 const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.CodeEditor })));
 
 interface FileItem {
@@ -191,6 +189,16 @@ export function FileManagerTab({
     disabled: !canWriteFiles || !onUploadFiles,
   });
 
+  // Stable identity: CodeEditor is memoised, and an inline handler would defeat it on every
+  // unrelated re-render of the tree.
+  const handleEditorChange = useCallback(
+    (next: string) => {
+      setFileContent(next);
+      setIsFileDirty(true);
+    },
+    [setFileContent, setIsFileDirty]
+  );
+
   const closeEditorModal = () => {
     setSelectedFile(null);
     setFileContent('');
@@ -201,7 +209,6 @@ export function FileManagerTab({
   // open on a single tap; folders already open on click. Native drag is also unsupported there.
   const isTouch = useCoarsePointer();
 
-  // ── Internal drag-and-drop to move entries between folders ──────────────────────────────
   // Uses a custom mime so react-dropzone (which only reacts to OS "Files" drags) stays inert.
   const MOVE_MIME = 'application/x-gp-move';
   const [dragSourceName, setDragSourceName] = useState<string | null>(null);
@@ -222,7 +229,6 @@ export function FileManagerTab({
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  // A folder row (or "..") accepts a drop as long as something is being dragged onto a different row.
   const canDropOn = (file: FileItem) =>
     canWriteFiles && !!dragSourceName && dragSourceName !== file.name;
 
@@ -246,7 +252,6 @@ export function FileManagerTab({
     clearDrag();
     if (!source) return;
     const targetDir = file.name === '..' ? parentDir : (currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`);
-    // Move the whole selection when the dragged row is part of it; otherwise just the dragged row.
     const names = (selectedItems.includes(source) ? selectedItems : [source]).filter(
       (n) => n !== file.name && n !== '..'
     );
@@ -258,7 +263,6 @@ export function FileManagerTab({
     <div className="h-full flex flex-col" {...getRootProps()}>
       <input {...getInputProps()} />
 
-      {/* Toolbar */}
       <div
         className={`h-[52px] px-3 border-b ${borderColor} ${contentBg} flex items-center gap-1 flex-shrink-0`}
       >
@@ -403,7 +407,6 @@ export function FileManagerTab({
         </div>
       </div>
 
-      {/* File list */}
       <div className="flex-1 overflow-y-auto p-2.5 relative">
         {isDragActive && canWriteFiles && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-lg m-1 pointer-events-none">
@@ -448,7 +451,6 @@ export function FileManagerTab({
               const isDropTarget = isFolder && dropTargetName === file.name;
               // Native HTML5 drag is unsupported on touch and interferes with taps there, so disable it.
               const isDraggable = canWriteFiles && file.type !== 'symlink' && renamingFile !== file.name && !isTouch;
-              // Touch: single tap opens both folders and files. Desktop: click folders, double-click files.
               const openOnClick = isFolder || isTouch;
               return (
                 <div
@@ -470,7 +472,6 @@ export function FileManagerTab({
                   onDrop={isFolder ? handleRowDrop(file) : undefined}
                 >
                   {renamingFile === file.name ? (
-                    /* Rename mode — full row */
                     <div
                       className="flex flex-1 items-center gap-2"
                       onClick={(e) => e.stopPropagation()}
@@ -507,7 +508,6 @@ export function FileManagerTab({
                     </div>
                   ) : (
                     <>
-                      {/* Checkbox */}
                       <div
                         className={`w-3.5 h-3.5 flex-shrink-0 flex items-center justify-center rounded border cursor-pointer transition-colors ${
                           isSelected
@@ -519,7 +519,6 @@ export function FileManagerTab({
                         {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
                       </div>
 
-                      {/* Icon */}
                       {file.type === 'folder' ? (
                         <Folder className="w-3.5 h-3.5 text-[var(--color-cyan-400)] flex-shrink-0" />
                       ) : file.type === 'symlink' ? (
@@ -528,12 +527,10 @@ export function FileManagerTab({
                         <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       )}
 
-                      {/* Name */}
                       <span className={`flex-1 min-w-0 truncate text-[14px] leading-tight ${textPrimary}`}>
                         {file.name}
                       </span>
 
-                      {/* Badges */}
                       {file.type === 'symlink' && (
                         <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300 flex-shrink-0">
                           Symlink
@@ -545,7 +542,6 @@ export function FileManagerTab({
                         </span>
                       )}
 
-                      {/* Hover actions */}
                       <div
                         className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                         onClick={(e) => e.stopPropagation()}
@@ -627,7 +623,6 @@ export function FileManagerTab({
         )}
       </div>
 
-      {/* Archive extraction status — activity only, no percentage (server-side work) */}
       {extractStatus && (
         <div className={`border-t ${borderColor} px-3 py-1.5 flex-shrink-0`}>
           {extractStatus.status === 'failed' ? (
@@ -649,13 +644,11 @@ export function FileManagerTab({
         </div>
       )}
 
-      {/* Upload queue */}
       {uploadQueue && uploadQueue.length > 0 && (() => {
         const total = uploadQueue.length;
         const failed = uploadQueue.filter((it) => !!it.error).length;
         const inProgress = uploadQueue.filter((it) => !it.done).length;
         const succeeded = total - failed - inProgress;
-        // The batch is finished once nothing is in flight; only then surface a recap.
         const finished = inProgress === 0;
         return (
         <div className={`border-t ${borderColor} px-3 py-1.5 space-y-1 max-h-28 overflow-y-auto flex-shrink-0`}>
@@ -695,7 +688,6 @@ export function FileManagerTab({
         );
       })()}
 
-      {/* Editor modal */}
       {selectedFile && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4"
@@ -705,7 +697,6 @@ export function FileManagerTab({
             className={`flex h-full md:h-[calc(100vh-2rem)] w-full max-w-7xl flex-col rounded-none md:rounded-xl border ${borderColor} ${contentBg} shadow-2xl overflow-hidden`}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className={`flex flex-shrink-0 items-center justify-between border-b ${borderColor} px-4 py-3`}>
               <div className="flex min-w-0 items-center gap-2">
                 <FileText className="h-4 w-4 flex-shrink-0 text-[var(--color-cyan-400)]" />
@@ -754,7 +745,6 @@ export function FileManagerTab({
               </div>
             </div>
 
-            {/* Modal content */}
             <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
               {fileLoading ? (
                 <div className={`p-4 text-sm ${textSecondary}`}>Loading file...</div>
@@ -764,11 +754,12 @@ export function FileManagerTab({
                     fallback={<div className={`p-4 text-sm ${textSecondary}`}>Loading editor…</div>}
                   >
                     <CodeEditor
+                      // Remounted per file: it closes the search panel, which otherwise
+                      // survives anything but its close button, and keeps the undo history
+                      // of one file from reaching into the next.
+                      key={`${currentRoot}:${currentPath}/${selectedFile.name}`}
                       value={fileContent}
-                      onChange={(value) => {
-                        setFileContent(value);
-                        setIsFileDirty(true);
-                      }}
+                      onChange={handleEditorChange}
                       filename={selectedFile.name}
                       readOnly={!canWriteFiles}
                     />

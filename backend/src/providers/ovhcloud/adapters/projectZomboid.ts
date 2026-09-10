@@ -13,7 +13,11 @@ import {
     restoreProjectZomboidBackup,
 } from '../images/projectZomboid/backups.js';
 import projectZomboidRoutes from '../images/projectZomboid/routes.js';
+import { projectZomboidConfigFiles } from '../images/projectZomboid/configFiles.js';
+import { projectZomboidLaunchSettingsAccessor } from '../images/projectZomboid/launchSettings.js';
+import { projectZomboidFileSettingsAccessor } from '../images/projectZomboid/settings.js';
 import { resolveProjectZomboidSoftWipeTargets } from '../images/projectZomboid/wipe.js';
+import { PERMISSIONS } from '../../../permissions.js';
 import { OVHCLOUD_DOCKER_STOP_TIMEOUT_SECONDS } from './common.js';
 import type { OvhcloudImageAdapter, OvhcloudInstallResolution } from './types.js';
 
@@ -40,6 +44,18 @@ export const projectZomboidAdapter: OvhcloudImageAdapter = {
         },
         create: createProjectZomboidBackup,
         restore: restoreProjectZomboidBackup,
+    },
+    settings: {
+        label: 'Project Zomboid',
+        file: {
+            permissions: {
+                read: PERMISSIONS.projectZomboid.settings.read,
+                write: PERMISSIONS.projectZomboid.settings.write,
+            },
+            accessor: projectZomboidFileSettingsAccessor,
+        },
+        launch: projectZomboidLaunchSettingsAccessor,
+        configFiles: projectZomboidConfigFiles,
     },
     routes: [
         { path: '/project-zomboid', router: projectZomboidRoutes },

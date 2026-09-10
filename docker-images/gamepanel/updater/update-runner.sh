@@ -121,6 +121,8 @@ sync_project_sources
 append_env_if_missing "GAMEPANEL_APP_ROOT" "$APP_ROOT"
 append_env_if_missing "GAMEPANEL_REPOSITORY_URL" "$GP_UPDATE_REPO_URL"
 
+render_compose_if_available
+
 update_job "running" "running_deploy_migrations" "Running deploy migrations"
 run_deploy_migrations
 
@@ -134,7 +136,7 @@ compose_cmd build --pull
 compose_cmd up -d --remove-orphans
 
 update_job "running" "verifying_health" "Waiting for the updated panel to become healthy"
-if ! wait_for_backend_healthy; then
+if ! wait_for_backend_healthy || ! wait_for_panel_http 90; then
   trap - ERR
   update_job "failed" "failed" "Update failed: the updated panel did not become healthy" \
     "The panel did not become healthy within 3 minutes and may be broken. Restore the previous version on the host with: sudo bash deploy/rollback.sh"

@@ -10,10 +10,7 @@ export interface WipeSectionProps {
   serverStatus?: string | null;
   canWrite: boolean;
   modes: WipeModeInfo[];
-  // Soft returns the removed paths; hard returns reinstalling:true (see onReinstallStarted).
   onWipe: (mode: WipeMode) => Promise<{ removed?: string[]; reinstalling?: boolean }>;
-  // Called after a hard wipe returns: the server reinstalls, so the caller closes the
-  // settings modal and lets the normal install-progress UI take over.
   onReinstallStarted?: () => void;
   borderColor: string;
   contentBg: string;
@@ -21,7 +18,6 @@ export interface WipeSectionProps {
   textSecondary: string;
 }
 
-// Per-tone Tailwind fragments (soft = orange, hard = red).
 const TONE = {
   soft: {
     card: 'border-amber-500/40 bg-amber-500/[0.06]',

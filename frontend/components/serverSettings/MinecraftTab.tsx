@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
-import { GameSettingsSection } from './GameSettingsSection';
+import { OvhcloudSettingsSection } from './OvhcloudSettingsSection';
 import { MinecraftAddonsSection } from './MinecraftAddonsSection';
 import { GameWipeTab } from './GameWipeTab';
 import { buildWipeModes } from './wipeModes';
-import { MinecraftVersionPicker } from '../MinecraftVersionPicker';
-import { getPickerManagedKeys, type McServerType } from '../../utils/minecraftCatalog';
-
-// ── Types ──────────────────────────────────────────────────────────────────
+import { type McServerType } from '../../utils/minecraftCatalog';
 
 type Operator = { uuid: string; name: string; level: number; bypassesPlayerLimit: boolean };
 type WhitelistPlayer = { uuid: string; name: string };
@@ -21,7 +18,8 @@ export interface MinecraftSectionsProps {
   serverStatus?: string | null;
   canReadSettings: boolean;
   canWriteSettings: boolean;
-  advancedLinksNode?: React.ReactNode;
+  canReadFileManager?: boolean;
+  onOpenFileManagerPath?: (path: string) => void;
   canReadOperators: boolean;
   canWriteOperators: boolean;
   canReadWhitelist: boolean;
@@ -42,12 +40,9 @@ export interface MinecraftSectionsProps {
   textSecondary: string;
   mcServerType?: McServerType | null;
   canEditVersion?: boolean;
-  /** Whether the caller holds `server.env`; the env-backed version picker is hidden when false. */
   canManageEnv?: boolean;
   containerConfigSaveCount?: number;
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 
 function SectionCard({ title, children, borderColor, contentBg, textPrimary }: {
   title: string;
@@ -81,9 +76,6 @@ function ErrorMsg({ error }: { error: string | null }) {
 
 const MC_NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
 const validateMcName = (name: string) => MC_NAME_RE.test(name.trim());
-
-
-// ── Operators Section ──────────────────────────────────────────────────────
 
 function OperatorsSection({
   serverId, serverStatus, canRead, canWrite, isActive, borderColor, contentBg, textPrimary, textSecondary,
@@ -209,8 +201,6 @@ function OperatorsSection({
     </SectionCard>
   );
 }
-
-// ── Whitelist Section ──────────────────────────────────────────────────────
 
 function WhitelistSection({
   serverId, serverStatus, canRead, canWrite, isActive, borderColor, contentBg, textPrimary, textSecondary,
@@ -369,8 +359,6 @@ function WhitelistSection({
   );
 }
 
-// ── Player Bans Section ────────────────────────────────────────────────────
-
 function PlayerBansSection({
   serverId, serverStatus, canRead, canWrite, isActive, borderColor, contentBg, textPrimary, textSecondary,
 }: {
@@ -497,8 +485,6 @@ function PlayerBansSection({
   );
 }
 
-// ── IP Bans Section ────────────────────────────────────────────────────────
-
 function IpBansSection({
   serverId, serverStatus, canRead, canWrite, isActive, borderColor, contentBg, textPrimary, textSecondary,
 }: {
@@ -623,163 +609,6 @@ function IpBansSection({
   );
 }
 
-// ── ServerVersionSection ───────────────────────────────────────────────────
-
-function ServerVersionSection({
-  serverId, mcServerType, canEdit, borderColor, contentBg, textPrimary, serverStatus, containerConfigSaveCount,
-}: {
-  serverId: number;
-  mcServerType: McServerType;
-  canEdit: boolean;
-  borderColor: string;
-  contentBg: string;
-  textPrimary: string;
-  textSecondary: string;
-  serverStatus?: string | null;
-  containerConfigSaveCount?: number;
-}) {
-  const [serverEnv, setServerEnv] = useState<Record<string, string> | null>(null);
-  const [envLoading, setEnvLoading] = useState(true);
-  const [pickerEnv, setPickerEnv] = useState<Record<string, string>>({});
-  const baselineEnvRef = useRef<Record<string, string> | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const handlePickerChange = (env: Record<string, string>) => {
-    if (baselineEnvRef.current === null && Object.keys(env).length > 0) {
-      baselineEnvRef.current = env;
-    }
-    setPickerEnv(env);
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    baselineEnvRef.current = null;
-    setEnvLoading(true);
-    apiClient.getServer(serverId).then((server: any) => {
-      if (cancelled) return;
-      // Handle env as object, array, or string.
-      const rawEnv = server?.env ?? server?.env_json ?? {};
-      const parsed: Record<string, string> = {};
-      const fromArray = (arr: unknown[]) => {
-        for (const item of arr) {
-          if (typeof item !== 'string') continue;
-          const idx = item.indexOf('=');
-          if (idx >= 0) parsed[item.slice(0, idx)] = item.slice(idx + 1);
-        }
-      };
-      if (typeof rawEnv === 'string') {
-        try {
-          const decoded = JSON.parse(rawEnv);
-          if (Array.isArray(decoded)) fromArray(decoded);
-          else if (decoded && typeof decoded === 'object') Object.assign(parsed, decoded);
-        } catch { /* use empty */ }
-      } else if (Array.isArray(rawEnv)) {
-        fromArray(rawEnv);
-      } else if (typeof rawEnv === 'object' && rawEnv !== null) {
-        Object.assign(parsed, rawEnv as Record<string, string>);
-      }
-      setServerEnv(parsed);
-    }).catch(() => {
-      if (!cancelled) setServerEnv({});
-    }).finally(() => {
-      if (!cancelled) setEnvLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [serverId, containerConfigSaveCount]);
-
-  const managedKeys = getPickerManagedKeys(mcServerType);
-  const initialEnv = serverEnv ?? {};
-
-  const isDirty = baselineEnvRef.current !== null && managedKeys.some(
-    (k) => (pickerEnv[k] ?? '') !== (baselineEnvRef.current![k] ?? '')
-  );
-
-  const diffLines: string[] = [];
-  if (isDirty && serverEnv) {
-    for (const key of managedKeys) {
-      const oldVal = serverEnv[key] ?? '';
-      const newVal = pickerEnv[key] ?? '';
-      if (newVal && oldVal !== newVal) {
-        diffLines.push(`${key}: ${oldVal || '(not set)'} → ${newVal}`);
-      }
-    }
-  }
-
-  const isRunning = serverStatus === 'running';
-
-  const handleSave = async () => {
-    if (!canEdit || !serverEnv) return;
-    setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-    try {
-      const newEnv = { ...serverEnv, ...pickerEnv };
-      await apiClient.updateServer(serverId, { env: newEnv });
-      setServerEnv(newEnv);
-      if (isRunning) {
-        await apiClient.restartServer(serverId);
-      }
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setSaveError(err?.response?.data?.error || err?.message || 'Failed to save version.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className={`${contentBg} border ${borderColor} rounded-lg p-4 mb-5`}>
-      <h4 className={`text-base font-semibold ${textPrimary} mb-3`}>
-        Server Version
-      </h4>
-
-      {envLoading ? (
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Loading current version…
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <MinecraftVersionPicker
-            serverType={mcServerType}
-            initialEnv={initialEnv}
-            canEdit={canEdit}
-            onEnvChange={handlePickerChange}
-          />
-
-          {saveSuccess && (
-            <div className="flex items-center gap-2 text-sm text-emerald-400">
-              <Check className="w-4 h-4" />
-              {isRunning ? 'Version saved. Server is restarting…' : 'Version saved.'}
-            </div>
-          )}
-
-          {saveError && <p className="text-sm text-red-400">{saveError}</p>}
-
-          {canEdit && (
-            <div className="flex justify-end">
-              <AppButton
-                tone="primary"
-                onClick={handleSave}
-                disabled={saving || !isDirty}
-                className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                {saving ? 'Saving…' : isRunning ? 'Save & Restart' : 'Save'}
-              </AppButton>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── MinecraftSections (embeddable, horizontal sub-tabs) ───────────────────
-
 type MinecraftSubTab = 'settings' | 'operators' | 'whitelist' | 'bans' | 'ipbans' | 'addons' | 'wipe';
 
 export function MinecraftSections({
@@ -787,7 +616,8 @@ export function MinecraftSections({
   serverStatus,
   canReadSettings,
   canWriteSettings,
-  advancedLinksNode,
+  canReadFileManager,
+  onOpenFileManagerPath,
   canReadOperators,
   canWriteOperators,
   canReadWhitelist,
@@ -809,11 +639,9 @@ export function MinecraftSections({
   mcServerType,
   canEditVersion = false,
   canManageEnv = false,
-  containerConfigSaveCount,
 }: MinecraftSectionsProps) {
   const addonLabel = addonKind === 'plugins' ? 'Plugins' : 'Mods';
 
-  // The version picker is env-backed, so it needs `server.env`.
   const canShowVersion = !!mcServerType && canManageEnv;
 
   const showWipeTab = buildWipeModes('minecraft', {
@@ -844,7 +672,6 @@ export function MinecraftSections({
 
   return (
     <div>
-      {/* Horizontal tab bar */}
       <div className={`flex flex-wrap border-b ${borderColor} mb-5 gap-0`}>
         {tabs.map((tab) => (
           <button
@@ -862,32 +689,20 @@ export function MinecraftSections({
         ))}
       </div>
 
-      {/* Section panels — mounted on first visit, then kept in DOM (hidden) */}
       {visited.has('settings') && (canReadSettings || canShowVersion) && (
         <div className={`space-y-4 ${activeTab !== 'settings' ? 'hidden' : ''}`}>
-          {canReadSettings && (
-            <GameSettingsSection
-              {...sectionProps}
-              canRead={canReadSettings}
-              canWrite={canWriteSettings}
-              load={(id) => apiClient.getMinecraftSettings(id)}
-              save={(id, changed) => apiClient.patchMinecraftSettings(id, changed)}
-            />
-          )}
-          {canShowVersion && (
-            <ServerVersionSection
-              serverId={serverId}
-              mcServerType={mcServerType}
-              canEdit={canEditVersion}
-              borderColor={borderColor}
-              contentBg={contentBg}
-              textPrimary={textPrimary}
-              textSecondary={textSecondary}
-              serverStatus={serverStatus}
-              containerConfigSaveCount={containerConfigSaveCount}
-            />
-          )}
-          {canReadSettings && advancedLinksNode}
+          <OvhcloudSettingsSection
+            serverId={serverId}
+            serverStatus={serverStatus}
+            canWriteFile={canWriteSettings}
+            canWriteLaunch={canEditVersion}
+            canReadFileManager={canReadFileManager}
+            onOpenFileManagerPath={onOpenFileManagerPath}
+            borderColor={borderColor}
+            contentBg={contentBg}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+          />
         </div>
       )}
       {visited.has('operators') && canReadOperators && (

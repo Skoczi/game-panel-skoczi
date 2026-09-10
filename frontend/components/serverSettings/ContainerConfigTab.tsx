@@ -21,7 +21,6 @@ interface HealthcheckState {
   retries: string;
 }
 
-// Statuses that require a "restart needed" confirmation before saving container config.
 // 'installing' is intentionally excluded: the container will be recreated at end of install anyway.
 const RUNNING_STATUSES = new Set(['running', 'starting', 'stopping', 'restarting', 'unhealthy']);
 
@@ -36,7 +35,6 @@ interface ContainerConfigTabProps {
   textSecondary: string;
   hoverBg: string;
   canEdit: boolean;
-  /** Whether the caller holds `server.env`; when false the env editor is hidden and env is omitted on save. */
   canManageEnv: boolean;
   pickerManagedKeys?: string[];
   onSaved?: () => void;
@@ -247,7 +245,6 @@ export function ContainerConfigTab({
       resourceLimits: (cpuVal > 0 || memVal > 0) ? { cpu: cpuVal > 0 ? cpuVal : 0, memoryMb: memVal > 0 ? memVal : 0 } : null,
     };
 
-    // Only send env with `server.env`; otherwise the loaded env is redacted to `{}`.
     if (canManageEnv) {
       payload.env = entriesToEnv(envEntries);
     }
@@ -318,8 +315,6 @@ export function ContainerConfigTab({
           </p>
         </div>
 
-
-        {/* Docker Image (informational — read-only, shown first) */}
         {dockerImage && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
             <h4 className={`text-base font-semibold ${textPrimary} mb-3`}>Docker Image</h4>
@@ -329,7 +324,6 @@ export function ContainerConfigTab({
           </div>
         )}
 
-        {/* Ports */}
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Ports</h4>
 
@@ -359,7 +353,6 @@ export function ContainerConfigTab({
           </div>
         </div>
 
-        {/* Volumes */}
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Volumes</h4>
           <div className={sectionClass}>
@@ -417,7 +410,6 @@ export function ContainerConfigTab({
           </div>
         </div>
 
-        {/* Environment Variables — only rendered with `server.env` */}
         {canManageEnv && (
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Environment Variables</h4>
@@ -467,7 +459,6 @@ export function ContainerConfigTab({
         </div>
         )}
 
-        {/* Resource Limits */}
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
           <h4 className={`text-base font-semibold ${textPrimary} mb-1`}>Resource Limits</h4>
           <p className={`text-xs ${textSecondary} mb-4`}>
@@ -526,7 +517,6 @@ export function ContainerConfigTab({
           </div>
         </div>
 
-        {/* Healthcheck */}
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Healthcheck</h4>
           <div className="space-y-4">
@@ -651,7 +641,6 @@ export function ContainerConfigTab({
           </div>
         </div>
 
-        {/* Save button */}
         {error && (
           <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/30 rounded-lg px-4 py-3">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />

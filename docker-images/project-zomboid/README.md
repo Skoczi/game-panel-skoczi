@@ -10,7 +10,7 @@ The image installs and runs a Project Zomboid dedicated server through SteamCMD 
 | Capability | Support |
 | --- | --- |
 | Install / update via SteamCMD | Supported (with automatic retry on the transient SteamCMD "Missing configuration" error) |
-| Steam branch selection | Supported (via `PZ_BRANCH`; default = stable) |
+| Steam branch selection | Supported (via `PZ_BRANCH`) |
 | Console commands | Supported (stdin, via `/app/send-command.sh`) |
 | Hot backup while running | Supported |
 | Cold backup while stopped | Supported |
@@ -51,7 +51,7 @@ Boolean inputs accept `true` / `false` (and `1`, `yes`, `on` / `0`, `no`, `off`)
 | `PZ_ADMIN_PASSWORD` | *(required)* | any string | Admin account password (`-adminpassword`). The container refuses to start if empty. |
 | `PZ_ADMIN_USERNAME` | `admin` | any string | Admin account username (`-adminusername`). |
 | `PZ_SERVERNAME` | `servertest` | any string | Server config-set identifier (`-servername`); determines the config file prefix (`servertest.ini`, …). Not the browser display name. |
-| `PZ_BRANCH` | *(none)* | e.g. `unstable` | Steam beta branch (`-beta`). Unset = default `public` (stable, B41). `unstable` = B42. |
+| `PZ_BRANCH` | *(none)* | e.g. `unstable` | Steam beta branch (`-beta`). |
 | `PZ_START_PARAMS` | *(empty)* | any launch args | Extra arguments appended to `start-server.sh`. Values must not contain spaces. |
 | `PZ_UPDATE_ON_START` | `false` | boolean | Run a SteamCMD update on every start. |
 | `PZ_VALIDATE_ON_START` | `false` | boolean | Validate installed files via SteamCMD on start. |

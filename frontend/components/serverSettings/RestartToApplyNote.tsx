@@ -1,8 +1,5 @@
 import { RefreshCw } from 'lucide-react';
 
-// Compact, game-agnostic hint: changes to a game's config/mods only take effect on
-// the next start, so this appears ONLY while the server is running. Kept light on
-// purpose (a single line, not a boxed banner) so it doesn't weigh the page down.
 export function RestartToApplyNote({ serverStatus }: { serverStatus?: string | null }) {
   if (serverStatus !== 'running') return null;
   return (

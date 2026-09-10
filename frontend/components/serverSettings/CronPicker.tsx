@@ -1,7 +1,5 @@
 import { useState } from 'react';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type FreqType = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
 
 interface CronState {
@@ -13,8 +11,6 @@ interface CronState {
   monthDay: number;
   customCron: string;
 }
-
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const FREQ_TABS: { id: FreqType; label: string }[] = [
   { id: 'minutes', label: 'Minutes' },
@@ -36,7 +32,6 @@ const DAY_FULL   = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sat
 const DOW_NAME: Record<number, string> = { 0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday' };
 const DOW_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
-// ─── Timezone helpers ─────────────────────────────────────────────────────────
 // The backend cron runner interprets cron expressions in the server's timezone
 // (typically UTC). These helpers convert between local browser time and UTC so
 // that users always see and enter times in their own timezone.
@@ -66,8 +61,6 @@ function utcCronTimeToLocal(utcH: number, utcM: number): { time: string; dayOffs
     dayOffset: totalMin < 0 ? -1 : totalMin >= 1440 ? 1 : 0,
   };
 }
-
-// ─── Parse cron → state ───────────────────────────────────────────────────────
 
 function parseCron(cron: string): CronState {
   const base: CronState = {
@@ -110,8 +103,6 @@ function parseCron(cron: string): CronState {
   return { ...base, freqType: 'custom' };
 }
 
-// ─── State → cron ─────────────────────────────────────────────────────────────
-
 function stateToCron(s: CronState): string {
   switch (s.freqType) {
     case 'minutes': return `*/${s.everyMinutes} * * * *`;
@@ -135,8 +126,6 @@ function stateToCron(s: CronState): string {
     case 'custom':  return s.customCron;
   }
 }
-
-// ─── Description ──────────────────────────────────────────────────────────────
 
 function describeState(s: CronState): string {
   switch (s.freqType) {
@@ -168,8 +157,6 @@ function describeState(s: CronState): string {
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 interface CronPickerProps {
   value: string;
   onChange: (cron: string) => void;
@@ -191,7 +178,6 @@ export function CronPicker({ value, onChange, borderColor, textPrimary, textSeco
   };
 
   const switchTab = (id: FreqType) => {
-    // Pre-fill custom input with current generated cron
     if (id === 'custom') {
       update({ freqType: 'custom', customCron: stateToCron(state) });
     } else {
@@ -206,7 +192,6 @@ export function CronPicker({ value, onChange, borderColor, textPrimary, textSeco
 
   return (
     <div className="space-y-2">
-      {/* Frequency tabs */}
       <div className="flex flex-wrap gap-1.5">
         {FREQ_TABS.map(({ id, label }) => (
           <button
@@ -225,7 +210,6 @@ export function CronPicker({ value, onChange, borderColor, textPrimary, textSeco
         ))}
       </div>
 
-      {/* Controls */}
       <div className={`p-4 rounded-lg border ${borderColor} bg-gray-50 dark:bg-gray-900/30 space-y-4`}>
 
         {state.freqType === 'minutes' && (
@@ -348,7 +332,6 @@ export function CronPicker({ value, onChange, borderColor, textPrimary, textSeco
           </div>
         )}
 
-        {/* Summary line — only shown in custom mode */}
         {state.freqType === 'custom' && (
           <div className={`pt-2 border-t ${borderColor} flex items-center gap-2 flex-wrap`}>
             <span className={`text-xs font-medium ${textPrimary}`}>↳ {description}</span>

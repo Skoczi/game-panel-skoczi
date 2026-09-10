@@ -5,10 +5,10 @@ import type { SubscriptionChannel, WSMessage, WsLimitData } from './types.js';
 const SUBSCRIPTION_CHANNELS = new Set<SubscriptionChannel>([
     'logs',
     'actions',
-    'metrics',
     'install',
     'status',
     'servers',
+    'servers-metrics',
     'system-metrics',
     'file-transfers',
 ]);
@@ -142,8 +142,8 @@ export function parseIncomingWebSocketMessage(data: RawData): WSMessage {
             return { type, serverId: serverIdFromMessage(message), data: optionalLimitData(message) };
         case 'subscribe:actions':
             return { type, serverId: serverIdFromMessage(message), data: optionalLimitData(message) };
-        case 'subscribe:metrics':
-            return { type, serverId: serverIdFromMessage(message), data: optionalLimitData(message) };
+        case 'subscribe:servers-metrics':
+            return { type };
         case 'subscribe:system-metrics':
             return { type, data: optionalLimitData(message) };
         case 'subscribe:file-transfers':

@@ -3,7 +3,6 @@ import type { CLIMessage } from '../../types/cli';
 import { nextId } from '../../utils/uid';
 import { formatLogDisplayTime } from '../../utils/serverRuntime';
 
-// Cap the Activity log so a long session can't grow it unbounded.
 const MAX_CLI_MESSAGES = 2000;
 
 export function useCliMessages() {

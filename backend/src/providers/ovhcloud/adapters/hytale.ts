@@ -19,7 +19,10 @@ import {
     startHytaleServer,
 } from '../images/hytale/service.js';
 import hytaleRoutes from '../images/hytale/routes.js';
+import { hytaleConfigFiles } from '../images/hytale/configFiles.js';
+import { hytaleFileSettingsAccessor } from '../images/hytale/settings.js';
 import { resolveHytaleSoftWipeTargets } from '../images/hytale/wipe.js';
+import { PERMISSIONS } from '../../../permissions.js';
 import { OVHCLOUD_DOCKER_STOP_TIMEOUT_SECONDS } from './common.js';
 import type { OvhcloudImageAdapter, OvhcloudInstallResolution } from './types.js';
 
@@ -61,6 +64,17 @@ export const hytaleAdapter: OvhcloudImageAdapter = {
     },
     wipe: {
         soft: resolveHytaleSoftWipeTargets,
+    },
+    settings: {
+        label: 'Hytale',
+        file: {
+            permissions: {
+                read: PERMISSIONS.hytale.settings.read,
+                write: PERMISSIONS.hytale.settings.write,
+            },
+            accessor: hytaleFileSettingsAccessor,
+        },
+        configFiles: hytaleConfigFiles,
     },
     routes: [
         { path: '/hytale', router: hytaleRoutes },

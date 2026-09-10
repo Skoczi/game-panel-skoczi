@@ -66,9 +66,6 @@ function LogOutput({ result }: { result: ScriptResult | null }) {
   );
 }
 
-// Oxide / uMod — the single Rust modding framework. Two-step (install then manage
-// plugins) like the CS2 frameworks, but simpler. Install restarts the server, so it
-// is blocked while the container is active/transitioning (allowed when stopped).
 export function RustFrameworkSection({
   serverId,
   serverStatus,

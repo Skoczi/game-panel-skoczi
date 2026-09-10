@@ -7,6 +7,8 @@ import {
     getOvhcloudCounterStrike2Image,
     normalizeCounterStrike2Env,
 } from '../images/counterStrike2.js';
+import { counterStrike2ConfigFiles } from '../images/counterStrike2/configFiles.js';
+import { counterStrike2LaunchSettingsAccessor } from '../images/counterStrike2/launchSettings.js';
 import { OVHCLOUD_DOCKER_STOP_TIMEOUT_SECONDS } from './common.js';
 import type { OvhcloudImageAdapter, OvhcloudInstallResolution } from './types.js';
 import counterStrike2Routes from '../images/counterStrike2/routes.js';
@@ -23,6 +25,11 @@ export const counterStrike2Adapter: OvhcloudImageAdapter = {
     },
     wipe: {
         hard: true,
+    },
+    settings: {
+        label: 'Counter-Strike 2',
+        launch: counterStrike2LaunchSettingsAccessor,
+        configFiles: counterStrike2ConfigFiles,
     },
     routes: [
         { path: '/counter-strike-2', router: counterStrike2Routes },

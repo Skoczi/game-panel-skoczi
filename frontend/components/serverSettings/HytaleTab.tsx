@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { apiClient } from '../../utils/api';
-import { GameSettingsSection } from './GameSettingsSection';
+import { OvhcloudSettingsSection } from './OvhcloudSettingsSection';
 import { ModsSection } from './ModsSection';
 import { GameWipeTab } from './GameWipeTab';
 import { buildWipeModes } from './wipeModes';
@@ -15,14 +14,13 @@ export interface HytaleSectionsProps {
   canWipeSoft?: boolean;
   canWipeHard?: boolean;
   onReinstallStarted?: () => void;
-  advancedLinksNode?: React.ReactNode;
+  canReadFileManager?: boolean;
+  onOpenFileManagerPath?: (path: string) => void;
   borderColor: string;
   contentBg: string;
   textPrimary: string;
   textSecondary: string;
 }
-
-// ── HytaleSections (horizontal sub-tabs) ─────────────────────────────────
 
 type HytaleSubTab = 'settings' | 'mods' | 'wipe';
 
@@ -36,7 +34,8 @@ export function HytaleSections({
   canWipeSoft,
   canWipeHard,
   onReinstallStarted,
-  advancedLinksNode,
+  canReadFileManager,
+  onOpenFileManagerPath,
   borderColor,
   contentBg,
   textPrimary,
@@ -66,7 +65,6 @@ export function HytaleSections({
 
   return (
     <div>
-      {/* Horizontal tab bar — only shown when there are multiple tabs */}
       {tabs.length > 1 && (
         <div className={`flex flex-wrap border-b ${borderColor} mb-3 gap-0`}>
           {tabs.map((tab) => (
@@ -88,19 +86,17 @@ export function HytaleSections({
 
       {visited.has('settings') && canReadSettings && (
         <div className={activeTab !== 'settings' ? 'hidden' : ''}>
-          <GameSettingsSection
+          <OvhcloudSettingsSection
             serverId={serverId}
             serverStatus={serverStatus}
-            canRead={canReadSettings}
-            canWrite={canWriteSettings}
-            load={(id) => apiClient.getHytaleSettings(id)}
-            save={(id, changed) => apiClient.patchHytaleSettings(id, changed)}
+            canWriteFile={canWriteSettings}
+            canReadFileManager={canReadFileManager}
+            onOpenFileManagerPath={onOpenFileManagerPath}
             borderColor={borderColor}
             contentBg={contentBg}
             textPrimary={textPrimary}
             textSecondary={textSecondary}
           />
-          <div className="mt-3">{advancedLinksNode}</div>
         </div>
       )}
       {visited.has('mods') && canReadMods && (

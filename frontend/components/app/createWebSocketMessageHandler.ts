@@ -9,8 +9,19 @@ import {
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
 import { nextId } from '../../utils/uid';
 
+// Latest fleet sample per server id, kept so a tick that lands before the server list can
+// still be applied once the rows exist.
+export interface FleetMetricValues {
+  cpu?: number;
+  memory?: number;
+  disk?: number;
+  networkIn?: number;
+  networkOut?: number;
+}
+
 interface CreateWebSocketMessageHandlerDeps {
   setGameServers: React.Dispatch<React.SetStateAction<GameServer[]>>;
+  fleetMetricsRef: React.MutableRefObject<Record<string, FleetMetricValues>>;
   setServerMetricsHistoryById: React.Dispatch<
     React.SetStateAction<Record<string, ServerMetricHistoryPoint[]>>
   >;
@@ -40,6 +51,7 @@ interface CreateWebSocketMessageHandlerDeps {
 
 export function createWebSocketMessageHandler({
   setGameServers,
+  fleetMetricsRef,
   setServerMetricsHistoryById,
   addServerHistoryEntries,
   suppressReplayAfterClearRef,
@@ -293,137 +305,60 @@ export function createWebSocketMessageHandler({
         break;
       }
 
-      case 'metrics:update': {
-        const targetServerId = normalizeServerId(message) ?? String(serverId);
-        const normalized = normalizeServerMetrics(message?.metrics || {});
-        const nextPoint = normalizeServerMetricPoint(message?.metrics || {}, message?.timestamp);
-
-        startTransition(() => {
-          if (normalized.cpu !== undefined || normalized.memory !== undefined) {
-            setGameServers((prev) => {
-              let changed = false;
-
-              const next = prev.map((server) => {
-                if (server.id !== targetServerId) return server;
-
-                const nextCpuUsage = normalized.cpu ?? server.cpuUsage;
-                const nextMemoryUsage = normalized.memory ?? server.memoryUsage;
-                const nextDiskUsage = normalized.disk !== undefined ? normalized.disk : server.diskUsage;
-                const nextNetworkIn = normalized.networkIn;
-                const nextNetworkOut = normalized.networkOut;
-
-                if (
-                  nextCpuUsage === server.cpuUsage &&
-                  nextMemoryUsage === server.memoryUsage &&
-                  nextDiskUsage === server.diskUsage &&
-                  nextNetworkIn === server.networkIn &&
-                  nextNetworkOut === server.networkOut
-                ) {
-                  return server;
-                }
-
-                changed = true;
-                return {
-                  ...server,
-                  cpuUsage: nextCpuUsage,
-                  memoryUsage: nextMemoryUsage,
-                  diskUsage: nextDiskUsage,
-                  networkIn: nextNetworkIn,
-                  networkOut: nextNetworkOut,
-                };
-              });
-
-              return changed ? next : prev;
-            });
-          }
-
-          if (nextPoint) {
-            setServerMetricsHistoryById((prev) => {
-              const current = prev[targetServerId] || [];
-              const last = current[current.length - 1];
-              let next = current;
-
-              if (last && Math.abs(last.timestamp - nextPoint.timestamp) < 1000) {
-                if (metricPointEquals(last, nextPoint)) {
-                  return prev;
-                }
-
-                next = [...current.slice(0, -1), nextPoint];
-              } else if (!metricPointEquals(last, nextPoint)) {
-                next = [...current, nextPoint];
-              }
-
-              if (next === current) {
-                return prev;
-              }
-
-              if (next.length > 2000) {
-                next = next.slice(-2000);
-              }
-
-              return {
-                ...prev,
-                [targetServerId]: next,
-              };
-            });
-          }
-        });
+      case 'servers-metrics:subscribed':
         break;
-      }
 
-      case 'metrics:history': {
-        const targetServerId = normalizeServerId(message) ?? String(serverId);
-        const history = Array.isArray(message.metrics) ? message.metrics : [];
-        const normalizedHistory = history
-          .map((metric: any) => normalizeServerMetricPoint(metric, metric?.timestamp))
-          .filter(
-            (point: ServerMetricHistoryPoint | null): point is ServerMetricHistoryPoint =>
-              point !== null
-          );
-        normalizedHistory.sort(
-          (a: ServerMetricHistoryPoint, b: ServerMetricHistoryPoint) => a.timestamp - b.timestamp
-        );
+      case 'servers-metrics:update': {
+        // The array is the whole fleet state: a server missing from it is not being measured
+        // right now (stopped, installing, container silent), so its cells must clear rather
+        // than keep showing a stale percentage as if it were live.
+        const entries = Array.isArray(message.metrics) ? message.metrics : [];
+        const metricsByServerId = new Map<string, ReturnType<typeof normalizeServerMetrics>>();
+        const pointByServerId = new Map<string, ServerMetricHistoryPoint>();
 
-        if (normalizedHistory.length > 0) {
-          startTransition(() => {
-            setServerMetricsHistoryById((prev) => {
-              const current = prev[targetServerId] || [];
-              const next = normalizedHistory.slice(-2000);
+        const fleetSnapshot: Record<string, FleetMetricValues> = {};
 
-              // Keep the richer local history if an incoming history is shorter.
-              if (current.length > next.length) {
-                return prev;
-              }
-
-              if (
-                current.length === next.length &&
-                current.every((point, index) => metricPointEquals(point, next[index]))
-              ) {
-                return prev;
-              }
-
-              return {
-                ...prev,
-                [targetServerId]: next,
-              };
-            });
-          });
+        for (const entry of entries) {
+          const entryServerId = normalizeServerId(entry);
+          if (!entryServerId) continue;
+          const measured = normalizeServerMetrics(entry);
+          metricsByServerId.set(entryServerId, measured);
+          fleetSnapshot[entryServerId] = {
+            cpu: measured.cpu,
+            memory: measured.memory,
+            disk: measured.disk,
+            networkIn: measured.networkIn,
+            networkOut: measured.networkOut,
+          };
+          const point = normalizeServerMetricPoint(entry, message?.timestamp);
+          if (point) pointByServerId.set(entryServerId, point);
         }
 
-        const latest =
-          normalizedHistory.length > 0 ? normalizedHistory[normalizedHistory.length - 1] : null;
-        if (!latest) break;
+        // The metrics reply comes straight from a cache while the server list needs a query
+        // per server, so a tick regularly wins the race and would be dropped for want of
+        // rows to apply it to.
+        fleetMetricsRef.current = fleetSnapshot;
 
         startTransition(() => {
           setGameServers((prev) => {
             let changed = false;
 
             const next = prev.map((server) => {
-              if (server.id !== targetServerId) return server;
+              const measured = metricsByServerId.get(server.id);
+              const nextCpuUsage = measured?.cpu;
+              const nextMemoryUsage = measured?.memory;
+              // Disk is polled far less often than the rest, so an entry without it means
+              // "not remeasured", not "unknown" — only an absent server clears it.
+              const nextDiskUsage = measured ? measured.disk ?? server.diskUsage : undefined;
+              const nextNetworkIn = measured?.networkIn;
+              const nextNetworkOut = measured?.networkOut;
 
               if (
-                server.cpuUsage === latest.cpuUsage &&
-                server.memoryUsage === latest.memoryUsage
+                nextCpuUsage === server.cpuUsage &&
+                nextMemoryUsage === server.memoryUsage &&
+                nextDiskUsage === server.diskUsage &&
+                nextNetworkIn === server.networkIn &&
+                nextNetworkOut === server.networkOut
               ) {
                 return server;
               }
@@ -431,10 +366,41 @@ export function createWebSocketMessageHandler({
               changed = true;
               return {
                 ...server,
-                cpuUsage: latest.cpuUsage,
-                memoryUsage: latest.memoryUsage,
+                cpuUsage: nextCpuUsage,
+                memoryUsage: nextMemoryUsage,
+                diskUsage: nextDiskUsage,
+                networkIn: nextNetworkIn,
+                networkOut: nextNetworkOut,
               };
             });
+
+            return changed ? next : prev;
+          });
+
+          // Only servers whose history was already pulled — a graph is or was open — keep
+          // accumulating, so the fleet ticks never build history nobody asked for.
+          setServerMetricsHistoryById((prev) => {
+            let changed = false;
+            const next = { ...prev };
+
+            for (const [historyServerId, current] of Object.entries(prev)) {
+              const point = pointByServerId.get(historyServerId);
+              if (!point) continue;
+
+              const last = current[current.length - 1];
+              let series = current;
+
+              if (last && Math.abs(last.timestamp - point.timestamp) < 1000) {
+                if (metricPointEquals(last, point)) continue;
+                series = [...current.slice(0, -1), point];
+              } else if (!metricPointEquals(last, point)) {
+                series = [...current, point];
+              }
+
+              if (series === current) continue;
+              next[historyServerId] = series.length > 2000 ? series.slice(-2000) : series;
+              changed = true;
+            }
 
             return changed ? next : prev;
           });
@@ -528,14 +494,29 @@ export function createWebSocketMessageHandler({
       case 'servers:snapshot': {
         const { servers } = message;
         if (servers && Array.isArray(servers)) {
-          setGameServers(servers.map((server: any) => normalizeRealtimeServer(server)));
+          const fleet = fleetMetricsRef.current;
+          setGameServers(
+            servers.map((server: any) => {
+              const normalizedServer = normalizeRealtimeServer(server);
+              const measured = fleet[normalizedServer.id];
+              return measured
+                ? {
+                    ...normalizedServer,
+                    cpuUsage: measured.cpu,
+                    memoryUsage: measured.memory,
+                    diskUsage: measured.disk,
+                    networkIn: measured.networkIn,
+                    networkOut: measured.networkOut,
+                  }
+                : normalizedServer;
+            })
+          );
         }
         break;
       }
 
       case 'servers:created':
       case 'servers:updated': {
-        // Treat created/updated with the same upsert strategy to keep the local list in sync.
         const { server } = message;
         if (server) {
           setGameServers((prev) => {

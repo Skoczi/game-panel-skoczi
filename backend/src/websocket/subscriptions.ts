@@ -6,7 +6,6 @@ import type {
     WsSubscribeActionsMessage,
     WsSubscribeFileTransfersMessage,
     WsSubscribeLogsMessage,
-    WsSubscribeMetricsMessage,
     WsSubscribeServersMessage,
     WsSubscribeSystemMetricsMessage,
 } from './types.js';
@@ -17,7 +16,6 @@ import {
     installProgressRepository,
     installInteractionRepository,
     fileTransferJobRepository,
-    serverMetricsRepository,
     systemMetricsRepository,
 } from '../database/index.js';
 import { serializeFileTransferJob } from '../database/repositories/fileTransferJobRepository.js';
@@ -35,18 +33,20 @@ import {
     serializeInstallationProgress,
     serializeServerAction,
 } from '../utils/apiSerialization.js';
-import { downsampleMetrics, parseLimit, serializeMetricPoint } from './metricsSerialization.js';
+import { buildMetricsHistory, METRICS_HISTORY_RAW_LIMIT } from '../utils/metrics.js';
+import { parseLimit } from '../utils/number.js';
+import { getServerMetricsSamples } from '../utils/serverMetricsCache.js';
 
 export function ensureSubs(ws: AuthenticatedWebSocket): SubscriptionsState {
     ws.subs ??= {
         logs: new Set<number>(),
         actions: new Set<number>(),
-        metrics: new Set<number>(),
         install: new Set<number>(),
         status: new Set<number>(),
         fileTransfers: new Set<number>(),
-        systemMetrics: false,
         servers: false,
+        serversMetrics: false,
+        systemMetrics: false,
     };
 
     return ws.subs;
@@ -68,14 +68,14 @@ export function cleanupClient(ws: AuthenticatedWebSocket): void {
     // Clear remaining subscription state.
     ws.subs?.logs.clear();
     ws.subs?.actions.clear();
-    ws.subs?.metrics.clear();
     ws.subs?.install.clear();
     ws.subs?.status.clear();
     ws.subs?.fileTransfers.clear();
 
     if (ws.subs) {
-        ws.subs.systemMetrics = false;
         ws.subs.servers = false;
+        ws.subs.serversMetrics = false;
+        ws.subs.systemMetrics = false;
     }
 }
 
@@ -351,6 +351,12 @@ export async function handleUnsubscribe(
         return;
     }
 
+    if (channel === 'servers-metrics') {
+        subs.serversMetrics = false;
+        sendSafe(ws, { type: 'unsubscribed', channel: 'servers-metrics' });
+        return;
+    }
+
     if (!serverId) {
         sendSafe(ws, { type: 'error', error: 'Missing serverId' });
         return;
@@ -373,67 +379,22 @@ export async function handleUnsubscribe(
 
     if (channel === 'install') subs.install.delete(serverId);
     if (channel === 'file-transfers') subs.fileTransfers.delete(serverId);
-    if (channel === 'metrics') subs.metrics.delete(serverId);
     if (channel === 'status') subs.status.delete(serverId);
 
     sendSafe(ws, { type: 'unsubscribed', channel, serverId });
 }
 
-export async function handleSubscribeMetrics(
-    ws: AuthenticatedWebSocket,
-    serverId: number,
-    message?: WsSubscribeMetricsMessage
-): Promise<void> {
-    const server = await assertServerAccess(ws, serverId);
-    if (!server) {
-        sendSafe(ws, { type: 'error', error: 'Access denied' });
-        return;
-    }
-
+export async function handleSubscribeServersMetrics(ws: AuthenticatedWebSocket): Promise<void> {
     const subs = ensureSubs(ws);
-    subs.metrics.add(serverId);
+    subs.serversMetrics = true;
 
-    const historyLimit = parseLimit(message?.data?.limit, 100, 2000);
+    sendSafe(ws, { type: 'servers-metrics:subscribed', timestamp: nowIso() });
 
-    try {
-        const rawLimit = 10_000;
-
-        const raw = await serverMetricsRepository.getRecentForLastDays(serverId, 1, rawLimit);
-        const chronological = raw.reverse(); // oldest -> newest
-
-        const nowMs = Date.now();
-        const downsampled = downsampleMetrics(chronological, nowMs, [
-            'cpu_usage',
-            'memory_usage',
-            'disk_usage',
-            'network_in',
-            'network_out',
-        ]);
-
-        // Apply final limit from the newest side (keep the most recent N points)
-        const finalRows =
-            downsampled.length > historyLimit ? downsampled.slice(downsampled.length - historyLimit) : downsampled;
-        const final = finalRows.map(serializeMetricPoint);
-
-        sendSafe(ws, {
-            type: 'metrics:history',
-            serverId,
-            metrics: final,
-            limit: historyLimit,
-            timestamp: nowIso(),
-            meta: {
-                window: '24h',
-                downsample: '0-1h:10s,1-6h:30s,6-24h:120s',
-                rawCount: raw.length,
-                sentCount: final.length,
-            },
-        });
-    } catch (error) {
-        logError('WS:SUB:METRICS', error);
-        sendSafe(ws, { type: 'metrics:history', serverId, metrics: [], limit: historyLimit, timestamp: nowIso() });
-    }
-
-    sendSafe(ws, { type: 'metrics:subscribed', serverId, timestamp: nowIso() });
+    sendSafe(ws, {
+        type: 'servers-metrics:update',
+        metrics: getServerMetricsSamples(),
+        timestamp: nowIso(),
+    });
 }
 
 export async function handleSubscribeSystemMetrics(
@@ -446,35 +407,15 @@ export async function handleSubscribeSystemMetrics(
     const historyLimit = parseLimit(message?.data?.limit, 200, 2000);
 
     try {
-        const rawLimit = 10_000;
-
-        const raw = await systemMetricsRepository.getRecentForLastDays(1, rawLimit);
-        const chronological = raw.reverse();
-
-        const nowMs = Date.now();
-        const downsampled = downsampleMetrics(chronological, nowMs, [
-            'cpu_usage',
-            'memory_usage',
-            'disk_usage',
-            'network_in',
-            'network_out',
-        ]);
-
-        const finalRows =
-            downsampled.length > historyLimit ? downsampled.slice(downsampled.length - historyLimit) : downsampled;
-        const final = finalRows.map(serializeMetricPoint);
+        const raw = await systemMetricsRepository.getRecentForLastDays(1, METRICS_HISTORY_RAW_LIMIT);
+        const { points, meta } = buildMetricsHistory(raw, historyLimit);
 
         sendSafe(ws, {
             type: 'system-metrics:history',
-            metrics: final,
+            metrics: points,
             limit: historyLimit,
             timestamp: nowIso(),
-            meta: {
-                window: '24h',
-                downsample: '0-1h:10s,1-6h:30s,6-24h:120s',
-                rawCount: raw.length,
-                sentCount: final.length,
-            },
+            meta,
         });
     } catch (error) {
         logError('WS:SUB:SYSTEM_METRICS', error);

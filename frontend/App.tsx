@@ -3,10 +3,11 @@ import { Login } from './components/Login';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { type GameServer } from './types/gameServer';
 import { apiClient } from './utils/api';
+import { METRICS_HISTORY_REQUEST_LIMIT } from './components/gameServersTable/utils';
 import { clearAppCache } from './utils/appStorage';
 import { OVHCLOUD_IMAGES } from './utils/ovhcloudCatalog';
 import { AppShell } from './components/app/AppShell';
-import { createWebSocketMessageHandler } from './components/app/createWebSocketMessageHandler';
+import { createWebSocketMessageHandler, type FleetMetricValues } from './components/app/createWebSocketMessageHandler';
 import { useAuthSession } from './components/app/useAuthSession';
 import { useCliMessages } from './components/app/useCliMessages';
 import { useInstallAutoOpenLogs } from './components/app/useInstallAutoOpenLogs';
@@ -79,15 +80,13 @@ function AppContent() {
   const [gameNamesByKey, setGameNamesByKey] = useState<Record<string, string>>({});
   const [logPromptRules, setLogPromptRules] = useState<LogPromptRule[]>([]);
   const serversRef = useRef<GameServer[]>([]);
-  // Incoming log lines are buffered here and flushed once per animation frame, so a burst
-  // of many lines becomes a single state update/render instead of one per line.
   const logBufferRef = useRef<Record<string, LogEntry[]>>({});
   const logFlushHandleRef = useRef<number | null>(null);
   const suppressReplayAfterClearRef = useRef<Record<string, boolean>>({});
   const lastInstallProgressLogRef = useRef<Record<number, number>>({});
   const handleWebSocketMessageRef = useRef<(message: any) => void>(() => {});
+  const fleetMetricsRef = useRef<Record<string, FleetMetricValues>>({});
   const handleLogoutRef = useRef<() => void>(() => {});
-  const subscribedMetricsServerIdsRef = useRef<Set<number>>(new Set());
   const {
     activeLogPromptToasts,
     setActiveLogPromptToasts,
@@ -113,7 +112,6 @@ function AppContent() {
     .sort()
     .join(',');
 
-  // Tracks which LinuxGSM game keys have already had their metadata fetched this session.
   const loadedLgsmGameKeysRef = useRef<Set<string>>(new Set());
 
   const loadCatalogMetadata = useCallback(() => {
@@ -189,7 +187,6 @@ function AppContent() {
     };
   }, [loadCatalogMetadata]);
 
-  // Lazily load log prompt rules per installed LinuxGSM game type — only present games, once per key per session.
   const lgsmGameTypesKey = gameServers
     .filter((s) => s.provider === 'linuxgsm')
     .map((s) => s.game)
@@ -228,35 +225,38 @@ function AppContent() {
     });
   }, [lgsmGameTypesKey]);
 
+  // One fleet-wide subscription for the whole page: the channel pushes the latest value of
+  // every server, so it does not depend on the server list.
   useEffect(() => {
-    // Per-server metrics only render on the game-servers view; subscribe only while active to avoid a fleet-wide stream.
-    if (!authReady || !isAuthenticated || activeTab !== 'game-servers') {
-      subscribedMetricsServerIdsRef.current.forEach((serverId) => {
-        apiClient.unsubscribeMetrics(serverId);
-      });
-      subscribedMetricsServerIdsRef.current.clear();
-      return;
+    if (!authReady || !isAuthenticated || activeTab !== 'game-servers') return;
+    apiClient.subscribeServersMetrics();
+    return () => apiClient.unsubscribeServersMetrics();
+  }, [authReady, isAuthenticated, activeTab]);
+
+  // The graph pulls its own 24h history; the fleet ticks then keep it advancing.
+  const loadServerMetricsHistory = useCallback(async (serverId: string) => {
+    const id = Number(serverId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    try {
+      const data = await apiClient.getServerMetrics(id, METRICS_HISTORY_REQUEST_LIMIT);
+      const points = (data.metrics ?? [])
+        .map((sample) => ({
+          timestamp: new Date(sample.timestamp).getTime(),
+          cpuUsage: sample.cpuUsage ?? 0,
+          memoryUsage: sample.memoryUsage ?? 0,
+          diskUsage: sample.diskUsage ?? 0,
+          networkIn: sample.network?.in ?? 0,
+          networkOut: sample.network?.out ?? 0,
+        }))
+        .filter((point) => Number.isFinite(point.timestamp))
+        .sort((a, b) => a.timestamp - b.timestamp);
+      setServerMetricsHistoryById((prev) => ({ ...prev, [serverId]: points }));
+    } catch {
+      // Seed an empty series anyway: the fleet ticks only append to servers that already
+      // have one, so without it the graph would never fill.
+      setServerMetricsHistoryById((prev) => (prev[serverId] ? prev : { ...prev, [serverId]: [] }));
     }
-
-    const nextServerIds = new Set<number>();
-    gameServers.forEach((server) => {
-      const id = Number(server.id);
-      if (!Number.isFinite(id) || id <= 0) return;
-      nextServerIds.add(id);
-
-      if (!subscribedMetricsServerIdsRef.current.has(id)) {
-        apiClient.subscribeMetrics(id);
-      }
-    });
-
-    subscribedMetricsServerIdsRef.current.forEach((id) => {
-      if (!nextServerIds.has(id)) {
-        apiClient.unsubscribeMetrics(id);
-      }
-    });
-
-    subscribedMetricsServerIdsRef.current = nextServerIds;
-  }, [authReady, isAuthenticated, activeTab, metricsServerIdsKey]);
+  }, []);
 
   const resolveServerName = (serverId: number | string, fallback?: string): string => {
     if (fallback) return fallback;
@@ -335,9 +335,7 @@ function AppContent() {
       if (Number.isFinite(numericServerId) && numericServerId > 0) {
         apiClient.unsubscribeLogs(numericServerId);
         apiClient.unsubscribeActions(numericServerId);
-        apiClient.unsubscribeMetrics(numericServerId);
         apiClient.unsubscribeInstall(numericServerId);
-        subscribedMetricsServerIdsRef.current.delete(numericServerId);
       }
 
       setGameServers((prev) => prev.filter((server) => server.id !== serverId));
@@ -432,8 +430,6 @@ function AppContent() {
   }, []);
 
   const replaceServerLogs = useCallback((serverId: string, nextLogs: LogEntry[]) => {
-    // Drop any buffered stream lines for this server so they don't land on top of the
-    // history we're about to set.
     delete logBufferRef.current[serverId];
     setServerLogs((prev) => ({
       ...prev,
@@ -482,13 +478,10 @@ function AppContent() {
     setInstallError(null);
     setInstalling(false);
     setInstallPlan([]);
-    subscribedMetricsServerIdsRef.current.clear();
   };
 
-  // Stable ref so the 401 handler can call the latest logout without re-registering each render.
   handleLogoutRef.current = handleLogout;
 
-  // On 401 the API client clears the token; reset to the login screen in place rather than a full reload.
   useEffect(() => {
     apiClient.setUnauthorizedHandler(() => {
       handleLogoutRef.current();
@@ -555,7 +548,6 @@ function AppContent() {
     serverLogHistoryLimit: SERVER_LOG_HISTORY_LIMIT,
   });
 
-  // Flush all buffered log lines in one state update (one render), sliced once to the cap.
   const flushLogBuffer = () => {
     logFlushHandleRef.current = null;
     const buffer = logBufferRef.current;
@@ -574,7 +566,6 @@ function AppContent() {
   const handleAddLog = (serverId: string, log: LogEntry) => {
     maybeCreateLogPromptToast(serverId, log.message);
     (logBufferRef.current[serverId] ??= []).push(log);
-    // Coalesce bursts: schedule a single flush per frame instead of one setState per line.
     if (logFlushHandleRef.current === null) {
       logFlushHandleRef.current = requestAnimationFrame(flushLogBuffer);
     }
@@ -616,6 +607,7 @@ function AppContent() {
 
   const handleWebSocketMessage = createWebSocketMessageHandler({
     setGameServers,
+    fleetMetricsRef,
     setServerMetricsHistoryById,
     addServerHistoryEntries,
     suppressReplayAfterClearRef,
@@ -705,6 +697,7 @@ function AppContent() {
       pageShellClassName={pageShellClassName}
       gameServers={gameServers}
       serverMetricsHistoryById={serverMetricsHistoryById}
+      onLoadServerMetricsHistory={loadServerMetricsHistory}
       serverHistoryById={serverHistoryById}
       gameNamesByKey={gameNamesByKey}
       serverPermissionsById={serverPermissionsById}

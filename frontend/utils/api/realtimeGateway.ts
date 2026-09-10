@@ -16,8 +16,7 @@ export class RealtimeGateway {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private status: RealtimeConnectionStatus = 'closed';
   private statusListeners = new Set<ConnectionStatusListener>();
-  private pendingMetricsSubscriptions = new Set<number>();
-  private metricsHistoryLimitByServer = new Map<number, number>();
+  private pendingServersMetricsSubscription = false;
   private pendingLogsSubscriptions = new Set<number>();
   private logsHistoryLimitByServer = new Map<number, number>();
   private pendingActionsSubscriptions = new Set<number>();
@@ -31,8 +30,7 @@ export class RealtimeGateway {
   constructor(private readonly getAuthToken: () => string | null) {}
 
   resetState() {
-    this.pendingMetricsSubscriptions.clear();
-    this.metricsHistoryLimitByServer.clear();
+    this.pendingServersMetricsSubscription = false;
     this.pendingLogsSubscriptions.clear();
     this.logsHistoryLimitByServer.clear();
     this.pendingActionsSubscriptions.clear();
@@ -47,8 +45,6 @@ export class RealtimeGateway {
     return this.status;
   }
 
-  /** Subscribe to connection-status changes. Immediately invokes with the current
-   *  status and returns an unsubscribe function. */
   onStatusChange(listener: ConnectionStatusListener): () => void {
     this.statusListeners.add(listener);
     listener(this.status);
@@ -81,17 +77,8 @@ export class RealtimeGateway {
   private flushPendingSubscriptions() {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.wsAuthed) return;
 
-    if (this.pendingMetricsSubscriptions.size > 0) {
-      this.pendingMetricsSubscriptions.forEach((serverId) => {
-        const limit = this.metricsHistoryLimitByServer.get(serverId);
-        this.ws!.send(
-          JSON.stringify({
-            type: 'subscribe:metrics',
-            serverId,
-            data: typeof limit === 'number' ? { limit } : undefined,
-          })
-        );
-      });
+    if (this.pendingServersMetricsSubscription) {
+      this.ws.send(JSON.stringify({ type: 'subscribe:servers-metrics' }));
     }
 
     if (this.pendingLogsSubscriptions.size > 0) {
@@ -182,7 +169,6 @@ export class RealtimeGateway {
           try {
             data = JSON.parse(event.data);
           } catch (error) {
-            // Ignore malformed/non-JSON frames rather than throwing in the message pump.
             if (import.meta.env.DEV) console.error('Failed to parse WebSocket frame:', error);
             return;
           }
@@ -266,7 +252,6 @@ export class RealtimeGateway {
     if (this.reconnectTimer !== null) return;
 
     this.reconnectAttempts++;
-    // Capped exponential backoff with jitter; retries indefinitely.
     const exponent = Math.min(this.reconnectAttempts, 6);
     const delay =
       Math.min(this.maxReconnectDelay, this.baseReconnectDelay * 2 ** exponent) +
@@ -358,35 +343,20 @@ export class RealtimeGateway {
     }
   }
 
-  subscribeMetrics(serverId: number, limit?: number) {
-    this.pendingMetricsSubscriptions.add(serverId);
-    if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
-      const normalizedLimit = Math.min(Math.max(Math.floor(limit), 1), 2000);
-      this.metricsHistoryLimitByServer.set(serverId, normalizedLimit);
-    }
-
-    const effectiveLimit = this.metricsHistoryLimitByServer.get(serverId);
-
+  subscribeServersMetrics() {
+    this.pendingServersMetricsSubscription = true;
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.wsAuthed) {
-      this.ws.send(
-        JSON.stringify({
-          type: 'subscribe:metrics',
-          serverId,
-          data: typeof effectiveLimit === 'number' ? { limit: effectiveLimit } : undefined,
-        })
-      );
+      this.ws.send(JSON.stringify({ type: 'subscribe:servers-metrics' }));
     }
   }
 
-  unsubscribeMetrics(serverId: number) {
-    this.pendingMetricsSubscriptions.delete(serverId);
-    this.metricsHistoryLimitByServer.delete(serverId);
+  unsubscribeServersMetrics() {
+    this.pendingServersMetricsSubscription = false;
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.wsAuthed) {
       this.ws.send(
         JSON.stringify({
           type: 'unsubscribe',
-          channel: 'metrics',
-          serverId,
+          channel: 'servers-metrics',
         })
       );
     }

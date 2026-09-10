@@ -2,14 +2,10 @@ import { Router, type Response } from 'express';
 import { actionsRepository, serverRepository } from '../../../../database/index.js';
 import { type AuthenticatedRequest, requireServerPermission } from '../../../../middleware/auth.js';
 import type { GameServerRow } from '../../../../types/gameServer.js';
-import { requireBodyObject, requirePositiveInt, requireRecord } from '../../../../utils/httpValidation.js';
+import { requireBodyObject, requirePositiveInt } from '../../../../utils/httpValidation.js';
 import { sendRouteError } from '../../../../utils/routeErrors.js';
 import { PERMISSIONS } from '../../../../permissions.js';
 import { assertOvhcloudProjectZomboidServer } from '../projectZomboid.js';
-import {
-    listProjectZomboidSettings,
-    patchProjectZomboidSettings,
-} from './settings.js';
 import {
     addProjectZomboidMods,
     fetchWorkshopMetadata,
@@ -33,10 +29,6 @@ function routeActor(req: AuthenticatedRequest): string {
     return req.user?.username || '';
 }
 
-function getSettingsPatch(body: unknown): Record<string, unknown> {
-    return requireRecord(requireBodyObject(body).settings, 'settings must be an object');
-}
-
 async function getServerOrThrow(serverId: number): Promise<GameServerWithContainer> {
     const server = await serverRepository.findById(serverId);
 
@@ -51,46 +43,6 @@ async function getServerOrThrow(serverId: number): Promise<GameServerWithContain
     assertOvhcloudProjectZomboidServer(server);
     return server as GameServerWithContainer;
 }
-
-// GET /api/servers/:id/project-zomboid/settings
-router.get('/settings', requireServerPermission(PERMISSIONS.projectZomboid.settings.read), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const serverId = routeServerId(req);
-        const server = await getServerOrThrow(serverId);
-        const settings = await listProjectZomboidSettings(server);
-        return res.json({ settings });
-    } catch (error) {
-        return sendRouteError(res, error, {
-            route: 'ROUTE:PROJECT_ZOMBOID:SETTINGS_READ',
-            logContext: { serverId: req.params.id },
-            fallbackMessage: 'Failed to read Project Zomboid settings',
-        });
-    }
-});
-
-// PATCH /api/servers/:id/project-zomboid/settings
-router.patch('/settings', requireServerPermission(PERMISSIONS.projectZomboid.settings.write), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const serverId = routeServerId(req);
-        const server = await getServerOrThrow(serverId);
-        const result = await patchProjectZomboidSettings(server, getSettingsPatch(req.body));
-
-        await actionsRepository.create(
-            serverId,
-            'success',
-            `Project Zomboid settings updated: ${result.updated.join(', ')}`,
-            routeActor(req)
-        );
-
-        return res.json(result);
-    } catch (error) {
-        return sendRouteError(res, error, {
-            route: 'ROUTE:PROJECT_ZOMBOID:SETTINGS_WRITE',
-            logContext: { serverId: req.params.id },
-            fallbackMessage: 'Failed to update Project Zomboid settings',
-        });
-    }
-});
 
 // GET /api/servers/:id/project-zomboid/mods
 router.get('/mods', requireServerPermission(PERMISSIONS.projectZomboid.mods.read), async (req: AuthenticatedRequest, res: Response) => {

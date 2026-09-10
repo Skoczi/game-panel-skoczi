@@ -61,7 +61,6 @@ export function ServerSettingsModalLayout({
   const dialogRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock(isOpen);
   useFocusTrap(isOpen, dialogRef, { onEscape: onClose });
-  // Require both width and height so a wide-but-short phone landscape goes fullscreen.
   const isWindowed = useMediaQuery('(min-width: 768px) and (min-height: 600px)');
   if (!isOpen) return null;
 
@@ -225,7 +224,6 @@ export function ServerSettingsModalLayout({
           </div>
 
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-            {/* Defensive guard: inaccessible tabs can't be opened from the sidebar anyway */}
             {!canAccessTab(activeTab) && (
               <div className="flex h-full items-center justify-center p-8 text-center">
                 <div>
@@ -248,6 +246,4 @@ export function ServerSettingsModalLayout({
     </div>
   );
 }
-
-
 

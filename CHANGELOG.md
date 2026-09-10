@@ -1,5 +1,25 @@
 # 📋 Changelog
 
+## v1.5.0 — 2026-09-09
+
+Adds **Valheim**, rebuilds the **game settings** screen for every OVHcloud game, and puts the panel and its game servers on a **shared Docker network**.
+
+### ✨ Added
+
+- **Valheim** — new OVHcloud game server image with full panel integration: installation, game settings, backups & restore, soft and hard wipe, and BepInEx installation with mod management.
+
+### 🔧 Changed
+
+- **Game settings, rebuilt** — game settings are now grouped by theme (World, Gameplay, Players, Security & access, Performance…) instead of one long flat list, and are checked before being saved. Under the hood the whole settings layer was rewritten on a single shared foundation, so it stays cleaner to maintain and quicker to extend.
+- **Panel ↔ game server networking** — the panel now runs on two explicit Docker networks, one for the web entry point and one shared with the game containers, so the backend reaches the game servers directly. Existing servers are moved onto it automatically on update.
+- **Security refresh** — panel dependencies and the game server images were reviewed and updated again to cut down on known vulnerabilities.
+- Minor UI polish and consistency improvements.
+
+### 🐛 Fixed
+
+- **File Manager — editor search** — the search panel in the file editor no longer closes on its own while you type.
+- Various minor UI, installation, and update fixes.
+
 ## v1.4.0 — 2026-08-25
 
 Adds **Minecraft Forge**, a **mods & plugins catalog** for Minecraft Java servers, and **automatic Java version selection**.

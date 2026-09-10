@@ -6,26 +6,27 @@ import type {
     SerializedInstallationInteraction,
     SerializedServerAction,
 } from '../utils/apiSerialization.js';
-import type { SerializedMetricPoint } from './metricsSerialization.js';
+import type { MetricSample, MetricsHistoryMeta, SerializedMetricPoint } from '../utils/metrics.js';
+import type { ServerMetricsSample } from '../utils/serverMetricsCache.js';
 
 export type SubscriptionChannel =
     | 'logs'
     | 'actions'
-    | 'metrics'
     | 'install'
     | 'status'
     | 'servers'
+    | 'servers-metrics'
     | 'system-metrics'
     | 'file-transfers';
 
 export interface SubscriptionsState {
     logs: Set<number>;
-    metrics: Set<number>;
     install: Set<number>;
     status: Set<number>;
     actions: Set<number>;
     fileTransfers: Set<number>;
     servers: boolean;
+    serversMetrics: boolean;
     systemMetrics: boolean;
 }
 
@@ -54,7 +55,7 @@ export type WsSubscribeServersMessage = { type: 'subscribe:servers' };
 export type WsSubscribeInstallMessage = { type: 'subscribe:install'; serverId: number };
 export type WsSubscribeLogsMessage = { type: 'subscribe:logs'; serverId: number; data?: WsLimitData };
 export type WsSubscribeActionsMessage = { type: 'subscribe:actions'; serverId: number; data?: WsLimitData };
-export type WsSubscribeMetricsMessage = { type: 'subscribe:metrics'; serverId: number; data?: WsLimitData };
+export type WsSubscribeServersMetricsMessage = { type: 'subscribe:servers-metrics' };
 export type WsSubscribeSystemMetricsMessage = { type: 'subscribe:system-metrics'; data?: WsLimitData };
 export type WsSubscribeFileTransfersMessage = { type: 'subscribe:file-transfers'; serverId: number; data?: WsLimitData };
 export type WsTerminalAttachMessage = { type: 'terminal:attach'; sessionId: string; serverId?: number };
@@ -70,7 +71,7 @@ export type WSMessage =
     | WsSubscribeInstallMessage
     | WsSubscribeLogsMessage
     | WsSubscribeActionsMessage
-    | WsSubscribeMetricsMessage
+    | WsSubscribeServersMetricsMessage
     | WsSubscribeSystemMetricsMessage
     | WsSubscribeFileTransfersMessage
     | WsTerminalMessage
@@ -79,23 +80,6 @@ export type WSMessage =
 
 type Timestamped = {
     timestamp: string;
-};
-
-type MetricPayload = {
-    cpuUsage: number;
-    memoryUsage: number;
-    diskUsage: number;
-    network: {
-        in: number;
-        out: number;
-    };
-};
-
-type MetricsHistoryMeta = {
-    window: '24h';
-    downsample: string;
-    rawCount: number;
-    sentCount: number;
 };
 
 export type OutgoingWebSocketMessage =
@@ -119,12 +103,11 @@ export type OutgoingWebSocketMessage =
     | ({ type: 'file-transfer:snapshot'; serverId: number; jobs: SerializedFileTransferJob[]; limit: number } & Timestamped)
     | ({ type: 'file-transfer:subscribed'; serverId: number } & Timestamped)
     | ({ type: 'file-transfer:progress'; serverId: number; job: SerializedFileTransferJob } & Timestamped)
-    | ({ type: 'metrics:history'; serverId: number; metrics: SerializedMetricPoint[]; limit: number; meta?: MetricsHistoryMeta } & Timestamped)
-    | ({ type: 'metrics:subscribed'; serverId: number } & Timestamped)
-    | ({ type: 'metrics:update'; serverId: number; metrics: MetricPayload } & Timestamped)
+    | ({ type: 'servers-metrics:subscribed' } & Timestamped)
+    | ({ type: 'servers-metrics:update'; metrics: readonly ServerMetricsSample[] } & Timestamped)
     | ({ type: 'system-metrics:history'; metrics: SerializedMetricPoint[]; limit: number; meta?: MetricsHistoryMeta } & Timestamped)
     | ({ type: 'system-metrics:subscribed' } & Timestamped)
-    | ({ type: 'system-metrics:update'; metrics: MetricPayload } & Timestamped)
+    | ({ type: 'system-metrics:update'; metrics: MetricSample } & Timestamped)
     | ({ type: 'system:rebooting'; byUserId: number | null } & Timestamped)
     | { type: 'unsubscribed'; channel: SubscriptionChannel; serverId?: number }
     | { type: 'terminal:error'; error: string }

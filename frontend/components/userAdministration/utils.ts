@@ -4,7 +4,6 @@ export const GLOBAL_OPTIONS = [
   { value: '*', label: 'Full global access (*)' },
 ];
 
-// Ordered from least to most dangerous.
 export const SERVER_CORE_OPTIONS = [
   { value: 'server.power', label: 'Start/Stop/Restart' },
   { value: 'container.logs.read', label: 'Read server logs' },
@@ -43,8 +42,6 @@ export const BACKUP_OPTIONS = [
   { value: 'backups.settings.write', label: 'Edit backup settings' },
 ];
 
-// Generic wipe permissions (all OVHcloud games). The role UI shows only the modes
-// a given game supports; the permission strings themselves are game-agnostic.
 export const WIPE_OPTIONS = [
   { value: 'server.wipe.soft', label: 'Soft wipe' },
   { value: 'server.wipe.hard', label: 'Hard wipe' },
@@ -98,6 +95,14 @@ export const RUST_OVHCLOUD_OPTIONS = [
   { value: 'rust.frameworks.write', label: 'Manage frameworks' },
 ];
 
+// Valheim is configured through env vars, so it has no valheim.settings.* pair — the
+// settings screen is guarded by the generic server.env / server.edit permissions.
+export const VALHEIM_OVHCLOUD_OPTIONS = [
+  { value: 'valheim.mods.read', label: 'View mods' },
+  { value: 'valheim.mods.write', label: 'Manage mods' },
+  { value: 'valheim.frameworks.write', label: 'Manage frameworks' },
+];
+
 // Per-server permissions the backend accepts for a member; must not contain the `*` wildcard.
 export const ASSIGNABLE_SERVER_PERMISSIONS: string[] = [
   ...SERVER_OPTIONS,
@@ -107,6 +112,7 @@ export const ASSIGNABLE_SERVER_PERMISSIONS: string[] = [
   ...PALWORLD_OVHCLOUD_OPTIONS,
   ...PROJECT_ZOMBOID_OVHCLOUD_OPTIONS,
   ...RUST_OVHCLOUD_OPTIONS,
+  ...VALHEIM_OVHCLOUD_OPTIONS,
 ].map((option) => option.value);
 
 export const SERVER_PRESETS = [
@@ -139,7 +145,6 @@ export const SERVER_PRESETS = [
       'scheduledtasks.read',
     ],
   },
-  // Full access = every assignable per-server permission, listed explicitly.
   { id: 'full', label: 'Full access', permissions: [...ASSIGNABLE_SERVER_PERMISSIONS] },
 ];
 
@@ -259,19 +264,39 @@ export const RUST_PRESETS = [
   },
 ];
 
+export const VALHEIM_PRESETS = [
+  {
+    id: 'valheim-viewer',
+    label: 'Valheim Viewer',
+    permissions: [
+      ...BASE_VIEWER,
+      'valheim.mods.read',
+    ],
+  },
+  {
+    id: 'valheim-operator',
+    label: 'Valheim Operator',
+    permissions: [
+      // Valheim manages its own backups; on-demand creation returns 501.
+      ...BASE_OPERATOR.filter((p) => p !== 'backups.create'),
+      'valheim.mods.read', 'valheim.mods.write',
+      'valheim.frameworks.write',
+    ],
+  },
+];
+
 export const CS2_PRESETS = [
   {
     id: 'cs2-operator',
     label: 'CS2 Operator',
     permissions: [
-      // CS2 has no backups.
       ...BASE_OPERATOR.filter((p) => !p.startsWith('backups.')),
       'cs2.frameworks.write',
     ],
   },
 ];
 
-export const ALL_PRESETS = [...SERVER_PRESETS, ...MINECRAFT_PRESETS, ...HYTALE_PRESETS, ...PALWORLD_PRESETS, ...PROJECT_ZOMBOID_PRESETS, ...CS2_PRESETS];
+export const ALL_PRESETS = [...SERVER_PRESETS, ...MINECRAFT_PRESETS, ...HYTALE_PRESETS, ...PALWORLD_PRESETS, ...PROJECT_ZOMBOID_PRESETS, ...RUST_PRESETS, ...VALHEIM_PRESETS, ...CS2_PRESETS];
 
 export const MAX_USERS = 10;
 
@@ -304,7 +329,6 @@ export function stripWildcard(values: string[]): string[] {
   return values.filter((permission) => permission !== '*');
 }
 
-// Expand legacy `*` and drop non-assignable permissions before sending to the backend.
 export function sanitizeServerPermissions(values: string[]): string[] {
   const expanded = values.includes('*') ? [...ASSIGNABLE_SERVER_PERMISSIONS] : values;
   const assignable = new Set(ASSIGNABLE_SERVER_PERMISSIONS);
@@ -357,7 +381,6 @@ export function isServerPermissionChecked(values: string[], item: string): boole
 }
 
 export function toggleServerPermission(values: string[], item: string): string[] {
-  // Expand legacy `*` first so we never toggle against or emit the wildcard.
   const base = values.includes('*') ? [...ASSIGNABLE_SERVER_PERMISSIONS] : values;
 
   if (item === '*') {
@@ -387,7 +410,6 @@ export function samePermissionSet(a: string[], b: string[]): boolean {
 export function getAccessLevelLabel(permissions: string[]): string {
   const normalized = normalizePermissions(permissions);
   if (normalized.length === 0) return 'No access';
-  // Full access = the explicit canonical list (legacy `*` still recognised).
   if (hasFullServerAccess(normalized)) return 'Full access';
 
   const matchedPreset = SERVER_PRESETS.find(

@@ -11,7 +11,6 @@ export interface JavaVersion {
   javaVersion: number | null;
 }
 
-// A Minecraft version carrying its required Java major (Paper/Forge version lists).
 export interface McVersionInfo {
   version: string;
   javaVersion: number | null;
@@ -133,11 +132,6 @@ export async function fetchBedrockVersions(): Promise<BedrockVersion[] | null> {
   return data?.versions ?? null;
 }
 
-// ── Java version resolution ──────────────────────────────────────────────────
-
-// Pick the smallest image we actually ship that is >= the required Java major.
-// availableMajors is the panel's own lineup (today 8/17/21/25); if a version needs
-// more than the highest we ship, clamp to it and let the user override.
 export function resolveJavaImageMajor(required: number, availableMajors: number[]): number {
   const sorted = [...availableMajors].sort((a, b) => a - b);
   return sorted.find((m) => m >= required) ?? sorted[sorted.length - 1];

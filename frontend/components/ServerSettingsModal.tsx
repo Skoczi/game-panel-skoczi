@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameConfigTab } from './GameConfigTab';
 
-// Lazily loaded so the xterm terminal emulator stays off initial load until the Terminal tab opens.
 const ServerSshTerminal = lazy(() =>
   import('./ServerSshTerminal').then((m) => ({ default: m.ServerSshTerminal }))
 );
@@ -24,6 +23,7 @@ import { useBackupState } from './serverSettings/useBackupState';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { useFileManagerState } from './serverSettings/useFileManagerState';
 import { apiClient } from '../utils/api';
+import { supportsBackupCreate, supportsBackupRename } from '../utils/providerCapabilities';
 import { retryWithBackoff, runWithConcurrency } from '../utils/uploadHelpers';
 import type { AuthUser } from '../utils/permissions';
 import {
@@ -71,8 +71,6 @@ export function ServerSettingsModal({
 }: ServerSettingsModalProps) {
   const isLinuxGSMGame = serverProvider === 'linuxgsm';
   const isExternalProvider = serverProvider === 'external';
-  // OVHcloud games are identified by `providerMetadata.family` (minecraft / counter-strike /
-  // hytale / palworld) rather than catalogId, so they stay wired identically across renames.
   const ovhcloudFamily = (() => {
     if (serverProvider !== 'ovhcloud') return null;
     try {
@@ -83,6 +81,7 @@ export function ServerSettingsModal({
   const isPalworldOvhcloud = ovhcloudFamily === 'palworld';
   const isProjectZomboidOvhcloud = ovhcloudFamily === 'project-zomboid';
   const isRustOvhcloud = ovhcloudFamily === 'rust';
+  const isValheimOvhcloud = ovhcloudFamily === 'valheim';
   const isCS2Ovhcloud = (() => {
     if (serverProvider !== 'ovhcloud') return false;
     try {
@@ -174,8 +173,6 @@ export function ServerSettingsModal({
   })();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('filemanager');
-  // Until the user clicks a tab, the active tab follows the computed default (which shifts as
-  // permissions load in asynchronously).
   const hasUserSelectedTabRef = useRef(false);
   const [containerConfigSaveCount, setContainerConfigSaveCount] = useState(0);
 
@@ -293,11 +290,11 @@ export function ServerSettingsModal({
     canWriteFiles,
     canReadBackups,
     canDownloadBackups,
-    canCreateBackups,
+    canCreateBackups: canCreateBackupsPerm,
     canEditBackupSettings,
     canDeleteBackups,
     canRestoreBackups,
-    canRenameBackups,
+    canRenameBackups: canRenameBackupsPerm,
     canWriteScheduledTasks,
     canReadMinecraftSettings,
     canWriteMinecraftSettings,
@@ -334,11 +331,18 @@ export function ServerSettingsModal({
     canWriteRustMods,
     canWriteRustFrameworks,
     canUseRust,
+    canReadValheimMods,
+    canWriteValheimMods,
+    canWriteValheimFrameworks,
+    canUseValheim,
     canAccessTab: baseCanAccessTab,
   } = createServerSettingsAccess(currentUser, serverPermissions);
 
-  // Whether this server type has a Game Config surface at all. Like Terminal, the tab stays
-  // visible but greyed-out when the user lacks the permissions to see any content.
+  // Games whose backups are a file pair answer 501 on create and 400 on rename, so the
+  // permission alone is not enough to offer either action.
+  const canCreateBackups = canCreateBackupsPerm && supportsBackupCreate(serverProviderMetadataJson);
+  const canRenameBackups = canRenameBackupsPerm && supportsBackupRename(serverProviderMetadataJson);
+
   const gameConfigApplicable =
     !isExternalProvider &&
     (isMinecraftJavaOvhcloud ||
@@ -348,10 +352,9 @@ export function ServerSettingsModal({
       isProjectZomboidOvhcloud ||
       isCS2Ovhcloud ||
       isRustOvhcloud ||
+      isValheimOvhcloud ||
       isLinuxGSMGame);
 
-  // Whether the Game Config tab has content for this user: each game exposes a different config
-  // surface gated by its own permission. Without it the tab is treated as inaccessible.
   const gameConfigHasContent =
     ((isMinecraftJavaOvhcloud || isMinecraftBedrockOvhcloud) && canUseMinecraft) ||
     (isHytaleOvhcloud && canUseHytale) ||
@@ -359,15 +362,13 @@ export function ServerSettingsModal({
     (isProjectZomboidOvhcloud && canUseProjectZomboid) ||
     (isCS2Ovhcloud && (canEditContainerConfig || canWipeHard)) ||
     (isRustOvhcloud && canUseRust) ||
+    (isValheimOvhcloud && canUseValheim) ||
     (isLinuxGSMGame && canUseFileManager);
 
   const canUseGameConfigTab = gameConfigApplicable;
   const canAccessTab = (tab: SettingsTab): boolean => {
     if (tab === 'gameconfig') return gameConfigHasContent;
-    // Backups require both server support and `backups.read`.
     if (tab === 'backup') return serverBackupSupported && canReadBackups;
-    // Container config is readable by anyone (backend redacts `env` without `server.env`);
-    // editing is gated inside the tab.
     if (tab === 'containerconfig') return true;
     return baseCanAccessTab(tab);
   };
@@ -378,8 +379,6 @@ export function ServerSettingsModal({
     setActiveTab(tab);
   };
   const defaultTab = SETTINGS_TAB_PRIORITY.find((tab) => canAccessTab(tab)) ?? 'filemanager';
-  // Derive the displayed tab during render (not from the effect below), else the modal briefly
-  // shows a stale activeTab and visibly jumps to the default on the next frame.
   const effectiveActiveTab = hasUserSelectedTabRef.current ? activeTab : defaultTab;
   useBodyScrollLock(isOpen);
 
@@ -494,11 +493,8 @@ export function ServerSettingsModal({
   });
 
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
-  // Mirror of the queue for imperative reads (retry) without stale closures.
   const uploadQueueRef = useRef<UploadQueueItem[]>([]);
   useEffect(() => { uploadQueueRef.current = uploadQueue; }, [uploadQueue]);
-  // Per-queue-item task, so a failed item can be retried with the same file and
-  // destination without the user re-dragging the whole folder.
   const uploadTasksRef = useRef<Map<string, { file: File; relativePath: string; dirPath: string; root?: string }>>(new Map());
 
   // A folder upload (e.g. a Minecraft map) is often hundreds of small files.
@@ -506,8 +502,6 @@ export function ServerSettingsModal({
   // limit and the server; bound concurrency to a handful at a time instead.
   const UPLOAD_CONCURRENCY = 5;
 
-  // Upload one queued item (by queue id): reset it to in-progress, retry transient
-  // failures, and reflect the final state. Returns whether it ultimately succeeded.
   const uploadOneQueued = useCallback(
     async (queueId: string): Promise<boolean> => {
       const task = uploadTasksRef.current.get(queueId);
@@ -534,8 +528,6 @@ export function ServerSettingsModal({
     [serverId]
   );
 
-  // Only auto-purge the queue when everything succeeded; if anything failed, keep
-  // the entries visible so the user sees the recap and can retry the failures.
   const purgeQueueIfAllSucceeded = useCallback(() => {
     setTimeout(() => {
       setUploadQueue((prev) => {
@@ -559,8 +551,6 @@ export function ServerSettingsModal({
     async (dropped: File[]) => {
       if (!serverId || !canWriteFiles) return;
 
-      // Preserve each file's folder-relative path (react-dropzone puts it on `file.path`)
-      // instead of flattening to file.name.
       const relativePathOf = (file: File): string => {
         const raw = String((file as any).path || (file as any).webkitRelativePath || file.name || '')
           .replace(/\\/g, '/');
@@ -587,8 +577,6 @@ export function ServerSettingsModal({
         await runUploads(newItems.map((it) => it.id));
       };
 
-      // Warn before overwriting: collide the uploads' top-level name against the
-      // current directory listing (covers a file, or a folder of the same name).
       const existing = new Set(files.map((f) => f.name));
       const clashes = Array.from(
         new Set(uploads.map((u) => u.relativePath.split('/')[0]).filter((name) => existing.has(name)))
@@ -615,8 +603,6 @@ export function ServerSettingsModal({
     await runUploads(failedIds);
   }, [runUploads]);
 
-  // Server-side archive extraction: trigger the job, then poll it (no client-side
-  // progress — the work is on the server). One extraction at a time.
   const [extractStatus, setExtractStatus] = useState<
     { name: string; status: 'running' | 'done' | 'failed'; completedFiles: number; error?: string } | null
   >(null);
@@ -738,13 +724,10 @@ export function ServerSettingsModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    // Until the user picks a tab, keep following the computed default, which can shift as
-    // permissions load in asynchronously after the modal opens.
     if (!hasUserSelectedTabRef.current) {
       if (activeTab !== defaultTab) setActiveTab(defaultTab);
       return;
     }
-    // Safety net: if the user's current tab becomes inaccessible, fall back.
     if (!canAccessTab(activeTab)) setActiveTab(defaultTab);
   }, [isOpen, activeTab, defaultTab]);
 
@@ -1006,6 +989,22 @@ export function ServerSettingsModal({
               canManageEnv,
               canEditContainerConfig,
               containerConfigSaveCount,
+              borderColor,
+              contentBg,
+              textPrimary,
+              textSecondary,
+            } : null}
+            valheimProps={isValheimOvhcloud && serverId && canUseValheim ? {
+              serverId,
+              serverStatus,
+              canReadMods: canReadValheimMods,
+              canWriteMods: canWriteValheimMods,
+              canWriteFrameworks: canWriteValheimFrameworks,
+              canWipeSoft,
+              canWipeHard,
+              onReinstallStarted: onClose,
+              canManageEnv,
+              canEditContainerConfig,
               borderColor,
               contentBg,
               textPrimary,

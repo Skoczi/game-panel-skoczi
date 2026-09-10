@@ -19,10 +19,10 @@ export const RUST_GAMEMODE_OPTIONS: Array<{ value: string; label: string }> = [
 const KNOWN_KEYS = ['server.worldsize', 'server.seed', 'server.gamemode'];
 
 export interface RustLaunchParams {
-  worldsize: string; // integer as string, '' when unset
-  seed: string;      // integer as string, '' when unset
-  gamemode: string;  // '' | 'softcore' | 'hardcore'
-  extra: string;     // unknown flags, re-emitted verbatim
+  worldsize: string;
+  seed: string;
+  gamemode: string;
+  extra: string;
 }
 
 export function parseRustParams(raw: string): RustLaunchParams {

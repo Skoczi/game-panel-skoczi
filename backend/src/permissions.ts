@@ -101,6 +101,13 @@ export const PERMISSIONS = {
             write: 'rust.mods.write',
         },
     },
+    valheim: {
+        frameworksWrite: 'valheim.frameworks.write',
+        mods: {
+            read: 'valheim.mods.read',
+            write: 'valheim.mods.write',
+        },
+    },
 } as const;
 
 function collectPermissionStrings(node: unknown, acc: Set<string>): void {

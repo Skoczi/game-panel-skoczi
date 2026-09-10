@@ -1,7 +1,3 @@
-// Types for the Minecraft addon catalog (Modrinth-backed), served under
-// /api/servers/:id/minecraft/addons-catalog. Every response embeds `context`,
-// so the client never needs to source the loader or Minecraft version itself.
-
 export type AddonKind = 'mods' | 'plugins';
 
 export interface AddonContext {
@@ -49,8 +45,6 @@ export interface AddonSearchResponse {
   hits: AddonSearchHit[];
 }
 
-// One jar found on disk, enriched by hash when Modrinth recognises it.
-// title/iconUrl/slug/versionId/projectId are null for an unknown jar.
 export interface InstalledAddon {
   fileName: string;
   fileSize: number;
@@ -115,7 +109,6 @@ export interface AddonDependency {
   type: 'required' | 'optional' | 'incompatible' | 'embedded';
 }
 
-// The addon detail: search-hit fields + long description, gallery, versions, deps.
 export interface AddonProject extends AddonSearchHit {
   body: string;
   license: string | null;

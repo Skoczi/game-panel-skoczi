@@ -12,10 +12,6 @@ interface MinecraftAddonDetailProps {
   projectId: string;
   anyVersion?: boolean;
   canWrite: boolean;
-  // Authoritative installed state (projectId → installed versionId) from the parent's
-  // /installed list. The project detail endpoint doesn't reliably report it, so this lets
-  // the modal label the right button for the shown project AND every dependency — including
-  // a mod reached through dependency navigation.
   installedByProject?: Map<string, string | null>;
   onInstalled: () => void;
   onClose: () => void;
@@ -47,7 +43,6 @@ export function MinecraftAddonDetail({
   serverId, projectId, anyVersion = false, canWrite, installedByProject,
   onInstalled, onClose, borderColor, contentBg, textPrimary, textSecondary,
 }: MinecraftAddonDetailProps) {
-  // Dependency navigation: clicking a dependency swaps the shown project, with a back stack.
   const [currentId, setCurrentId] = useState(projectId);
   const [history, setHistory] = useState<string[]>([]);
   const [project, setProject] = useState<AddonProject | null>(null);
@@ -56,8 +51,6 @@ export function MinecraftAddonDetail({
   const [selectedVersionId, setSelectedVersionId] = useState('');
   const [installing, setInstalling] = useState(false);
   const [installingDep, setInstallingDep] = useState<Set<string>>(new Set());
-  // Optimistic install state: the project detail (and dependency entries) don't always
-  // reflect the just-installed file immediately, so track it locally.
   const [installedNow, setInstalledNow] = useState<string | null>(null);
   const [installedDeps, setInstalledDeps] = useState<Set<string>>(new Set());
 
@@ -68,7 +61,6 @@ export function MinecraftAddonDetail({
     try {
       const { project: p } = await apiClient.getMinecraftAddonProject(serverId, currentId, anyVersion);
       setProject(p);
-      // Preselect the latest release so it's not also offered as a separate "Latest release" row.
       const stable = p.versions.find((v) => v.versionType === 'release') ?? p.versions[0] ?? null;
       setSelectedVersionId(stable?.versionId ?? '');
     } catch (err: any) {
@@ -85,7 +77,6 @@ export function MinecraftAddonDetail({
 
   useEffect(() => { void load(); }, [load]);
 
-  // Reset the optimistic state whenever the shown project changes (dependency nav).
   useEffect(() => { setInstalledNow(null); setInstalledDeps(new Set()); }, [currentId]);
 
   const openDependency = (depId: string) => {
@@ -136,14 +127,10 @@ export function MinecraftAddonDetail({
     }
   };
 
-  // Install button state, driven by installed + the latest stable version.
   const versions = project?.versions ?? [];
   const latestStable = versions.find((v) => v.versionType === 'release') ?? versions[0] ?? null;
   const selected = versions.find((v) => v.versionId === selectedVersionId) ?? null;
   const targetVersionId = selected?.versionId ?? latestStable?.versionId ?? null;
-  // Authoritative installed state for the currently shown project — keyed by currentId, so
-  // it stays correct after navigating into a dependency. Falls back to the fetched project
-  // and the optimistic just-installed state.
   const mapInstalled = installedByProject?.has(currentId) ?? false;
   const mapVersionId = installedByProject?.get(currentId) ?? null;
   const effInstalledVer = installedNow ?? project?.installedVersionId ?? mapVersionId;
@@ -157,7 +144,6 @@ export function MinecraftAddonDetail({
   return (
     <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4">
       <div className={`flex w-full h-full md:w-[90vw] md:h-[85vh] md:max-w-6xl flex-col rounded-none md:rounded-lg border ${borderColor} ${contentBg} shadow-2xl overflow-hidden`}>
-        {/* Header */}
         <div className={`flex items-center gap-3 border-b ${borderColor} px-4 py-3`}>
           {history.length > 0 && (
             <AppButton
@@ -181,7 +167,6 @@ export function MinecraftAddonDetail({
           </AppButton>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {loading && (
             <div className="flex items-center gap-2 py-10 justify-center text-sm text-gray-400">
@@ -196,7 +181,6 @@ export function MinecraftAddonDetail({
 
           {!loading && !error && project && (
             <div className="p-4 space-y-4 max-w-4xl mx-auto">
-              {/* Meta */}
               <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${textSecondary}`}>
                 <span>↓ {formatCount(project.downloads)} downloads</span>
                 <span>♥ {formatCount(project.follows)} followers</span>
@@ -206,7 +190,6 @@ export function MinecraftAddonDetail({
                 ))}
               </div>
 
-              {/* Gallery */}
               {project.gallery.length > 0 && (
                 <div className="flex gap-3 overflow-x-auto pb-1">
                   {project.gallery.map((img) => (
@@ -218,9 +201,8 @@ export function MinecraftAddonDetail({
                 </div>
               )}
 
-              {/* Install card — select and action on one line (matches the dependency rows) */}
-              <div className={`rounded-lg border ${borderColor} p-3 space-y-2`}>
-                <label className={`block text-xs ${textSecondary}`}>Version</label>
+              <div className="space-y-2">
+                <label className={`block text-sm font-semibold ${textPrimary}`}>Version</label>
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     {noBuild ? (
@@ -255,12 +237,10 @@ export function MinecraftAddonDetail({
                 )}
               </div>
 
-              {/* Dependencies */}
               {project.dependencies.length > 0 && (
                 <div className="space-y-2">
                   <h4 className={`text-sm font-semibold ${textPrimary}`}>Dependencies declared by the author</h4>
                   {project.dependencies.map((dep, i) => {
-                    // Installed if the /installed list already has it, or we just installed it here.
                     const depInstalled = Boolean(dep.projectId)
                       && (installedDeps.has(dep.projectId!) || (installedByProject?.has(dep.projectId!) ?? false));
                     const depInstalling = Boolean(dep.projectId) && installingDep.has(dep.projectId!);
@@ -304,7 +284,6 @@ export function MinecraftAddonDetail({
                 </div>
               )}
 
-              {/* Links */}
               {(project.links.source || project.links.issues || project.links.wiki || project.links.discord) && (
                 <div className="flex flex-wrap gap-3 text-xs">
                   {([['source', 'Source'], ['issues', 'Issues'], ['wiki', 'Wiki'], ['discord', 'Discord']] as const).map(([key, lbl]) => {
@@ -319,7 +298,6 @@ export function MinecraftAddonDetail({
                 </div>
               )}
 
-              {/* Description */}
               {project.body && (
                 <div className={`rounded-lg border ${borderColor} p-4`}>
                   <Markdown allowSanitizedHtml>{project.body}</Markdown>

@@ -13,17 +13,12 @@ type GameInstalledTelemetryInput = {
   dockerImage?: string | null;
 };
 
-function normalizeBaseUrl(value: string | null): string | null {
-  const trimmed = String(value ?? '').trim();
-  return trimmed ? trimmed.replace(/\/+$/, '') : null;
-}
-
 function getTelemetryConfig() {
   const config = getConfig();
 
   return {
     enabled: config.telemetryEnabled,
-    baseUrl: normalizeBaseUrl(config.telemetryApiBaseUrl),
+    baseUrl: config.databaseApiBaseUrl,
     instanceId: config.instanceId,
     instanceSecret: config.instanceSecret,
     frontendUrl: config.frontendUrl,

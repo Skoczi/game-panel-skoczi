@@ -12,8 +12,11 @@ import {
     resolvePalworldBackupLocation,
     restorePalworldBackup,
 } from '../images/palworld/backups.js';
+import { palworldConfigFiles } from '../images/palworld/configFiles.js';
+import { palworldLaunchSettingsAccessor } from '../images/palworld/launchSettings.js';
+import { palworldFileSettingsAccessor } from '../images/palworld/settings.js';
 import { resolvePalworldSoftWipeTargets } from '../images/palworld/wipe.js';
-import palworldRoutes from '../images/palworld/routes.js';
+import { PERMISSIONS } from '../../../permissions.js';
 import { OVHCLOUD_DOCKER_STOP_TIMEOUT_SECONDS } from './common.js';
 import type { OvhcloudImageAdapter, OvhcloudInstallResolution } from './types.js';
 
@@ -43,9 +46,18 @@ export const palworldAdapter: OvhcloudImageAdapter = {
         create: createPalworldBackup,
         restore: restorePalworldBackup,
     },
-    routes: [
-        { path: '/palworld', router: palworldRoutes },
-    ],
+    settings: {
+        label: 'Palworld',
+        file: {
+            permissions: {
+                read: PERMISSIONS.palworld.settings.read,
+                write: PERMISSIONS.palworld.settings.write,
+            },
+            accessor: palworldFileSettingsAccessor,
+        },
+        launch: palworldLaunchSettingsAccessor,
+        configFiles: palworldConfigFiles,
+    },
 
     supportsImageId(imageId: string): boolean {
         return Boolean(getOvhcloudPalworldImage(imageId));

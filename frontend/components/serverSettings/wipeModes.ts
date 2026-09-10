@@ -1,16 +1,10 @@
-// Per-game wipe configuration. Hardcoded on purpose: this is our Game Panel and our
-// Docker images, so we own the end-to-end chain and can hardcode which modes each
-// game exposes (rather than gating the UI on a GET, which would make the tab appear
-// or disappear late). LinuxGSM images are treated per-provider, not handled here.
-
 export type WipeMode = 'soft' | 'hard';
 
-// One wipe mode as shown in the UI. Soft = orange, hard = red.
 export interface WipeModeInfo {
   id: WipeMode;
   label: string;
   tone: 'soft' | 'hard';
-  reinstall: boolean;     // hard wipe reinstalls the server (no "removed" result)
+  reinstall: boolean;
   description: string;
   deleted: string[];
   kept: string[];
@@ -25,16 +19,14 @@ const MODES_BY_FAMILY: Record<string, WipeMode[]> = {
   palworld: ['soft', 'hard'],
   'project-zomboid': ['soft', 'hard'],
   rust: ['soft', 'hard'],
+  valheim: ['soft', 'hard'],
 };
 
-// Modes a game supports, regardless of permissions (used by the role UI to decide
-// which wipe toggles to show for a given game).
 export function getSupportedWipeModes(family: string | null | undefined): WipeMode[] {
   return (family && MODES_BY_FAMILY[family]) || [];
 }
 
-// Per-game meaning of a soft wipe (world/progress reset, config kept).
-const SOFT_COPY: Record<string, { description: string; deleted: string[]; kept: string[] }> = {
+const SOFT_COPY: Record<string, { description: string; deleted: string[]; kept: string[]; confirmMessage?: string }> = {
   'project-zomboid': {
     description: 'Reset the world and player progression, keeping the server setup. A fresh world is generated on the next start.',
     deleted: ['World save (map, loot, zombies)', 'Player characters (inventory, skills, position)'],
@@ -60,6 +52,12 @@ const SOFT_COPY: Record<string, { description: string; deleted: string[]; kept: 
     deleted: ['World save (map + all player data)'],
     kept: ['Server config (cfg/)', 'Oxide + installed plugins & their data', 'Backups'],
   },
+  valheim: {
+    description: 'Reset the shared world (map, buildings, structures, dropped items), keeping the server setup. A fresh world is generated on the next start. Players keep their characters — Valheim stores them on the client.',
+    deleted: ['World save (map, buildings, dropped items) and its .old safety copies'],
+    kept: ['Player characters (stored client-side)', 'Automatic world backups', 'Admin, allowed & banned lists', 'Server settings (launch parameters)', 'BepInEx + installed mods'],
+    confirmMessage: 'This resets the shared world. Player characters, settings, access lists and mods are kept. There is no automatic backup and it cannot be undone.',
+  },
 };
 
 const HARD_COPY = {
@@ -73,8 +71,6 @@ const SOFT_CONFIRM =
 const HARD_CONFIRM =
   'This wipes ALL persistent volumes — world, characters, mods, config files AND backups — then reinstalls the game from scratch. Nothing survives and it cannot be undone.';
 
-// Build the wipe modes to display for a game, filtered by what the game supports and
-// by the caller's permissions (soft needs server.wipe.soft, hard needs server.wipe.hard).
 export function buildWipeModes(
   family: string | null | undefined,
   perms: { canSoft: boolean; canHard: boolean }
@@ -94,7 +90,7 @@ export function buildWipeModes(
         description: copy.description,
         deleted: copy.deleted,
         kept: copy.kept,
-        confirmMessage: SOFT_CONFIRM,
+        confirmMessage: copy.confirmMessage ?? SOFT_CONFIRM,
       });
     } else {
       if (!perms.canHard) continue;

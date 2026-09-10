@@ -15,7 +15,6 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppPageLayout } from '../../src/ui/layout';
 
-// Lazy-loaded so recharts is only fetched when Host Status opens.
 const HostStatus = lazy(() => import('../HostStatus').then((m) => ({ default: m.HostStatus })));
 import type { CLIMessage } from '../../types/cli';
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
@@ -30,6 +29,7 @@ import type {
 import { nextId } from '../../utils/uid';
 import type { ActiveLogPromptToast, ConsoleTerminalTarget } from './appRuntime';
 import { AppButton } from '../../src/ui/components';
+import { supportsConsoleCommand } from '../../utils/providerCapabilities';
 
 interface AppShellProps {
   activeTab: string;
@@ -43,6 +43,7 @@ interface AppShellProps {
   pageShellClassName: string;
   gameServers: GameServer[];
   serverMetricsHistoryById: Record<string, ServerMetricHistoryPoint[]>;
+  onLoadServerMetricsHistory: (serverId: string) => void;
   serverHistoryById: ServerHistoryById;
   gameNamesByKey: Record<string, string>;
   serverPermissionsById: Record<string, string[]>;
@@ -102,6 +103,7 @@ export function AppShell({
   pageShellClassName,
   gameServers,
   serverMetricsHistoryById,
+  onLoadServerMetricsHistory,
   serverHistoryById,
   gameNamesByKey,
   serverPermissionsById,
@@ -153,8 +155,9 @@ export function AppShell({
   const canSendCommandByServer: Record<string, boolean> = {};
   for (const server of gameServers) {
     const perms = serverPermissionsById[server.id] ?? [];
-    canSendCommandByServer[server.id] =
+    const permitted =
       Boolean(currentUser?.isRoot) || perms.includes('*') || perms.includes('server.command.send');
+    canSendCommandByServer[server.id] = permitted && supportsConsoleCommand(server.providerMetadataJson);
   }
 
   const handleSendConsoleCommand = async (serverId: string, command: string) => {
@@ -268,6 +271,7 @@ export function AppShell({
             <GameServersTable
               servers={gameServers}
               metricsHistoryByServer={serverMetricsHistoryById}
+              onLoadMetricsHistory={onLoadServerMetricsHistory}
               historyByServer={serverHistoryById}
               gameNamesByKey={gameNamesByKey}
               currentUser={currentUser}
@@ -363,5 +367,4 @@ export function AppShell({
     </div>
   );
 }
-
 

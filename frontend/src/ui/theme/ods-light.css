@@ -256,6 +256,41 @@
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
   }
 
+  /* ── Combobox (typable select) ── */
+  html:not(.dark) .gp-app-combobox-control[data-ods='combobox-control'] {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+
+  html:not(.dark) .gp-app-combobox[data-ods='combobox'] [data-ods='combobox-content'] {
+    background: #ffffff;
+    border-color: #e2e8f0;
+    color: #0f172a;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+  }
+
+  html:not(.dark) .gp-app-combobox[data-ods='combobox'] [data-ods='combobox-content'] [role='option'] {
+    color: #0f172a;
+  }
+
+  html:not(.dark) .gp-game-config-combobox .gp-app-combobox-control[data-ods='combobox-control'] {
+    border-color: #8ea0bd;
+    background: #ffffff;
+    box-shadow: inset 0 1px 0 rgba(0, 80, 215, 0.04);
+  }
+
+  html:not(.dark) .gp-game-config-combobox .gp-app-combobox-control[data-ods='combobox-control']:hover {
+    border-color: #6b7c99;
+  }
+
+  html:not(.dark) .gp-game-config-combobox .gp-app-combobox-control[data-ods='combobox-control']:focus-within {
+    box-shadow:
+      inset 0 1px 0 rgba(0, 80, 215, 0.06),
+      0 0 0 2px rgba(0, 80, 215, 0.12);
+  }
+
+
   /* ── Range slider ── */
   html:not(.dark) .gp-game-config-range::-webkit-slider-thumb {
     border: 2px solid #ffffff;

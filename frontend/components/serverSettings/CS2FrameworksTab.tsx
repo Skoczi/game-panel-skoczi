@@ -9,8 +9,6 @@ import {
 } from '../../utils/frameworkCatalog';
 import { mapBackendStatusToUi } from '../../utils/serverRuntime';
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
 interface FrameworkStatus {
   metamodInstalled: boolean;
   counterStrikeSharpInstalled: boolean;
@@ -41,8 +39,6 @@ const selectCls =
 
 const versionInputCls =
   'w-full rounded-lg bg-white dark:bg-[#0f1723]/60 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--gp-ods-accent-primary)] dark:focus:ring-white/20 focus:border-transparent disabled:opacity-50 transition-all';
-
-// ── Sub-components ─────────────────────────────────────────────────────────
 
 function VersionSelect({
   status,
@@ -152,8 +148,6 @@ function LogOutput({ result }: { result: ScriptResult | null }) {
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
-
 export function CS2FrameworksSection({
   serverId,
   serverStatus,
@@ -163,8 +157,6 @@ export function CS2FrameworksSection({
   textPrimary,
   textSecondary,
 }: CS2FrameworksSectionProps) {
-  // Framework install/repair restarts the server, so it is blocked while the
-  // container is active/transitioning (allowed on stopped, unhealthy, failed).
   const FRAMEWORK_BLOCKED_STATUSES = ['creating', 'installing', 'starting', 'running', 'stopping', 'restarting'];
   const isStopped = !FRAMEWORK_BLOCKED_STATUSES.includes(mapBackendStatusToUi(serverStatus));
   const [status, setStatus] = useState<FrameworkStatus | null>(null);
@@ -296,7 +288,6 @@ export function CS2FrameworksSection({
   return (
     <div className="space-y-4">
 
-      {/* MetaMod:Source */}
       <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-1.5 min-w-0">
@@ -345,7 +336,6 @@ export function CS2FrameworksSection({
         <LogOutput result={metamodResult} />
       </div>
 
-      {/* CounterStrikeSharp */}
       <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="space-y-1.5 min-w-0">

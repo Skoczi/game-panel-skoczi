@@ -10,7 +10,6 @@ const FOCUSABLE_SELECTOR = [
 ].join(',');
 
 interface FocusTrapOptions {
-  /** Called when Escape is pressed inside the trap. Omit to disable Escape handling. */
   onEscape?: () => void;
 }
 
@@ -42,7 +41,6 @@ export function useFocusTrap(
         (el) => el.offsetParent !== null || el === document.activeElement
       );
 
-    // Move focus into the dialog when it opens.
     (getFocusable()[0] ?? container).focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {

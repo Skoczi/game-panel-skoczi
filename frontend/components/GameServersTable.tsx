@@ -9,7 +9,6 @@ import {
   type ServerHistoryEntry,
   type ServerMetricHistoryPoint,
 } from '../utils/serverRuntime';
-// Lazily loaded so recharts (pulled in by the metric-history dialog) stays off initial load.
 const GameServersTableDialogs = lazy(() =>
   import('./gameServersTable/GameServersTableDialogs').then((m) => ({
     default: m.GameServersTableDialogs,
@@ -25,13 +24,13 @@ import {
   type MetricType,
   type SortField,
   type SortOrder,
-  METRICS_HISTORY_REQUEST_LIMIT,
   getMetricZoomedData,
 } from './gameServersTable/utils';
 
 interface GameServersTableProps {
   servers: GameServer[];
   metricsHistoryByServer?: Record<string, ServerMetricHistoryPoint[]>;
+  onLoadMetricsHistory?: (serverId: string) => void;
   historyByServer?: Record<string, ServerHistoryEntry[]>;
   gameNamesByKey: Record<string, string>;
   currentUser?: AuthUser | null;
@@ -55,6 +54,7 @@ interface ConnectionPortRow {
 export function GameServersTable({
   servers,
   metricsHistoryByServer,
+  onLoadMetricsHistory,
   historyByServer,
   gameNamesByKey,
   currentUser,
@@ -109,7 +109,6 @@ export function GameServersTable({
     localStorage.setItem('gp_visible_metrics', JSON.stringify(visibleMetrics));
   }, [visibleMetrics]);
 
-  // List / Grid view preference, persisted like the visible-metrics choice.
   const [viewMode, setViewMode] = useState<ServersViewMode>(() => {
     try {
       const stored = localStorage.getItem('gp_servers_view');
@@ -181,11 +180,9 @@ export function GameServersTable({
     }
   };
 
-  // Precompute the game label once per server so sort/filter comparators don't re-parse metadata.
   const gameLabelById = useMemo(() => {
     const map = new Map<GameServer['id'], string>();
     servers.forEach((server) => {
-      // Prefer the human-readable "gamename" from provider metadata over the shortname.
       let label = gameNamesByKey[server.game] || server.game;
       if (server.providerMetadataJson) {
         try {
@@ -212,7 +209,7 @@ export function GameServersTable({
     setMetricOffset(0);
     setMetricDragging(false);
     setMetricDragStart(0);
-    apiClient.subscribeMetrics(Number(server.id), METRICS_HISTORY_REQUEST_LIMIT);
+    onLoadMetricsHistory?.(server.id);
   };
 
   const closeMetricModal = () => {
@@ -320,7 +317,6 @@ export function GameServersTable({
   const changeMetricType = (type: MetricType) => {
     setMetricModal((prev) => ({ ...prev, metric: type }));
   };
-
 
   useEffect(() => {
     if (!historyModal.isOpen || !historyModal.serverId) return;
@@ -561,7 +557,6 @@ export function GameServersTable({
           : 'Network';
   const canOpenInstallModal = Boolean(onOpenInstallModal) && canInstall;
 
-  // Everything the card needs, built once and shared by both the mobile list and the grid.
   const cardActions: GameServerCardActions = {
     currentUser,
     permissionsByServer,
@@ -587,7 +582,6 @@ export function GameServersTable({
     onAction,
   };
 
-  // Mount the lazy dialogs on first open, then keep them mounted so close transitions still play.
   const anyDialogOpen =
     metricModal.isOpen || historyModal.isOpen || Boolean(selectedConnectionServer);
   const [dialogsMounted, setDialogsMounted] = useState(false);
@@ -779,7 +773,4 @@ export function GameServersTable({
     </div>
   );
 }
-
-
-
 

@@ -35,7 +35,6 @@ export function parseCs2Params(raw: string): Record<string, string> {
         s = s.slice(closeIdx + 1).trimStart();
       }
     } else {
-      // Unquoted value — read until next +key or end
       const nextPlus = s.indexOf(' +');
       if (nextPlus === -1) {
         value = s;
@@ -52,7 +51,6 @@ export function parseCs2Params(raw: string): Record<string, string> {
   return result;
 }
 
-// Serialize { key: "value" } back to "+key value +key2 "quoted value""
 export function serializeCs2Params(params: Record<string, string>): string {
   return Object.entries(params)
     .filter(([, v]) => v !== '' && v !== undefined)

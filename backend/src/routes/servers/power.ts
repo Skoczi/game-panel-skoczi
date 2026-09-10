@@ -9,7 +9,6 @@ import {
     serverRepository,
 } from '../../database/index.js';
 import { assertHostPortsAvailableForServer } from '../../services/hostPortAvailability.js';
-import { removeLinuxGsmContainerCronsBestEffort } from '../../services/linuxGsmCrons.js';
 import {
     afterOvhcloudServerStopped,
     getServerStopTimeoutSeconds,
@@ -92,8 +91,6 @@ export function createServerPowerRoutes(): Router {
                     }
                 }
 
-                const freshServer = await serverRepository.findById(serverId);
-                if (freshServer) await removeLinuxGsmContainerCronsBestEffort(freshServer);
                 await completeDockerPowerTransition(serverId);
 
                 await actionsRepository.create(
@@ -209,8 +206,6 @@ export function createServerPowerRoutes(): Router {
                     await dockerUtils.startContainer(server.docker_container_id);
                 }
 
-                const freshServer = await serverRepository.findById(serverId);
-                if (freshServer) await removeLinuxGsmContainerCronsBestEffort(freshServer);
                 await completeDockerPowerTransition(serverId);
 
                 await actionsRepository.create(

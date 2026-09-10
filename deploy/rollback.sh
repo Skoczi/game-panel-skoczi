@@ -113,6 +113,8 @@ main() {
   SOURCE_ROOT="$REPO_DIR"
   sync_project_sources
 
+  ensure_games_network_if_declared
+
   log "Rebuilding and starting Game Panel stack..."
   compose_cmd up -d --build --remove-orphans
 

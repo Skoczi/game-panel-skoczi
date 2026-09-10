@@ -2,51 +2,56 @@ import { promises as fs } from 'node:fs';
 import type { GameServerRow } from '../../../../types/gameServer.js';
 import { resolveServerPath } from '../../../../services/fileExplorer.js';
 import { ensureIsFile } from '../../../../utils/fsBrowser.js';
+import type {
+    FileSettingsAccessor,
+    SettingDefinition,
+    SettingValue,
+} from '../../settings/types.js';
 import { assertOvhcloudPalworldServer } from '../palworld.js';
 
-type PalworldSettingType = 'boolean' | 'integer' | 'float' | 'select' | 'string';
-
-type PalworldSettingDefinition = {
-    key: string;
-    label: string;
-    description: string;
-    type: PalworldSettingType;
-    options?: string[];
-    min?: number;
-    max?: number;
-};
-
-type PalworldSettingValue = string | number | boolean;
-
-export type PalworldSetting = PalworldSettingDefinition & {
-    value: PalworldSettingValue;
-};
 
 const MAX_STRING_SETTING_LENGTH = 2048;
 const PALWORLD_SETTINGS_FILE_PATH = '/server/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini';
 const PALWORLD_DEFAULT_SETTINGS_FILE_PATH = '/server/DefaultPalWorldSettings.ini';
 
-export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
+const SAFE_TEXT_PATTERN = '^[^"(),]*$';
+const SAFE_TEXT_MESSAGE = 'Double quotes, parentheses and commas are not allowed in this value.';
+
+const PALWORLD_SETTING_DEFINITIONS: SettingDefinition[] = [
     {
         key: 'ServerName',
+        group: 'branding',
         label: 'Server name',
         description: 'Name of the server shown in the community server list.',
         type: 'string',
+        maxLength: MAX_STRING_SETTING_LENGTH,
+        pattern: SAFE_TEXT_PATTERN,
+        patternMessage: SAFE_TEXT_MESSAGE,
     },
     {
         key: 'ServerDescription',
+        group: 'branding',
         label: 'Server description',
         description: 'Short description shown next to the server name.',
         type: 'string',
+        maxLength: MAX_STRING_SETTING_LENGTH,
+        pattern: SAFE_TEXT_PATTERN,
+        patternMessage: SAFE_TEXT_MESSAGE,
     },
     {
         key: 'ServerPassword',
+        group: 'security',
         label: 'Server password',
         description: 'Password required to join. Leave empty to make the server public.',
         type: 'string',
+        secret: true,
+        maxLength: MAX_STRING_SETTING_LENGTH,
+        pattern: SAFE_TEXT_PATTERN,
+        patternMessage: SAFE_TEXT_MESSAGE,
     },
     {
         key: 'ServerPlayerMaxNum',
+        group: 'players',
         label: 'Maximum players',
         description: 'Maximum number of players allowed on the server (dedicated servers are capped at 32).',
         type: 'integer',
@@ -55,13 +60,20 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'DeathPenalty',
+        group: 'gameplay',
         label: 'Death penalty',
         description: 'What a player loses when they die.',
         type: 'select',
-        options: ['None', 'Item', 'ItemAndEquipment', 'All'],
+        options: [
+            { value: 'None', label: 'None' },
+            { value: 'Item', label: 'Item' },
+            { value: 'ItemAndEquipment', label: 'ItemAndEquipment' },
+            { value: 'All', label: 'All' },
+        ],
     },
     {
         key: 'ExpRate',
+        group: 'gameplay',
         label: 'EXP rate',
         description: 'Experience gain multiplier for players and Pals.',
         type: 'float',
@@ -70,6 +82,7 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'PalCaptureRate',
+        group: 'gameplay',
         label: 'Pal capture rate',
         description: 'Capture rate multiplier for Pals.',
         type: 'float',
@@ -78,6 +91,7 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'CollectionDropRate',
+        group: 'gameplay',
         label: 'Gatherable drop rate',
         description: 'Multiplier for items gathered from nodes (trees, rocks, ...).',
         type: 'float',
@@ -86,6 +100,7 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'EnemyDropItemRate',
+        group: 'gameplay',
         label: 'Enemy drop rate',
         description: 'Multiplier for items dropped by defeated enemies.',
         type: 'float',
@@ -94,6 +109,7 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'WorkSpeedRate',
+        group: 'gameplay',
         label: 'Work speed rate',
         description: 'Multiplier for how fast Pals work at bases.',
         type: 'float',
@@ -102,6 +118,7 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'MonsterFarmActionSpeedRate',
+        group: 'gameplay',
         label: 'Ranch production speed rate',
         description: 'Multiplier for how fast Pals produce items at the Ranch.',
         type: 'float',
@@ -110,18 +127,21 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'bEnableFastTravel',
+        group: 'gameplay',
         label: 'Enable fast travel',
         description: 'Allow players to use fast travel points.',
         type: 'boolean',
     },
     {
         key: 'bIsStartLocationSelectByMap',
+        group: 'world',
         label: 'Choose start location on map',
         description: 'Let players pick their starting location on the map.',
         type: 'boolean',
     },
     {
         key: 'PalEggDefaultHatchingTime',
+        group: 'gameplay',
         label: 'Egg hatching time (hours)',
         description: 'Time in hours needed to hatch a huge egg.',
         type: 'float',
@@ -130,6 +150,7 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'DropItemAliveMaxHours',
+        group: 'world',
         label: 'Dropped item lifetime (hours)',
         description: 'How long dropped items stay in the world, in hours.',
         type: 'float',
@@ -138,31 +159,27 @@ export const PALWORLD_SETTING_DEFINITIONS: PalworldSettingDefinition[] = [
     },
     {
         key: 'bEnableVoiceChat',
+        group: 'players',
         label: 'Enable voice chat',
         description: 'Enable in-game proximity voice chat on the server.',
         type: 'boolean',
     },
     {
         key: 'VoiceChatMaxVolumeDistance',
+        group: 'players',
         label: 'Voice full-volume distance',
         description: 'Distance within which voice chat plays at full volume (Unreal units; 100 = 1 m, so 3000 = ~30 m).',
         type: 'float',
     },
     {
         key: 'VoiceChatZeroVolumeDistance',
+        group: 'players',
         label: 'Voice cutoff distance',
         description: 'Distance beyond which voice chat becomes inaudible (Unreal units; 100 = 1 m, so 15000 = ~150 m).',
         type: 'float',
     },
 ];
 
-const SETTING_DEFINITIONS_BY_KEY = new Map(
-    PALWORLD_SETTING_DEFINITIONS.map((definition) => [definition.key, definition])
-);
-
-function invalidInput(message: string): never {
-    throw Object.assign(new Error(message), { statusCode: 400 });
-}
 
 function splitTopLevel(inner: string): string[] {
     const parts: string[] = [];
@@ -251,7 +268,7 @@ function unquote(rawValue: string): string {
     return trimmed;
 }
 
-function convertSettingValue(definition: PalworldSettingDefinition, rawValue: string): PalworldSettingValue | null {
+function parseIniValue(definition: SettingDefinition, rawValue: string): SettingValue | null {
     switch (definition.type) {
         case 'boolean': {
             const normalized = rawValue.trim().toLowerCase();
@@ -273,106 +290,78 @@ function convertSettingValue(definition: PalworldSettingDefinition, rawValue: st
     }
 }
 
-function serializeSettingValue(definition: PalworldSettingDefinition, value: unknown): string {
+function renderIniValue(definition: SettingDefinition, value: SettingValue): string {
     switch (definition.type) {
-        case 'boolean': {
-            if (typeof value !== 'boolean') invalidInput(`${definition.key} must be a boolean`);
-            return value ? 'True' : 'False';
-        }
+        case 'boolean': return value ? 'True' : 'False';
         case 'integer':
-        case 'float': {
-            const numeric = typeof value === 'number'
-                ? value
-                : typeof value === 'string' && value.trim() !== ''
-                    ? Number(value)
-                    : Number.NaN;
-
-            if (!Number.isFinite(numeric)) invalidInput(`${definition.key} must be a number`);
-            if (definition.type === 'integer' && !Number.isInteger(numeric)) {
-                invalidInput(`${definition.key} must be an integer`);
-            }
-            if (definition.min !== undefined && numeric < definition.min) {
-                invalidInput(`${definition.key} must be greater than or equal to ${definition.min}`);
-            }
-            if (definition.max !== undefined && numeric > definition.max) {
-                invalidInput(`${definition.key} must be less than or equal to ${definition.max}`);
-            }
-
-            return String(numeric);
-        }
-        case 'select': {
-            if (typeof value !== 'string') invalidInput(`${definition.key} must be a string`);
-            const normalized = value.trim();
-            if (!definition.options?.includes(normalized)) {
-                invalidInput(`${definition.key} must be one of: ${definition.options?.join(', ')}`);
-            }
-            return normalized;
-        }
-        case 'string': {
-            if (typeof value !== 'string') invalidInput(`${definition.key} must be a string`);
-            if (value.length > MAX_STRING_SETTING_LENGTH || /["(),\0\r\n]/.test(value)) {
-                invalidInput(`${definition.key} contains invalid characters`);
-            }
-            return `"${value}"`;
-        }
+        case 'float': return String(value);
+        case 'select': return String(value);
+        case 'string': return `"${value}"`;
     }
 }
 
-export async function listPalworldSettings(server: GameServerRow): Promise<PalworldSetting[]> {
-    assertOvhcloudPalworldServer(server);
+type PalworldSettingsSnapshot = {
+    absPath: string;
+    lines: string[];
+    optionLineIndex: number;
+    keys: string[];
+    values: Map<string, string>;
+    defaults: Map<string, string>;
+};
 
-    const active = await readOptionSettingsValues(server.id, PALWORLD_SETTINGS_FILE_PATH, true);
-    const defaults = await readOptionSettingsValues(server.id, PALWORLD_DEFAULT_SETTINGS_FILE_PATH, false);
+const PALWORLD_FILE_SETTINGS: FileSettingsAccessor<PalworldSettingsSnapshot> = {
+    onMissing: 'omit',
 
-    return PALWORLD_SETTING_DEFINITIONS
-        .map((definition) => {
-            const rawValue = active.get(definition.key) ?? defaults.get(definition.key);
-            if (rawValue === undefined) return null;
-            const value = convertSettingValue(definition, rawValue);
-            if (value === null) return null;
-            return { ...definition, value };
-        })
-        .filter((setting): setting is PalworldSetting => Boolean(setting));
-}
+    definitions(): SettingDefinition[] {
+        return PALWORLD_SETTING_DEFINITIONS;
+    },
 
-export async function patchPalworldSettings(
-    server: GameServerRow,
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: PalworldSetting[] }> {
-    assertOvhcloudPalworldServer(server);
+    async load(server: GameServerRow): Promise<PalworldSettingsSnapshot> {
+        assertOvhcloudPalworldServer(server);
 
-    const entries = Object.entries(updates);
-    if (entries.length === 0) invalidInput('settings must contain at least one value');
+        const resolved = await resolveServerPath({
+            serverId: server.id,
+            root: 'data',
+            path: PALWORLD_SETTINGS_FILE_PATH,
+        });
+        await ensureIsFile(resolved.absPath, resolved.rootDir);
+        const content = await fs.readFile(resolved.absPath, 'utf8');
 
-    const resolved = await resolveServerPath({ serverId: server.id, root: 'data', path: PALWORLD_SETTINGS_FILE_PATH });
-    await ensureIsFile(resolved.absPath, resolved.rootDir);
-    const content = await fs.readFile(resolved.absPath, 'utf8');
+        const found = findOptionSettingsLine(content);
+        if (!found) {
+            throw Object.assign(new Error('PalWorldSettings.ini has no OptionSettings entry'), { statusCode: 500 });
+        }
 
-    const found = findOptionSettingsLine(content);
-    if (!found) {
-        throw Object.assign(new Error('PalWorldSettings.ini has no OptionSettings entry'), { statusCode: 500 });
-    }
+        const { keys, values } = parsePairs(found.inner);
 
-    const { keys, values } = parsePairs(found.inner);
-    const updated: string[] = [];
+        return {
+            absPath: resolved.absPath,
+            lines: content.split('\n'),
+            optionLineIndex: found.index,
+            keys,
+            values,
+            defaults: await readOptionSettingsValues(server.id, PALWORLD_DEFAULT_SETTINGS_FILE_PATH, false),
+        };
+    },
 
-    for (const [key, value] of entries) {
-        const definition = SETTING_DEFINITIONS_BY_KEY.get(key);
-        if (!definition) invalidInput(`Unsupported Palworld setting: ${key}`);
+    read(snapshot: PalworldSettingsSnapshot, definition: SettingDefinition): SettingValue | null {
+        const rawValue = snapshot.values.get(definition.key) ?? snapshot.defaults.get(definition.key);
+        return rawValue === undefined ? null : parseIniValue(definition, rawValue);
+    },
 
-        const rawValue = serializeSettingValue(definition, value);
-        if (!values.has(key)) keys.push(key);
-        values.set(key, rawValue);
-        updated.push(key);
-    }
+    write(snapshot: PalworldSettingsSnapshot, definition: SettingDefinition, value: SettingValue): boolean {
+        if (!snapshot.values.has(definition.key)) snapshot.keys.push(definition.key);
+        snapshot.values.set(definition.key, renderIniValue(definition, value));
+        return true;
+    },
 
-    const newInner = keys.map((key) => `${key}=${values.get(key)}`).join(',');
-    const lines = content.split('\n');
-    lines[found.index] = `OptionSettings=(${newInner})`;
-    await fs.writeFile(resolved.absPath, lines.join('\n'), 'utf8');
+    async save(_server: GameServerRow, snapshot: PalworldSettingsSnapshot): Promise<void> {
+        const inner = snapshot.keys.map((key) => `${key}=${snapshot.values.get(key)}`).join(',');
+        snapshot.lines[snapshot.optionLineIndex] = `OptionSettings=(${inner})`;
+        await fs.writeFile(snapshot.absPath, snapshot.lines.join('\n'), 'utf8');
+    },
+};
 
-    return {
-        updated,
-        settings: await listPalworldSettings(server),
-    };
+export function palworldFileSettingsAccessor(): FileSettingsAccessor<PalworldSettingsSnapshot> {
+    return PALWORLD_FILE_SETTINGS;
 }

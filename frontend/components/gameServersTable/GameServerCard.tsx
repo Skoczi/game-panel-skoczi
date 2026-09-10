@@ -28,8 +28,6 @@ import { AppButton } from '../../src/ui/components';
 
 export type ConfirmServerAction = 'start' | 'stop' | 'restart' | 'delete';
 
-// Everything a single server card needs beyond the server itself. Shared verbatim by
-// the mobile list and the grid so the card logic lives in exactly one place.
 export interface GameServerCardActions {
   currentUser?: AuthUser | null;
   permissionsByServer?: Record<string, string[]>;
@@ -56,19 +54,16 @@ export interface GameServerCardActions {
 
 export interface GameServerCardProps extends GameServerCardActions {
   server: GameServer;
-  // 'grid' shows the metrics as bars (same per-metric colours as the List view).
   variant?: 'list' | 'grid';
 }
 
-// Per-metric bar colour — the exact colours used by the List view.
 function metricBarColor(metric: 'cpu' | 'memory' | 'disk'): string {
   return metric === 'cpu' ? ODS_CHART_THEME.cpu : metric === 'memory' ? ODS_CHART_THEME.ram : ODS_CHART_THEME.disk;
 }
 
 // Card surfaces are self-themed (light/dark). The action buttons keep the mobile's
 // exact classes + `gp-btn-*` markers and stay AppButton so the shared light-mode
-// colour overrides in globals.css (scoped to gp-game-servers-{table,mobile,grid})
-// apply — that's what makes the colours identical to the list view.
+// colour overrides in globals.css (scoped to gp-game-servers-{table,mobile,grid}) apply.
 const CARD = 'border-gray-200 bg-white dark:border-gray-800 dark:bg-[#1f2937]';
 const TEXT_PRIMARY = 'text-gray-900 dark:text-white';
 const TEXT_SECONDARY = 'text-gray-600 dark:text-gray-300';
@@ -79,8 +74,6 @@ const METRIC_VALUE = `${TEXT_PRIMARY} hover:bg-gray-100 dark:hover:bg-gray-700 h
 const POWER_BASE = 'gp-btn-power flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all border shadow-sm';
 const POWER_DISABLED = 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed';
 
-// A single game-server card: name (+ rename), game, status badge (→ history), connection
-// (→ ports modal), CPU/RAM/Disk/Network (→ metric modals), Power/Settings/Log-Console/Delete.
 export function GameServerCard({
   server,
   currentUser,
@@ -111,7 +104,6 @@ export function GameServerCard({
   };
   const { normalizedStatus, label: statusLabel, className: statusClassName } =
     getServerStatusPresentation(server.status);
-  // Up-like (running/unhealthy) → live metrics + Stop; down-like (stopped/failed) → Start.
   const isUpLike = isServerUpLike(server.status);
   const isDownLike = isServerDownLike(server.status);
   const isCreating = isServerCreatingStatus(server.status);
@@ -300,7 +292,7 @@ export function GameServerCard({
                 className={`text-sm font-semibold rounded px-1.5 py-0.5 -mx-1.5 transition-colors ${METRIC_VALUE}`}
                 title="Open CPU history"
               >
-                {server.cpuUsage !== undefined ? `${server.cpuUsage.toFixed(2)}%` : 'Loading'}
+                {server.cpuUsage !== undefined ? `${server.cpuUsage.toFixed(2)}%` : '–'}
               </button>
             </div>
             <div className={`w-px h-6 ${METRIC_DIVIDER}`} />
@@ -312,7 +304,7 @@ export function GameServerCard({
                 className={`text-sm font-semibold rounded px-1.5 py-0.5 -mx-1.5 transition-colors ${METRIC_VALUE}`}
                 title="Open memory history"
               >
-                {server.memoryUsage !== undefined ? `${server.memoryUsage.toFixed(2)}%` : 'Loading'}
+                {server.memoryUsage !== undefined ? `${server.memoryUsage.toFixed(2)}%` : '–'}
               </button>
             </div>
           </div>

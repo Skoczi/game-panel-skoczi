@@ -170,7 +170,9 @@ export async function reconfigureServerContainer(
     const wasRunning = currentContainerStatus === 'running' || currentContainerStatus === 'restarting';
     const shouldStopBeforeReconfigure = currentContainerStatus === 'running';
     const displayName = input.name ?? server.name;
-    const containerName = server.docker_container_name ?? dockerUtils.buildManagedContainerName(serverId, displayName);
+    const containerName = displayName === server.name && server.docker_container_name
+        ? server.docker_container_name
+        : dockerUtils.buildManagedContainerName(serverId, displayName);
     const resolvedMounts = await ensureServerMountDirs(serverId, nextMounts, getRuntimeOwnership(server));
     const image = await resolveImageForRecreate(server);
 

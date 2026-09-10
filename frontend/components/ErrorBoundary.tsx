@@ -10,12 +10,6 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-/**
- * Top-level error boundary. Catches render-time exceptions anywhere in the tree
- * so a single bad payload cannot white-screen the whole panel, and offers a
- * recoverable fallback. `componentDidCatch` is the single hook to wire to an
- * error-reporting service (e.g. Sentry) when observability is added.
- */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
@@ -24,7 +18,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // Hook point for telemetry/RUM (e.g. Sentry.captureException(error, info)).
     if (import.meta.env.DEV) {
       console.error('Unhandled render error:', error, info.componentStack);
     }

@@ -310,7 +310,6 @@ export function GameServersDesktopTable({
             const { normalizedStatus, label: statusLabel, className: statusClassName } =
               getServerStatusPresentation(server.status);
             const connectionCopyState = server.port ? getConnectionCopyState(server.port) : 'idle';
-            // Up-like (running/unhealthy) → offer Stop; down-like (stopped/failed) → offer Start.
             const isUpLike = isServerUpLike(server.status);
             const isDownLike = isServerDownLike(server.status);
             const isCreating = isServerCreatingStatus(server.status);
@@ -322,7 +321,6 @@ export function GameServersDesktopTable({
               server.id,
               'server.power'
             );
-            // creating blocks all power actions; installing/transitioning block start/restart only
             const canTriggerPowerAction = canPowerServer && !isCreating && !isTransitioning;
             const canReadLogs = hasServerPermission(
               currentUser,
@@ -602,7 +600,6 @@ export function GameServersDesktopTable({
                         <RotateCw className="w-4 h-4" />
                       </AppButton>
                     ) : isInstalling ? (
-                      // Installing: container exists → allow stopping the install
                       <AppButton
                         disabled={!canPowerServer}
                         onClick={() =>
@@ -623,7 +620,6 @@ export function GameServersDesktopTable({
                         <Square className="w-4 h-4" />
                       </AppButton>
                     ) : (
-                      // creating or starting: fully locked
                       <AppButton
                         disabled
                         className={`${powerButtonClass} bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed`}
@@ -736,6 +732,4 @@ export function GameServersDesktopTable({
     </div>
   );
 }
-
-
 

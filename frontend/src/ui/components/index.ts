@@ -2,6 +2,7 @@ export { AppAlert, type AppAlertTone } from './AppAlert';
 export { AppBadge, type AppBadgeProps } from './AppBadge';
 export { AppButton, type AppButtonProps, type AppButtonTone } from './AppButton';
 export { AppCard, type AppCardProps } from './AppCard';
+export { AppCombobox, type AppComboboxOption, type AppComboboxProps } from './AppCombobox';
 export { AppFormField } from './AppFormField';
 export { AppInput, type AppInputProps } from './AppInput';
 export { InfoTip, type InfoTipProps } from './InfoTip';

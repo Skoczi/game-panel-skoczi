@@ -22,7 +22,6 @@ import {
     getServerStopTimeoutSeconds,
     installOvhcloudServerIfHandled,
 } from './ovhcloudLifecycle.js';
-import { removeLinuxGsmContainerCronsBestEffort } from './linuxGsmCrons.js';
 import {
     assertCanDeleteServer,
     assertServerExistsDuringInstall,
@@ -160,10 +159,6 @@ export async function installServerAsync(
         await assertServerExistsDuringInstall(serverId);
         const runtime = await dockerUtils.inspectContainerRuntime(containerInfo.id);
         await serverRepository.updateRuntimeState(serverId, runtime);
-        if (spec.provider === 'linuxgsm') {
-            const freshServer = await serverRepository.findById(serverId);
-            if (freshServer) await removeLinuxGsmContainerCronsBestEffort(freshServer);
-        }
         await completeInstallStatus({
             serverId,
             healthcheckDefined: containerInfo.healthcheckDefined,
@@ -217,6 +212,24 @@ export async function installServerAsync(
         await installProgressRepository.update(serverId, 0, 'failed', message);
         await actionsRepository.create(serverId, 'error', `Installation failed: ${message}`, username || "");
     }
+}
+
+export async function renameServer(server: GameServerRow, nextName: string): Promise<void> {
+    await serverRepository.update(server.id, { name: nextName });
+
+    if (!server.docker_container_id) return;
+
+    const nextContainerName = dockerUtils.buildManagedContainerName(server.id, nextName);
+    if (nextContainerName === server.docker_container_name) return;
+
+    try {
+        await dockerUtils.renameContainer(server.docker_container_id, nextContainerName);
+    } catch (error) {
+        logError('SERVERS:RENAME_CONTAINER', error, { serverId: server.id, nextContainerName });
+        return;
+    }
+
+    await serverRepository.updateDockerInfo(server.id, server.docker_container_id, nextContainerName);
 }
 
 export async function deleteServerBestEffort(serverId: number): Promise<void> {

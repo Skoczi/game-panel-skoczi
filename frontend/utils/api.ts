@@ -4,6 +4,11 @@ import type {
 } from './api/types';
 import type { ProjectZomboidMod, ProjectZomboidModId, ProjectZomboidWorkshopPreview } from '../types/projectZomboid';
 import type {
+  PatchSettingsResponse,
+  SettingOptionsResponse,
+  SettingsScreen,
+} from './serverSettings';
+import type {
   AddonProjectResponse,
   AddonSearchResponse,
   InstallAddonResponse,
@@ -31,15 +36,22 @@ export type {
 export { PUBLIC_CONNECTION_HOST } from './api/runtime';
 export type { RealtimeConnectionStatus } from './api/realtimeGateway';
 
-// Long-running install/upload/restore/download calls opt into the extended timeout per-request.
 const DEFAULT_TIMEOUT_MS = 60_000;
 const LONG_TIMEOUT_MS = 30 * 60 * 1000;
 
-// Release notes for a panel version (best-effort: any field may be null).
+// Percentages for cpu/memory/disk, bytes per second for the network pair.
+export interface ServerMetricSample {
+  cpuUsage?: number;
+  memoryUsage?: number;
+  diskUsage?: number;
+  network?: { in?: number; out?: number };
+  timestamp: string;
+}
+
 export interface ReleaseNotes {
   version: string;
   name: string | null;
-  body: string | null;       // CHANGELOG in markdown
+  body: string | null;
   htmlUrl: string | null;
   publishedAt: string | null;
   prerelease: boolean;
@@ -49,12 +61,10 @@ export interface PanelUpdateCheck {
   currentVersion: string;
   latestVersion: string | null;
   updateAvailable: boolean;
-  currentRelease: ReleaseNotes | null;   // notes of the installed version
-  newerReleases: ReleaseNotes[];         // newer versions, most-recent first ([] if up to date)
+  currentRelease: ReleaseNotes | null;
+  newerReleases: ReleaseNotes[];
 }
 
-// Background File Manager job (currently: archive extraction). totalBytes/totalFiles
-// are 0 (decompressed size is unknown up front), so progress is an activity count.
 export interface FileTransferJob {
   id: number;
   kind: string;
@@ -97,7 +107,6 @@ class ApiClient {
 
         if (status === 401 && !isAuthLoginRequest) {
           this.clearAuth();
-          // Prefer the React-level expiry handler; fall back to a hard redirect if none.
           if (this.unauthorizedHandler) {
             this.unauthorizedHandler();
           } else {
@@ -109,7 +118,6 @@ class ApiClient {
     );
   }
 
-  /** Register a callback invoked on a 401 so the app can reset to login in-place. */
   setUnauthorizedHandler(handler: (() => void) | null) {
     this.unauthorizedHandler = handler;
   }
@@ -687,16 +695,11 @@ class ApiClient {
     return response.data as string;
   }
 
-  // Mint a single-use, short-lived download token and return the absolute, same-origin
-  // streaming URL to navigate to. The browser then downloads natively (its own progress,
-  // straight to disk — no RAM buffer, no 30-min axios timeout). Works for files and
-  // directories (server zips a directory on the fly).
   async getServerDownloadUrl(serverId: number, path: string, root?: string): Promise<string> {
     const res = await this.client.post(
       `/api/servers/${serverId}/files/download-token`,
       { path, ...(root ? { root } : {}) }
     );
-    // res.data.path is root-relative ("/api/download/<token>"); prefix the origin.
     return `${API_BASE_URL}${res.data.path as string}`;
   }
 
@@ -745,9 +748,6 @@ class ApiClient {
     return response.data;
   }
 
-  // Extract an archive (.zip/.tar.gz/.tgz/.tar) server-side into its own folder.
-  // Runs as a background job; poll getFileTransfer until completed/failed. We only
-  // send { root, path } and leave overwrite/deleteArchive/dest at the backend defaults.
   async extractServerArchive(serverId: number, path: string, root?: string) {
     const response = await this.client.post(`/api/servers/${serverId}/files/extract`, {
       path,
@@ -770,7 +770,6 @@ class ApiClient {
     root?: string
   ) {
     const SMALL_LIMIT = 64 * 1024 * 1024;
-    // relativePath may carry nested sub-folders; the backend recreates missing parent dirs.
     const baseDir = destDir.replace(/\/$/, '') || '';
     const destPath = `${baseDir}/${relativePath}`;
 
@@ -797,9 +796,6 @@ class ApiClient {
       for (let i = 0; i < totalChunks; i++) {
         const start = i * CHUNK_SIZE;
         const chunk = file.slice(start, Math.min(start + CHUNK_SIZE, file.size));
-        // Retry the individual chunk on transient failures. The backend dedups
-        // chunks it already has, so re-sending is safe and cheap, and it avoids
-        // failing the whole (possibly large) file over one network hiccup.
         await retryWithBackoff(() =>
           this.client.put(
             `/api/servers/${serverId}/files/upload-sessions/${uploadId}/chunks`,
@@ -875,12 +871,23 @@ class ApiClient {
     this.realtime.unsubscribeActions(serverId);
   }
 
-  subscribeMetrics(serverId: number, limit?: number) {
-    this.realtime.subscribeMetrics(serverId, limit);
+  subscribeServersMetrics() {
+    this.realtime.subscribeServersMetrics();
   }
 
-  unsubscribeMetrics(serverId: number) {
-    this.realtime.unsubscribeMetrics(serverId);
+  unsubscribeServersMetrics() {
+    this.realtime.unsubscribeServersMetrics();
+  }
+
+  // 24h history of one server, downsampled by the backend. Fetched when a graph opens.
+  async getServerMetrics(serverId: number, limit = 2000) {
+    const response = await this.client.get(`/api/servers/${serverId}/metrics`, { params: { limit } });
+    return response.data as {
+      serverId: number;
+      metrics: ServerMetricSample[];
+      limit: number;
+      meta?: { window: string; downsample: string; rawCount: number; sentCount: number };
+    };
   }
 
   subscribeSystemMetrics(limit?: number) {
@@ -903,8 +910,6 @@ class ApiClient {
     this.realtime.subscribeServers();
   }
 
-  // ── Panel updates ────────────────────────────────────────────────────────
-
   async checkPanelUpdate(): Promise<PanelUpdateCheck> {
     const response = await this.client.get('/api/system/update/check');
     return response.data as PanelUpdateCheck;
@@ -919,7 +924,37 @@ class ApiClient {
     return response.data as { started: boolean; jobId: number; targetVersion: string };
   }
 
-  // ── Minecraft Java OVHcloud ──────────────────────────────────────────────
+  async getServerSettings(serverId: number) {
+    const response = await this.client.get(`/api/servers/${serverId}/settings`);
+    return response.data as SettingsScreen;
+  }
+
+  async patchServerSettingsFile(
+    serverId: number,
+    settings: Record<string, string | number | boolean | null>
+  ) {
+    const response = await this.client.patch(`/api/servers/${serverId}/settings/file`, { settings });
+    return response.data as PatchSettingsResponse;
+  }
+
+  async patchServerSettingsLaunch(
+    serverId: number,
+    settings: Record<string, string | number | boolean | null>
+  ) {
+    const response = await this.client.patch(`/api/servers/${serverId}/settings/launch`, { settings });
+    return response.data as PatchSettingsResponse;
+  }
+
+  async getServerSettingOptions(
+    serverId: number,
+    key: string,
+    params: Record<string, string | number> = {}
+  ) {
+    const response = await this.client.get(`/api/servers/${serverId}/settings/options`, {
+      params: { key, ...params },
+    });
+    return response.data as SettingOptionsResponse;
+  }
 
   async getMinecraftSettings(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/settings`);
@@ -1011,8 +1046,6 @@ class ApiClient {
     return response.data;
   }
 
-  // ── Hytale OVHcloud ───────────────────────────────────────────────────────
-
   async getHytaleSettings(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/hytale/settings`);
     return response.data as {
@@ -1029,8 +1062,6 @@ class ApiClient {
     const response = await this.client.patch(`/api/servers/${serverId}/hytale/settings`, { settings });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
-
-  // ── Palworld OVHcloud ─────────────────────────────────────────────────────
 
   async getPalworldSettings(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/palworld/settings`);
@@ -1049,8 +1080,6 @@ class ApiClient {
     const response = await this.client.patch(`/api/servers/${serverId}/palworld/settings`, { settings });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
-
-  // ── Project Zomboid OVHcloud ──────────────────────────────────────────────
 
   async getProjectZomboidSettings(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/project-zomboid/settings`);
@@ -1130,8 +1159,6 @@ class ApiClient {
       | { mode: 'hard'; reinstalling: true };
   }
 
-  // ── Counter-Strike 2 OVHcloud ─────────────────────────────────────────────
-
   async getCS2Frameworks(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/counter-strike-2/frameworks`);
     return response.data as {
@@ -1155,8 +1182,6 @@ class ApiClient {
     });
     return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string; restarted: boolean };
   }
-
-  // ── Mods / Addons shared upload helper ───────────────────────────────────
 
   async uploadModFile(
     serverId: number,
@@ -1217,8 +1242,6 @@ class ApiClient {
     }
   }
 
-  // ── Hytale mods ──────────────────────────────────────────────────────────
-
   async listHytaleMods(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/hytale/mods`);
     return response.data as {
@@ -1236,8 +1259,6 @@ class ApiClient {
     });
     return response.data;
   }
-
-  // ── Minecraft addons ─────────────────────────────────────────────────────
 
   async listMinecraftAddons(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/addons`);
@@ -1257,8 +1278,6 @@ class ApiClient {
     return response.data;
   }
 
-  // ── Minecraft addon catalog (Modrinth) ────────────────────────────────────
-
   async searchMinecraftAddons(serverId: number, params: SearchAddonsParams = {}) {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/addons-catalog/search`, {
       params: {
@@ -1273,7 +1292,6 @@ class ApiClient {
     return response.data as AddonSearchResponse;
   }
 
-  // Addon detail (id or slug): body, gallery, compatible versions, dependencies.
   async getMinecraftAddonProject(serverId: number, projectId: string, anyVersion = false) {
     const response = await this.client.get(
       `/api/servers/${serverId}/minecraft/addons-catalog/projects/${encodeURIComponent(projectId)}`,
@@ -1282,7 +1300,6 @@ class ApiClient {
     return response.data as AddonProjectResponse;
   }
 
-  // Drives the main addons list: every jar on disk, enriched when Modrinth knows it.
   async getMinecraftInstalledAddons(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/addons-catalog/installed`);
     return response.data as InstalledResponse;
@@ -1306,9 +1323,6 @@ class ApiClient {
     return response.data as SetAddonEnabledResponse;
   }
 
-  // ── Rust OVHcloud ─────────────────────────────────────────────────────────
-
-  // server.cfg convars — generic file-settings, editable anytime (no stop-first guard).
   async getRustSettings(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/rust/settings`);
     return response.data as {
@@ -1327,7 +1341,6 @@ class ApiClient {
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
 
-  // Oxide framework (single framework — like CS2 frameworks but simpler).
   async getRustFrameworks(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/rust/frameworks`);
     return response.data as { frameworks: { oxideInstalled: boolean } };
@@ -1340,7 +1353,6 @@ class ApiClient {
     return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string; restarted: boolean };
   }
 
-  // Oxide plugin files — scoped file area (same shape as Hytale/Minecraft mods).
   async listRustMods(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/rust/mods`);
     return response.data as {
@@ -1354,6 +1366,39 @@ class ApiClient {
 
   async deleteRustMods(serverId: number, paths: string[]) {
     const response = await this.client.delete(`/api/servers/${serverId}/rust/mods`, {
+      data: { paths },
+    });
+    return response.data;
+  }
+
+  // ── Valheim OVHcloud ──────────────────────────────────────────────────────
+
+  async getValheimFrameworks(serverId: number) {
+    const response = await this.client.get(`/api/servers/${serverId}/valheim/frameworks`);
+    return response.data as { bepinex: { installed: boolean } };
+  }
+
+  // The install script takes the version as a positional argument; omitted means "latest".
+  async installValheimBepInEx(serverId: number, options?: { version?: string }) {
+    const response = await this.client.post(`/api/servers/${serverId}/valheim/bepinex/install`, options ?? {}, {
+      timeout: LONG_TIMEOUT_MS,
+    });
+    return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string };
+  }
+
+  async listValheimMods(serverId: number) {
+    const response = await this.client.get(`/api/servers/${serverId}/valheim/mods`);
+    return response.data as {
+      entries: Array<{ name: string; type: string; size: number; modifiedAt: string }>;
+    };
+  }
+
+  async uploadValheimMod(serverId: number, file: File, onProgress?: (percent: number) => void) {
+    return this.uploadModFile(serverId, file, 'valheim/mods', onProgress);
+  }
+
+  async deleteValheimMods(serverId: number, paths: string[]) {
+    const response = await this.client.delete(`/api/servers/${serverId}/valheim/mods`, {
       data: { paths },
     });
     return response.data;

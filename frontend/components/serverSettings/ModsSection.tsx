@@ -4,8 +4,6 @@ import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
 import { RestartToApplyNote } from './RestartToApplyNote';
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
 type ModEntry = {
   name: string;
   type: string;
@@ -21,11 +19,47 @@ type UploadItem = {
   done: boolean;
 };
 
+export type ModsApiKind = 'hytale' | 'minecraft' | 'rust' | 'valheim';
+
+// Rust Oxide plugins are C# sources, Valheim BepInEx mods are .NET assemblies; the others
+// load Java archives.
+const MODS_API: Record<ModsApiKind, {
+  accept: string;
+  list: (serverId: number) => Promise<{ entries?: ModEntry[] }>;
+  upload: (serverId: number, file: File, onProgress?: (percent: number) => void) => Promise<unknown>;
+  remove: (serverId: number, paths: string[]) => Promise<unknown>;
+}> = {
+  hytale: {
+    accept: '.jar',
+    list: (id) => apiClient.listHytaleMods(id),
+    upload: (id, file, onProgress) => apiClient.uploadHytaleMod(id, file, onProgress),
+    remove: (id, paths) => apiClient.deleteHytaleMods(id, paths),
+  },
+  minecraft: {
+    accept: '.jar',
+    list: (id) => apiClient.listMinecraftAddons(id),
+    upload: (id, file, onProgress) => apiClient.uploadMinecraftAddon(id, file, onProgress),
+    remove: (id, paths) => apiClient.deleteMinecraftAddons(id, paths),
+  },
+  rust: {
+    accept: '.cs',
+    list: (id) => apiClient.listRustMods(id),
+    upload: (id, file, onProgress) => apiClient.uploadRustMod(id, file, onProgress),
+    remove: (id, paths) => apiClient.deleteRustMods(id, paths),
+  },
+  valheim: {
+    accept: '.dll',
+    list: (id) => apiClient.listValheimMods(id),
+    upload: (id, file, onProgress) => apiClient.uploadValheimMod(id, file, onProgress),
+    remove: (id, paths) => apiClient.deleteValheimMods(id, paths),
+  },
+};
+
 export interface ModsSectionProps {
   serverId: number;
   serverStatus?: string | null;
   kind: 'mods' | 'plugins';
-  apiKind: 'hytale' | 'minecraft' | 'rust';
+  apiKind: ModsApiKind;
   canRead: boolean;
   canWrite: boolean;
   borderColor: string;
@@ -34,16 +68,12 @@ export interface ModsSectionProps {
   textSecondary: string;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
-
-// ── ModsSection ────────────────────────────────────────────────────────────
 
 export function ModsSection({
   serverId, serverStatus, kind, apiKind, canRead, canWrite,
@@ -64,8 +94,8 @@ export function ModsSection({
 
   const label = kind === 'plugins' ? 'Plugins' : 'Mods';
   const singularLabel = kind === 'plugins' ? 'plugin' : 'mod';
-  // Rust Oxide plugins are C# source files; the other games load Java archives.
-  const acceptExt = apiKind === 'rust' ? '.cs' : '.jar';
+  const api = MODS_API[apiKind];
+  const acceptExt = api.accept;
 
   const loadEntries = useCallback(async () => {
     if (!canRead) return;
@@ -73,14 +103,9 @@ export function ModsSection({
     setError(null);
     setNotInitialized(false);
     try {
-      const data = apiKind === 'hytale'
-        ? await apiClient.listHytaleMods(serverId)
-        : apiKind === 'rust'
-          ? await apiClient.listRustMods(serverId)
-          : await apiClient.listMinecraftAddons(serverId);
+      const data = await api.list(serverId);
       setEntries((data.entries ?? []).filter((e) => e.type !== 'dir'));
     } catch (err: any) {
-      // A missing area folder (404) isn't a real error — surface a soft hint instead.
       if (err?.response?.status === 404) {
         setEntries([]);
         setNotInitialized(true);
@@ -90,7 +115,7 @@ export function ModsSection({
     } finally {
       setLoading(false);
     }
-  }, [serverId, canRead, apiKind, kind]);
+  }, [serverId, canRead, api, kind]);
 
   useEffect(() => {
     if (loaded.current) return;
@@ -113,12 +138,7 @@ export function ModsSection({
       const file = files[i];
       const item = newItems[i];
       try {
-        const uploadFn = apiKind === 'hytale'
-          ? apiClient.uploadHytaleMod.bind(apiClient)
-          : apiKind === 'rust'
-            ? apiClient.uploadRustMod.bind(apiClient)
-            : apiClient.uploadMinecraftAddon.bind(apiClient);
-        await uploadFn(serverId, file, (pct) => {
+        await api.upload(serverId, file, (pct) => {
           setUploadQueue((prev) => prev.map((q) => q.id === item.id ? { ...q, progress: pct } : q));
         });
         setUploadQueue((prev) => prev.map((q) => q.id === item.id ? { ...q, progress: 100, done: true } : q));
@@ -132,19 +152,13 @@ export function ModsSection({
     setTimeout(() => {
       setUploadQueue((prev) => prev.filter((q) => !q.done || Boolean(q.error)));
     }, 3000);
-  }, [serverId, canWrite, apiKind, loadEntries]);
+  }, [serverId, canWrite, api, loadEntries]);
 
   const handleDelete = async (name: string) => {
     if (!canWrite) return;
     setDeleting((prev) => new Set([...prev, name]));
     try {
-      if (apiKind === 'hytale') {
-        await apiClient.deleteHytaleMods(serverId, [`/${name}`]);
-      } else if (apiKind === 'rust') {
-        await apiClient.deleteRustMods(serverId, [`/${name}`]);
-      } else {
-        await apiClient.deleteMinecraftAddons(serverId, [`/${name}`]);
-      }
+      await api.remove(serverId, [`/${name}`]);
       await loadEntries();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || `Failed to delete ${name}.`);
@@ -170,7 +184,6 @@ export function ModsSection({
   return (
     <div className="space-y-4">
       <RestartToApplyNote serverStatus={serverStatus} />
-      {/* Upload zone */}
       {canWrite && (
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -209,7 +222,6 @@ export function ModsSection({
         </div>
       )}
 
-      {/* Upload queue */}
       {uploadQueue.length > 0 && (
         <div className={`${contentBg} border ${borderColor} rounded-xl overflow-hidden`}>
           {uploadQueue.map((item) => (
@@ -248,9 +260,7 @@ export function ModsSection({
         </div>
       )}
 
-      {/* File list */}
       <div className={`${contentBg} border ${borderColor} rounded-xl overflow-hidden`}>
-        {/* Header */}
         <div className={`flex items-center justify-between px-4 py-3 border-b ${borderColor}`}>
           <div className="flex items-center gap-2">
             <h4 className={`text-sm font-semibold ${textPrimary}`}>Installed {label}</h4>
@@ -270,7 +280,6 @@ export function ModsSection({
           </AppButton>
         </div>
 
-        {/* Loading */}
         {loading && (
           <div className="flex items-center gap-2 px-4 py-6 text-sm text-gray-400">
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -278,7 +287,6 @@ export function ModsSection({
           </div>
         )}
 
-        {/* Error */}
         {error && (
           <div className="flex items-start gap-2 px-4 py-4 text-sm text-red-400">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -286,19 +294,19 @@ export function ModsSection({
           </div>
         )}
 
-        {/* Folder not created yet (e.g. Oxide hasn't generated its plugins folder) */}
         {!loading && !error && notInitialized && (
           <div className="flex items-start gap-2 px-4 py-4 text-sm text-amber-600 dark:text-amber-300">
             <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>
               {apiKind === 'rust'
                 ? 'Oxide hasn’t generated its plugins folder yet. Restart the server once and it will be created — then your plugins will appear here.'
+                : apiKind === 'valheim'
+                ? 'BepInEx hasn’t created its plugins folder yet. Install the mod loader above, then your mods will appear here.'
                 : `This ${kind} folder doesn’t exist yet. It will be created when you upload your first file.`}
             </span>
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && !error && !notInitialized && entries.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <div className="w-12 h-12 rounded-full bg-gray-700/50 flex items-center justify-center">
@@ -313,17 +321,14 @@ export function ModsSection({
           </div>
         )}
 
-        {/* File list */}
         {!loading && entries.length > 0 && (
           <div>
             {entries.map((entry) => (
               <div key={entry.name} className={`flex items-center gap-3 px-4 py-3 group border-b last:border-b-0 ${borderColor}`}>
-                {/* Icon */}
                 <div className="w-9 h-9 rounded-lg bg-gray-700/50 flex items-center justify-center flex-shrink-0">
                   <FileCode2 className="w-4 h-4 text-gray-400" />
                 </div>
 
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-medium truncate ${textPrimary}`}>{entry.name}</p>
                   <p className={`text-xs ${textSecondary}`}>
@@ -334,7 +339,6 @@ export function ModsSection({
                   </p>
                 </div>
 
-                {/* Delete action */}
                 {canWrite && (
                   pendingDelete === entry.name ? (
                     <div className="flex items-center gap-1.5 flex-shrink-0">

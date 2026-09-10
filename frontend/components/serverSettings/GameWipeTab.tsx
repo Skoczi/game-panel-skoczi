@@ -8,7 +8,6 @@ export interface GameWipeTabProps {
   serverStatus?: string | null;
   canWipeSoft: boolean;
   canWipeHard: boolean;
-  // Close the settings modal so the reinstall shows via the normal install UI.
   onReinstallStarted?: () => void;
   borderColor: string;
   contentBg: string;
@@ -16,8 +15,6 @@ export interface GameWipeTabProps {
   textSecondary: string;
 }
 
-// Renders the generic WipeSection for a specific game, wiring the shared
-// POST /api/servers/:id/wipe/:mode route. Modes are hardcoded per game (see wipeModes).
 export function GameWipeTab({
   family,
   serverId,

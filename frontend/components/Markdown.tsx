@@ -7,10 +7,6 @@ import rehypeSanitize from 'rehype-sanitize';
 // does NOT render raw HTML, so markup can't be injected, and its urlTransform strips
 // dangerous URL protocols. Links open in a new tab. Styling lives in the `.gp-markdown`
 // CSS class (theme-agnostic) so it works in light and dark.
-//
-// `allowSanitizedHtml` opts into rendering the HTML embedded in the markdown (Modrinth
-// mod descriptions mix markdown and raw HTML): rehype-raw parses it, then rehype-sanitize
-// strips scripts, event handlers and unsafe attributes so untrusted sources stay safe.
 export function Markdown({ children, className, allowSanitizedHtml = false }: {
   children: string;
   className?: string;

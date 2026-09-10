@@ -2,13 +2,12 @@ import { Router, type Response } from 'express';
 import { actionsRepository, serverRepository } from '../../../../database/index.js';
 import { type AuthenticatedRequest, requireServerPermission } from '../../../../middleware/auth.js';
 import type { GameServerRow } from '../../../../types/gameServer.js';
-import { requireBodyObject, requirePositiveInt, requireRecord } from '../../../../utils/httpValidation.js';
+import { requireBodyObject, requirePositiveInt } from '../../../../utils/httpValidation.js';
 import { sendRouteError } from '../../../../utils/routeErrors.js';
 import { PERMISSIONS } from '../../../../permissions.js';
 import { createScopedFileAreaRouter } from '../../../../routes/scopedFileArea.js';
 import { getOvhcloudRustMetadata } from '../../../serverMetadata.js';
 import { inspectRustFrameworks, runRustFrameworkScript } from './service.js';
-import { listRustSettings, patchRustSettings } from './settings.js';
 
 const router = Router({ mergeParams: true });
 
@@ -27,14 +26,6 @@ function optionalBodyObject(body: unknown): Record<string, unknown> {
 function getOptionalString(body: Record<string, unknown>, key: string): string | null {
     const value = body[key];
     return typeof value === 'string' ? value : null;
-}
-
-function routeActor(req: AuthenticatedRequest): string {
-    return req.user?.username || '';
-}
-
-function getSettingsPatch(body: unknown): Record<string, unknown> {
-    return requireRecord(requireBodyObject(body).settings, 'settings must be an object');
 }
 
 async function getServerOrThrow(serverId: number): Promise<GameServerWithContainer> {
@@ -93,46 +84,6 @@ router.post('/oxide/install', requireServerPermission(PERMISSIONS.rust.framework
             route: 'ROUTE:RUST:OXIDE_INSTALL',
             logContext: { serverId: req.params.id },
             fallbackMessage: 'Failed to install Rust Oxide',
-        });
-    }
-});
-
-// GET /api/servers/:id/rust/settings
-router.get('/settings', requireServerPermission(PERMISSIONS.rust.settings.read), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const serverId = routeServerId(req);
-        const server = await getServerOrThrow(serverId);
-        const settings = await listRustSettings(server);
-        return res.json({ settings });
-    } catch (error) {
-        return sendRouteError(res, error, {
-            route: 'ROUTE:RUST:SETTINGS_READ',
-            logContext: { serverId: req.params.id },
-            fallbackMessage: 'Failed to read Rust settings',
-        });
-    }
-});
-
-// PATCH /api/servers/:id/rust/settings
-router.patch('/settings', requireServerPermission(PERMISSIONS.rust.settings.write), async (req: AuthenticatedRequest, res: Response) => {
-    try {
-        const serverId = routeServerId(req);
-        const server = await getServerOrThrow(serverId);
-        const result = await patchRustSettings(server, getSettingsPatch(req.body));
-
-        await actionsRepository.create(
-            serverId,
-            'success',
-            `Rust settings updated: ${result.updated.join(', ')}`,
-            routeActor(req)
-        );
-
-        return res.json(result);
-    } catch (error) {
-        return sendRouteError(res, error, {
-            route: 'ROUTE:RUST:SETTINGS_WRITE',
-            logContext: { serverId: req.params.id },
-            fallbackMessage: 'Failed to update Rust settings',
         });
     }
 });

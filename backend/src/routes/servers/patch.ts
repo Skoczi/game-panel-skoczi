@@ -11,6 +11,7 @@ import {
 import { bus } from '../../realtime/bus.js';
 import { normalizeEnvPayload } from '../../providers/installPayload.js';
 import { assertHostPortsAvailableForServer } from '../../services/hostPortAvailability.js';
+import { renameServer } from '../../services/servers.js';
 import {
     reconfigureServerContainer,
     updateServerResourceLimits,
@@ -227,7 +228,7 @@ export function createServerPatchRoutes(): Router {
                     const resourceUpdate = await updateServerResourceLimits(serverId, normalizedResourceLimits ?? null);
 
                     if (server.name !== nextName) {
-                        await serverRepository.update(serverId, { name: nextName });
+                        await renameServer(server, nextName);
                     }
 
                     await actionsRepository.create(
@@ -253,7 +254,7 @@ export function createServerPatchRoutes(): Router {
                     return res.status(200).json({ success: true, server: serializeForCaller(server) });
                 }
 
-                await serverRepository.update(serverId, { name: nextName });
+                await renameServer(server, nextName);
 
                 const updated = await loadServerAfterMutation(serverId, 'rename');
                 bus.emit('server.updated', { serverId, timestamp: nowIso() });

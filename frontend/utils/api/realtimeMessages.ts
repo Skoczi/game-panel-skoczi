@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** Inbound realtime (WebSocket) message `type` discriminators the client handles. */
 export const REALTIME_MESSAGE_TYPES = [
   'auth:success',
   'auth:ok',
@@ -8,8 +7,8 @@ export const REALTIME_MESSAGE_TYPES = [
   'system-metrics',
   'system-metrics:update',
   'system-metrics:history',
-  'metrics:update',
-  'metrics:history',
+  'servers-metrics:subscribed',
+  'servers-metrics:update',
   'logs:history',
   'logs:container',
   'logs:new',
@@ -32,22 +31,17 @@ export type RealtimeMessageType = (typeof REALTIME_MESSAGE_TYPES)[number];
 
 export type RealtimeMessage = { type: string } & Record<string, unknown>;
 
-// Minimal envelope contract: every frame must be an object carrying a string `type`.
 const envelopeSchema = z.object({ type: z.string() });
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set(REALTIME_MESSAGE_TYPES);
 
 export interface RealtimeParseResult {
-  /** True when the frame is an object with a string `type`. */
   ok: boolean;
-  /** True when `type` is one the client knows how to handle. */
   knownType: boolean;
-  /** The original frame (unmodified) when `ok`. */
   message?: RealtimeMessage;
   reason?: string;
 }
 
-/** Validates a parsed WebSocket frame's envelope, returning it unmodified on success. */
 export function parseRealtimeMessage(data: unknown): RealtimeParseResult {
   const result = envelopeSchema.safeParse(data);
   if (!result.success) {

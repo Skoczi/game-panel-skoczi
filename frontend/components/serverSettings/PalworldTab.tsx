@@ -1,25 +1,7 @@
 import { useState } from 'react';
-import { apiClient } from '../../utils/api';
-import { GameSettingsSection } from './GameSettingsSection';
-import { ServerEnvFieldsCard, type EnvFieldDef } from './ServerEnvFieldsCard';
+import { OvhcloudSettingsSection } from './OvhcloudSettingsSection';
 import { GameWipeTab } from './GameWipeTab';
 import { buildWipeModes } from './wipeModes';
-
-const ENV_FIELDS: EnvFieldDef[] = [
-  {
-    key: 'PALWORLD_ADMIN_PASSWORD',
-    label: 'Admin Password',
-    type: 'password',
-    description: "Used for in-game admin actions and the server's REST API.",
-  },
-  {
-    key: 'PALWORLD_UPDATE_ON_START',
-    label: 'Update on start',
-    type: 'toggle',
-    defaultValue: 'false',
-    description: 'When enabled, the server checks for and installs game updates via SteamCMD each time it starts.',
-  },
-];
 
 export interface PalworldSectionsProps {
   serverId: number;
@@ -32,14 +14,13 @@ export interface PalworldSectionsProps {
   canManageEnv?: boolean;
   canEditContainerConfig?: boolean;
   containerConfigSaveCount?: number;
-  advancedLinksNode?: React.ReactNode;
+  canReadFileManager?: boolean;
+  onOpenFileManagerPath?: (path: string) => void;
   borderColor: string;
   contentBg: string;
   textPrimary: string;
   textSecondary: string;
 }
-
-// ── PalworldSections (horizontal sub-tabs) ────────────────────────────────
 
 type PalworldSubTab = 'settings' | 'wipe';
 
@@ -53,8 +34,8 @@ export function PalworldSections({
   onReinstallStarted,
   canManageEnv,
   canEditContainerConfig,
-  containerConfigSaveCount,
-  advancedLinksNode,
+  canReadFileManager,
+  onOpenFileManagerPath,
   borderColor,
   contentBg,
   textPrimary,
@@ -84,7 +65,6 @@ export function PalworldSections({
 
   return (
     <div>
-      {/* Horizontal tab bar — only shown when there are multiple tabs */}
       {tabs.length > 1 && (
         <div className={`flex flex-wrap border-b ${borderColor} mb-3 gap-0`}>
           {tabs.map((tab) => (
@@ -106,33 +86,18 @@ export function PalworldSections({
 
       {visited.has('settings') && showSettingsTab && (
         <div className={`space-y-4 ${activeTab !== 'settings' ? 'hidden' : ''}`}>
-          {canReadSettings && (
-            <GameSettingsSection
-              serverId={serverId}
-              serverStatus={serverStatus}
-              canRead={canReadSettings}
-              canWrite={canWriteSettings}
-              load={(id) => apiClient.getPalworldSettings(id)}
-              save={(id, changed) => apiClient.patchPalworldSettings(id, changed)}
-              borderColor={borderColor}
-              contentBg={contentBg}
-              textPrimary={textPrimary}
-              textSecondary={textSecondary}
-            />
-          )}
-          {canManageEnv && (
-            <ServerEnvFieldsCard
-              serverId={serverId}
-              serverStatus={serverStatus}
-              fields={ENV_FIELDS}
-              canEdit={Boolean(canManageEnv && canEditContainerConfig)}
-              containerConfigSaveCount={containerConfigSaveCount}
-              borderColor={borderColor}
-              contentBg={contentBg}
-              textPrimary={textPrimary}
-            />
-          )}
-          {advancedLinksNode && <div>{advancedLinksNode}</div>}
+          <OvhcloudSettingsSection
+            serverId={serverId}
+            serverStatus={serverStatus}
+            canWriteFile={canWriteSettings}
+            canWriteLaunch={Boolean(canManageEnv && canEditContainerConfig)}
+            canReadFileManager={canReadFileManager}
+            onOpenFileManagerPath={onOpenFileManagerPath}
+            borderColor={borderColor}
+            contentBg={contentBg}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+          />
         </div>
       )}
 

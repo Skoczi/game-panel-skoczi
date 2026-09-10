@@ -61,7 +61,6 @@ export function Login({ onLogin }: LoginProps) {
       style={{ background: 'linear-gradient(135deg, #000e9c 0%, #002dbe 100%)' }}
     >
       <div className="w-full max-w-md">
-        {/* Logo above card */}
         <div className="mb-8 flex flex-col items-center gap-3">
           <img
             src="/OVHcloud_Game_Panel_Logo.png"
@@ -74,12 +73,10 @@ export function Login({ onLogin }: LoginProps) {
           </p>
         </div>
 
-        {/* Card */}
         <div
           className="overflow-hidden rounded-2xl shadow-2xl"
           style={{ border: '1px solid rgba(255,255,255,0.08)' }}
         >
-          {/* Form body */}
           <div className="bg-white px-8 py-8">
             <form onSubmit={handleCredentialsSubmit} className="space-y-5">
               {showError && (
@@ -95,7 +92,6 @@ export function Login({ onLogin }: LoginProps) {
                 </div>
               )}
 
-              {/* Username */}
               <div className="space-y-1.5">
                 <label htmlFor="username" className="block text-sm font-medium" style={{ color: '#1e293b' }}>
                   Username
@@ -131,7 +127,6 @@ export function Login({ onLogin }: LoginProps) {
                 </div>
               </div>
 
-              {/* Password */}
               <div className="space-y-1.5">
                 <label htmlFor="password" className="block text-sm font-medium" style={{ color: '#1e293b' }}>
                   Password
@@ -177,7 +172,6 @@ export function Login({ onLogin }: LoginProps) {
                 </div>
               </div>
 
-              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}
@@ -202,7 +196,6 @@ export function Login({ onLogin }: LoginProps) {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="mt-6 text-center text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
           © 2026 OVHcloud. All rights reserved.
         </p>

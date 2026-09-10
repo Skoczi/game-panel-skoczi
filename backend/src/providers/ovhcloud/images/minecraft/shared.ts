@@ -16,14 +16,6 @@ export function assertOvhcloudMinecraftJavaServer(server: GameServerRow): void {
     }
 }
 
-export function assertOvhcloudMinecraftBedrockServer(server: GameServerRow): void {
-    const metadata = getOvhcloudMinecraftMetadata(server);
-
-    if (metadata.edition !== 'bedrock') {
-        throw Object.assign(new Error('Feature is only available for OVHcloud Minecraft Bedrock servers'), { statusCode: 501 });
-    }
-}
-
 export function invalidInput(message: string): never {
     throw Object.assign(new Error(message), { statusCode: 400 });
 }

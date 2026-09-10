@@ -30,7 +30,6 @@ export interface ServerSettingsAccess {
   canRestoreBackups: boolean;
   canRenameBackups: boolean;
   canWriteScheduledTasks: boolean;
-  // Minecraft Java
   canReadMinecraftSettings: boolean;
   canWriteMinecraftSettings: boolean;
   canReadMinecraftOperators: boolean;
@@ -44,33 +43,31 @@ export interface ServerSettingsAccess {
   canReadMinecraftAddons: boolean;
   canWriteMinecraftAddons: boolean;
   canUseMinecraft: boolean;
-  // Hytale
   canReadHytaleSettings: boolean;
   canWriteHytaleSettings: boolean;
   canReadHytaleMods: boolean;
   canWriteHytaleMods: boolean;
   canUseHytale: boolean;
-  // Palworld
   canReadPalworldSettings: boolean;
   canWritePalworldSettings: boolean;
   canUsePalworld: boolean;
-  // Project Zomboid
   canReadProjectZomboidSettings: boolean;
   canWriteProjectZomboidSettings: boolean;
   canReadProjectZomboidMods: boolean;
   canWriteProjectZomboidMods: boolean;
   canUseProjectZomboid: boolean;
-  // Rust
   canReadRustSettings: boolean;
   canWriteRustSettings: boolean;
   canReadRustMods: boolean;
   canWriteRustMods: boolean;
   canWriteRustFrameworks: boolean;
   canUseRust: boolean;
-  // Generic wipe (all OVHcloud games)
+  canReadValheimMods: boolean;
+  canWriteValheimMods: boolean;
+  canWriteValheimFrameworks: boolean;
+  canUseValheim: boolean;
   canWipeSoft: boolean;
   canWipeHard: boolean;
-  // CS2
   canWriteCS2Frameworks: boolean;
   canAccessTab: (tab: SettingsTab) => boolean;
 }
@@ -110,12 +107,10 @@ export function createServerSettingsAccess(
   const canReadScheduledTasks = hasServerPermission('scheduledtasks.read');
   const canWriteScheduledTasks = hasServerPermission('scheduledtasks.write');
 
-  // Generic wipe permissions (apply to every OVHcloud game that supports the mode).
   const canWipeSoft = hasServerPermission('server.wipe.soft');
   const canWipeHard = hasServerPermission('server.wipe.hard');
   const canWipeAny = canWipeSoft || canWipeHard;
 
-  // Minecraft Java
   const canReadMinecraftSettings = hasServerPermission('minecraft.settings.read');
   const canWriteMinecraftSettings = hasServerPermission('minecraft.settings.write');
   const canReadMinecraftOperators = hasServerPermission('minecraft.operators.read');
@@ -137,19 +132,16 @@ export function createServerSettingsAccess(
     canReadMinecraftAddons ||
     canWipeAny;
 
-  // Hytale
   const canReadHytaleSettings = hasServerPermission('hytale.settings.read');
   const canWriteHytaleSettings = hasServerPermission('hytale.settings.write');
   const canReadHytaleMods = hasServerPermission('hytale.mods.read');
   const canWriteHytaleMods = hasServerPermission('hytale.mods.write');
   const canUseHytale = canReadHytaleSettings || canWriteHytaleSettings || canReadHytaleMods || canWriteHytaleMods || canWipeAny;
 
-  // Palworld
   const canReadPalworldSettings = hasServerPermission('palworld.settings.read');
   const canWritePalworldSettings = hasServerPermission('palworld.settings.write');
   const canUsePalworld = canReadPalworldSettings || canWritePalworldSettings || canWipeAny;
 
-  // Project Zomboid
   const canReadProjectZomboidSettings = hasServerPermission('project-zomboid.settings.read');
   const canWriteProjectZomboidSettings = hasServerPermission('project-zomboid.settings.write');
   const canReadProjectZomboidMods = hasServerPermission('project-zomboid.mods.read');
@@ -158,7 +150,6 @@ export function createServerSettingsAccess(
     canReadProjectZomboidSettings || canWriteProjectZomboidSettings ||
     canReadProjectZomboidMods || canWriteProjectZomboidMods || canWipeAny;
 
-  // Rust
   const canReadRustSettings = hasServerPermission('rust.settings.read');
   const canWriteRustSettings = hasServerPermission('rust.settings.write');
   const canReadRustMods = hasServerPermission('rust.mods.read');
@@ -168,7 +159,15 @@ export function createServerSettingsAccess(
     canReadRustSettings || canWriteRustSettings ||
     canReadRustMods || canWriteRustMods || canWriteRustFrameworks || canWipeAny;
 
-  // CS2
+  // Valheim has no valheim.settings.* pair: its settings screen is launch-only and the
+  // backend guards it with server.env, while the config-file links need fs.read.
+  const canReadValheimMods = hasServerPermission('valheim.mods.read');
+  const canWriteValheimMods = hasServerPermission('valheim.mods.write');
+  const canWriteValheimFrameworks = hasServerPermission('valheim.frameworks.write');
+  const canUseValheim =
+    canManageEnv || canUseFileManager ||
+    canReadValheimMods || canWriteValheimMods || canWriteValheimFrameworks || canWipeAny;
+
   const canWriteCS2Frameworks = hasServerPermission('cs2.frameworks.write');
 
   const hasAnySettingsAccess =
@@ -239,6 +238,10 @@ export function createServerSettingsAccess(
     canWriteRustMods,
     canWriteRustFrameworks,
     canUseRust,
+    canReadValheimMods,
+    canWriteValheimMods,
+    canWriteValheimFrameworks,
+    canUseValheim,
     canWipeSoft,
     canWipeHard,
     canWriteCS2Frameworks,

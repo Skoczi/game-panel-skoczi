@@ -6,9 +6,6 @@ export interface InfoTipProps {
   className?: string;
 }
 
-// Shared field-level help bubble used across the whole panel so every info tooltip
-// looks and behaves identically: a "?" icon that opens a small dark bubble on hover,
-// keyboard focus, and click (the last so it also works on touch devices).
 export function InfoTip({ text, className = '' }: InfoTipProps) {
   const [open, setOpen] = useState(false);
   return (

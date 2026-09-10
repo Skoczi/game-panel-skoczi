@@ -7,7 +7,6 @@ interface ViewModeToggleProps {
   onChange: (mode: ServersViewMode) => void;
 }
 
-// Segmented List / Grid switch for the Game Servers section.
 export function ViewModeToggle({ value, onChange }: ViewModeToggleProps) {
   const options: { mode: ServersViewMode; label: string; Icon: typeof List }[] = [
     { mode: 'list', label: 'List view', Icon: List },

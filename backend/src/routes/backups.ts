@@ -17,13 +17,16 @@ import {
 } from '../utils/httpValidation.js';
 import {
     assertSupportedBackupArchive,
+    assertSupportedBackupDirectory,
     createServerBackup,
     getBackupFileLocation,
+    getBackupFilePair,
     getBackupKind,
     getSupportedBackupExtensions,
+    listBackupDirectories,
     restoreOvhcloudBackup,
 } from '../services/serverBackups.js';
-import { resolveDownloadTarget, streamDirectoryZip } from '../services/fileTransfers.js';
+import { resolveDownloadTarget, streamDirectoryZip, streamFilesZip } from '../services/fileTransfers.js';
 import { PERMISSIONS } from '../permissions.js';
 
 const router = Router({ mergeParams: true });
@@ -45,6 +48,26 @@ function normalizeBackupFilename(value: unknown): string | null {
     if (path.posix.basename(name) !== name) return null;
 
     return name;
+}
+
+async function resolveFilePairMembers(params: {
+    serverId: number;
+    location: { root: string; basePath: string };
+    members: string[];
+}): Promise<Array<{ absPath: string; rootDir: string; name: string }>> {
+    const out: Array<{ absPath: string; rootDir: string; name: string }> = [];
+    for (const member of params.members) {
+        const resolved = await resolveServerPath({
+            serverId: params.serverId,
+            path: joinApiPath(params.location.basePath, member),
+            root: params.location.root,
+        });
+        const st = await fs.lstat(resolved.absPath).catch(() => null);
+        if (st?.isFile()) {
+            out.push({ absPath: resolved.absPath, rootDir: resolved.rootDir, name: member });
+        }
+    }
+    return out;
 }
 
 // GET /api/servers/:id/backups
@@ -76,7 +99,9 @@ router.get('/', requireServerPermission(PERMISSIONS.backups.read), async (req: A
         }
 
         if (kind === 'directory') {
-            result.entries = result.entries.filter((e: any) => e.type === 'dir');
+            result.entries = listBackupDirectories(server, result.entries);
+        } else if (kind === 'file-pair') {
+            result.entries = getBackupFilePair(server).listBackups(result.entries);
         } else {
             const extensions = getSupportedBackupExtensions(server);
             result.entries = result.entries.filter((e: any) => (
@@ -112,6 +137,7 @@ router.get('/file', requireServerPermission(PERMISSIONS.backups.download), async
         if (kind === 'directory') {
             const backupName = normalizeBackupFilename(apiPath.replace(/^\/+/, ''));
             if (!backupName) return res.status(400).json({ error: 'Invalid backup name' });
+            assertSupportedBackupDirectory(server, backupName);
 
             const target = await resolveDownloadTarget({
                 serverId,
@@ -122,6 +148,26 @@ router.get('/file', requireServerPermission(PERMISSIONS.backups.download), async
             res.setHeader('Content-Type', 'application/zip');
             res.setHeader('Content-Disposition', `attachment; filename="${target.filename}"`);
             await streamDirectoryZip({ target, output: res });
+            return;
+        }
+
+        if (kind === 'file-pair') {
+            const backupName = normalizeBackupFilename(apiPath.replace(/^\/+/, ''));
+            if (!backupName) return res.status(400).json({ error: 'Invalid backup name' });
+
+            const members = await resolveFilePairMembers({
+                serverId,
+                location,
+                members: getBackupFilePair(server).membersOf(backupName),
+            });
+            if (members.length === 0) return res.status(404).json({ error: 'Backup not found' });
+
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${backupName}.zip"`);
+            await streamFilesZip({
+                files: members.map((m) => ({ absPath: m.absPath, rootDir: m.rootDir, zipName: m.name })),
+                output: res,
+            });
             return;
         }
 
@@ -162,6 +208,9 @@ router.patch('/file', requireServerPermission(PERMISSIONS.backups.rename), async
 
         const server = await getServerOrThrow(serverId);
         const kind = getBackupKind(server);
+        if (kind === 'file-pair') {
+            return res.status(400).json({ error: 'Renaming is not supported for this backup type' });
+        }
         if (kind !== 'directory') {
             assertSupportedBackupArchive(server, nextName);
         }
@@ -180,7 +229,9 @@ router.patch('/file', requireServerPermission(PERMISSIONS.backups.rename), async
         }
 
         const currentName = getBasenameFromApiPath(source.apiPath);
-        if (kind !== 'directory') {
+        if (kind === 'directory') {
+            assertSupportedBackupDirectory(server, currentName);
+        } else {
             assertSupportedBackupArchive(server, currentName);
         }
 
@@ -296,6 +347,7 @@ router.post(
             if (kind === 'directory') {
                 const backupName = normalizeBackupFilename(apiPath.replace(/^\/+/, ''));
                 if (!backupName) return res.status(400).json({ error: 'Invalid backup name' });
+                assertSupportedBackupDirectory(server, backupName);
                 const resolved = await resolveServerPath({
                     serverId,
                     path: joinApiPath(location.basePath, backupName),
@@ -303,6 +355,19 @@ router.post(
                 });
                 await ensureIsDir(resolved.absPath, resolved.rootDir);
                 resolvedApiPath = resolved.apiPath;
+                filename = backupName;
+            } else if (kind === 'file-pair') {
+                const backupName = normalizeBackupFilename(apiPath.replace(/^\/+/, ''));
+                if (!backupName) return res.status(400).json({ error: 'Invalid backup name' });
+
+                const members = await resolveFilePairMembers({
+                    serverId,
+                    location,
+                    members: getBackupFilePair(server).membersOf(backupName),
+                });
+                if (members.length === 0) return res.status(404).json({ error: 'Backup not found' });
+
+                resolvedApiPath = backupName;
                 filename = backupName;
             } else {
                 const resolved = await resolveServerPath({
@@ -384,6 +449,7 @@ router.delete('/file', requireServerPermission(PERMISSIONS.backups.delete), asyn
         if (kind === 'directory') {
             const backupName = normalizeBackupFilename(apiPath.replace(/^\/+/, ''));
             if (!backupName) return res.status(400).json({ error: 'Invalid backup name' });
+            assertSupportedBackupDirectory(server, backupName);
             const resolved = await resolveServerPath({
                 serverId,
                 path: joinApiPath(location.basePath, backupName),
@@ -391,6 +457,23 @@ router.delete('/file', requireServerPermission(PERMISSIONS.backups.delete), asyn
             });
             await ensureIsDir(resolved.absPath, resolved.rootDir);
             await fs.rm(resolved.absPath, { recursive: true, force: true });
+            return res.json({ success: true });
+        }
+
+        if (kind === 'file-pair') {
+            const backupName = normalizeBackupFilename(apiPath.replace(/^\/+/, ''));
+            if (!backupName) return res.status(400).json({ error: 'Invalid backup name' });
+
+            const members = await resolveFilePairMembers({
+                serverId,
+                location,
+                members: getBackupFilePair(server).membersOf(backupName),
+            });
+            if (members.length === 0) return res.status(404).json({ error: 'Backup not found' });
+
+            for (const member of members) {
+                await fs.unlink(member.absPath);
+            }
             return res.json({ success: true });
         }
 

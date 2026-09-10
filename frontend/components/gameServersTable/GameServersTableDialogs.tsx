@@ -277,7 +277,6 @@ export function GameServersTableDialogs({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-4 md:p-5">
-              {/* Chart shrinks on short viewports so the modal always fits without scrolling. */}
               <div className="flex h-[clamp(180px,calc(100dvh-13rem),360px)] flex-col">
               {metricType === 'network' ? (
                 metricNetworkChartData.length === 0 ? (
@@ -567,6 +566,4 @@ export function GameServersTableDialogs({
     </>
   );
 }
-
-
 

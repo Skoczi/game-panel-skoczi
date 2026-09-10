@@ -1,5 +1,5 @@
-import { memo, useMemo, useState } from 'react';
-import { ChevronDown, FolderOpen, RefreshCw, Settings } from 'lucide-react';
+import { memo, useMemo } from 'react';
+import { FolderOpen, RefreshCw } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 
 interface GameConfigAdvancedLinksProps {
@@ -13,9 +13,7 @@ interface GameConfigAdvancedLinksProps {
 
 type ConfigFormat = 'INI' | 'PROPERTIES' | 'JSON' | 'YAML' | 'CFG' | 'TXT' | 'LUA' | 'TOML' | 'UNKNOWN';
 
-const contentBg = 'bg-[#111827]';
 const borderColor = 'border-gray-700';
-const textPrimary = 'text-white';
 const textSecondary = 'text-gray-400';
 const accentText = 'text-[var(--color-cyan-400)]';
 const accentBorder = 'border-[var(--color-cyan-400)]/35';
@@ -73,8 +71,6 @@ function GameConfigAdvancedLinksComponent({
   canReadFileManager,
   onOpenFileManagerPath,
 }: GameConfigAdvancedLinksProps) {
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
   const mappedFiles = useMemo(
     () =>
       configFiles.map((path) => ({
@@ -84,84 +80,63 @@ function GameConfigAdvancedLinksComponent({
     [configFiles]
   );
 
+  if (!canReadFileManager) return null;
+
   return (
-    <div className={`${contentBg} border ${borderColor} rounded-lg p-6 space-y-4`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h4 className={`text-lg font-semibold ${textPrimary} mb-1`}>Advanced Configuration</h4>
-          <p className={`text-sm ${textSecondary}`}>Direct links to real configuration files.</p>
+    <div className="space-y-4">
+      <h3 className={`text-sm font-semibold uppercase tracking-wide ${textSecondary}`}>
+        Configuration files
+      </h3>
+
+      {isLoading && (
+        <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>
+          <RefreshCw className="w-4 h-4 animate-spin" />
+          <span>Loading configuration files…</span>
         </div>
-        <AppButton
-          onClick={() => setShowAdvanced((previous) => !previous)}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors bg-[#1f2937] border border-gray-600 hover:border-[var(--color-cyan-400)]/50 hover:bg-[#27354b] text-white"
-        >
-          <Settings className="w-4 h-4" />
-          <span>{showAdvanced ? 'Hide advanced' : 'Show advanced'}</span>
-          <ChevronDown
-            className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-          />
-        </AppButton>
-      </div>
+      )}
 
-      {showAdvanced && canReadFileManager && (
-        <div className="space-y-3">
-          <>
-              {isLoading && (
-                <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Loading advanced config files...</span>
+      {error && <div className="text-sm text-amber-300">{error}</div>}
+
+      {!isLoading && mappedFiles.length === 0 && (
+        <p className={`text-sm ${textSecondary}`}>No configuration files detected for this game.</p>
+      )}
+
+      {!isLoading && mappedFiles.length > 0 && (
+        <div className="space-y-2">
+          {mappedFiles.map(({ path, format }, index) => {
+            const canOpen = Boolean(onOpenFileManagerPath);
+            const hasSeparator = index < mappedFiles.length - 1;
+
+            return (
+              <div
+                key={path}
+                className={`flex flex-col gap-2 md:flex-row md:items-center md:justify-between py-2 ${
+                  hasSeparator ? `border-b ${borderColor}` : ''
+                }`}
+              >
+                <div className="min-w-0 flex-1 flex items-center gap-2">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[11px] font-medium border ${getBadgeClass(format)}`}
+                  >
+                    {format}
+                  </span>
+                  <span className={`text-sm font-mono break-all ${textSecondary}`}>{path}</span>
                 </div>
-              )}
-
-              {error && <div className="text-sm text-amber-300">{error}</div>}
-
-              {!isLoading && mappedFiles.length === 0 && (
-                <p className={`text-sm ${textSecondary}`}>
-                  No advanced config files detected for this game.
-                </p>
-              )}
-
-              {!isLoading && mappedFiles.length > 0 && (
-                <div className="space-y-2">
-                  {mappedFiles.map(({ path, format }, index) => {
-                    const canOpen = canReadFileManager && Boolean(onOpenFileManagerPath);
-                    const hasSeparator = index < mappedFiles.length - 1;
-
-                    return (
-                      <div
-                        key={path}
-                        className={`flex flex-col gap-2 md:flex-row md:items-center md:justify-between py-2 ${
-                          hasSeparator ? `border-b ${borderColor}` : ''
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1 flex items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[11px] font-medium border ${getBadgeClass(format)}`}
-                          >
-                            {format}
-                          </span>
-                          <span className={`text-sm font-mono break-all ${textSecondary}`}>
-                            {path}
-                          </span>
-                        </div>
-                        <AppButton
-                          onClick={() => onOpenFileManagerPath?.(path)}
-                          disabled={!canOpen}
-                          className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap ${
-                            canOpen
-                              ? 'bg-[#1f2937] border border-gray-600 hover:border-[var(--color-cyan-400)]/50 hover:bg-[#27354b] text-white'
-                              : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                          }`}
-                        >
-                          <FolderOpen className="w-4 h-4" />
-                          Open in File Manager
-                        </AppButton>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+                <AppButton
+                  onClick={() => onOpenFileManagerPath?.(path)}
+                  disabled={!canOpen}
+                  className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap ${
+                    canOpen
+                      ? 'bg-[#1f2937] border border-gray-600 hover:border-[var(--color-cyan-400)]/50 hover:bg-[#27354b] text-white'
+                      : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  Open in File Manager
+                </AppButton>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

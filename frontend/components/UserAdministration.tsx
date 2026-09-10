@@ -92,8 +92,6 @@ export function UserAdministration({
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
-  // Errors for the create/edit dialogs are shown inline inside the open modal,
-  // not via the page-level `feedback` banner (which would render behind it).
   const [createError, setCreateError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -346,7 +344,6 @@ export function UserAdministration({
       setEditModalOpen(false);
       setFeedback({ type: 'success', text: `User ${usernameToDelete} deleted.` });
     } catch (error: any) {
-      // Rethrow so ConfirmationModal surfaces the error inline and stays open.
       throw new Error(apiError(error, 'Failed to delete user.'));
     } finally {
       setDeleteUserLoading(false);
@@ -388,8 +385,6 @@ export function UserAdministration({
     setGlobalKnown(known);
     setNewPassword('');
     setNewPasswordConfirm('');
-    // Reset server permissions from current server state to avoid stale state
-    // when reopening the dialog for the same user without saving.
     const existingMember = members.find((m) => String(m.userId) === String(user.id));
     if (!existingMember) {
       setAddMemberKnown([]);
@@ -539,6 +534,4 @@ export function UserAdministration({
     </div>
   );
 }
-
-
 

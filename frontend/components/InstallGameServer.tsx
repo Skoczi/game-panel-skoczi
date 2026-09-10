@@ -80,7 +80,6 @@ function parsePortRows(rows: PortRow[]): { host: number; container: number; labe
     .filter((r) => r.host > 0 && r.container > 0);
 }
 
-// A row with any content but no valid Host/Container port blocks submission; a fully empty row is ignored.
 function hasIncompletePortRow(rows: PortRow[]): boolean {
   return rows.some((r) => {
     const hasAnyValue = Boolean(r.host.trim() || r.container.trim() || r.label.trim());
@@ -96,7 +95,6 @@ function envRowsToRecord(rows: EnvRow[]): Record<string, string> {
 const inputCls =
   'w-full rounded-lg bg-white dark:bg-[#0f1723]/60 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--gp-ods-accent-primary)] dark:focus:ring-white/20 focus:border-transparent disabled:opacity-50 transition-all';
 
-// ---------- CollapsibleSection ----------
 function CollapsibleSection({
   label, badge, children, defaultOpen = false,
 }: {
@@ -127,7 +125,6 @@ function CollapsibleSection({
   );
 }
 
-// ---------- PortSection ----------
 function PortSection({ label, rows, setRows }: { label: string; rows: PortRow[]; setRows: (r: PortRow[]) => void }) {
   const update = (i: number, field: keyof PortRow, value: string) =>
     setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -173,7 +170,6 @@ function PortSection({ label, rows, setRows }: { label: string; rows: PortRow[];
   );
 }
 
-// ---------- MountSection ----------
 function MountSection({ rows, setRows }: { rows: MountRow[]; setRows: (r: MountRow[]) => void }) {
   const update = (i: number, field: keyof MountRow, value: string) =>
     setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
@@ -217,7 +213,6 @@ function MountSection({ rows, setRows }: { rows: MountRow[]; setRows: (r: MountR
   );
 }
 
-// ---------- HealthcheckEditor ----------
 type HCMode = 'default' | 'disabled' | 'override';
 type HCType = 'tcp_connect' | 'process' | 'command';
 interface HCEdit { mode: HCMode; type: HCType; port: string; processName: string; command: string; interval: string; timeout: string; startPeriod: string; retries: string; }
@@ -336,8 +331,6 @@ function HealthcheckEditor({ initial, onChange }: { initial: Record<string, unkn
   );
 }
 
-// Resolve a unique server name: if `base` is already taken, append an incrementing
-// " (1)", " (2)", … suffix until a free name is found.
 function makeUniqueServerName(base: string, used?: string[]): string {
   const taken = new Set(used ?? []);
   if (!taken.has(base)) return base;
@@ -346,7 +339,6 @@ function makeUniqueServerName(base: string, used?: string[]): string {
   return `${base} (${n})`;
 }
 
-// ---------- ConfigModal ----------
 interface ConfigModalProps {
   title: string;
   subtitle?: string;
@@ -370,6 +362,7 @@ interface ConfigModalProps {
   showPalworldAdmin?: boolean;
   showProjectZomboidFields?: boolean;
   showRustFields?: boolean;
+  showValheimFields?: boolean;
   usedServerNames?: string[];
   requireSteamCredentials?: boolean;
   steamUsername?: string;
@@ -393,8 +386,6 @@ interface ConfigModalProps {
   requireEula?: boolean;
 }
 
-// Generate a strong Palworld admin password (sent as PALWORLD_ADMIN_PASSWORD at install),
-// avoiding visually ambiguous characters. If the user clears it, the backend generates one.
 function generatePalworldAdminPassword(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
   const bytes = new Uint32Array(20);
@@ -409,6 +400,7 @@ function ConfigModal({
   showPalworldAdmin,
   showProjectZomboidFields,
   showRustFields,
+  showValheimFields,
   usedServerNames,
   requireSteamCredentials, steamUsername, setSteamUsername, steamPassword, setSteamPassword,
   requireGameCopy,
@@ -420,13 +412,12 @@ function ConfigModal({
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [showAdminPw, setShowAdminPw] = React.useState(false);
   const [showRconPw, setShowRconPw] = React.useState(false);
+  const [showValheimPw, setShowValheimPw] = React.useState(false);
 
   React.useEffect(() => {
     if (error) setAdvancedOpen(true);
   }, [error]);
 
-  // EULA acceptance is backed by the `EULA` env var; the toggle is just an explicit gate,
-  // defaulting to unaccepted so acceptance is the user's affirmative act.
   const eulaAccepted = envRows.some(
     (r) => r.key.trim().toUpperCase() === 'EULA' && r.value.trim().toUpperCase() === 'TRUE'
   );
@@ -441,8 +432,6 @@ function ConfigModal({
   };
   const eulaBlocked = !!requireEula && !eulaAccepted;
 
-  // Palworld admin password is backed by the PALWORLD_ADMIN_PASSWORD env var, so the
-  // dedicated field and the Environment Variables list stay in sync (like EULA).
   const palworldAdminPassword =
     envRows.find((r) => r.key.trim().toUpperCase() === 'PALWORLD_ADMIN_PASSWORD')?.value ?? '';
   const setPalworldAdminPassword = (val: string) => {
@@ -454,8 +443,6 @@ function ConfigModal({
     }
   };
 
-  // Project Zomboid: branch and admin password are backed by env vars (PZ_BRANCH,
-  // PZ_ADMIN_PASSWORD), kept in sync with the Environment Variables list like EULA.
   const upsertEnv = (key: string, val: string) => {
     const idx = envRows.findIndex((r) => r.key.trim().toUpperCase() === key);
     if (idx >= 0) {
@@ -496,13 +483,17 @@ function ConfigModal({
     if (missing.length > 0) setEnvRows([...envRows, ...missing]);
   }, [showProjectZomboidFields, envRows, setEnvRows]);
 
-  // Rust: RCON password (basic) + launch params (advanced), backed by env vars.
   const rustRcon = envRows.find((r) => r.key.trim().toUpperCase() === 'RUST_RCON_PASSWORD')?.value ?? '';
   const setRustRcon = (val: string) => upsertEnv('RUST_RCON_PASSWORD', val);
   // Rust silently disables WebRCON below 8 chars (console breaks) — enforce it here.
   const rustRconTooShort = Boolean(showRustFields) && rustRcon.trim().length < 8;
 
-  // Seed RUST_SERVER_IDENTITY so it is present/editable in the Environment Variables list.
+  const valheimPassword =
+    envRows.find((r) => r.key.trim().toUpperCase() === 'VALHEIM_SERVER_PASSWORD')?.value ?? '';
+  const setValheimPassword = (val: string) => upsertEnv('VALHEIM_SERVER_PASSWORD', val);
+  // A listed server needs a password of at least 5 characters or the game refuses to start.
+  const valheimPasswordTooShort = Boolean(showValheimFields) && valheimPassword.trim().length < 5;
+
   const rustEnvSeeded = React.useRef(false);
   React.useEffect(() => {
     if (!showRustFields) { rustEnvSeeded.current = false; return; }
@@ -513,7 +504,6 @@ function ConfigModal({
     }
   }, [showRustFields, envRows, setEnvRows]);
 
-  // Default the branch to the first available one once the list loads.
   const pzBranchDefaulted = React.useRef(false);
   React.useEffect(() => {
     if (!showProjectZomboidFields) { pzBranchDefaulted.current = false; return; }
@@ -523,8 +513,6 @@ function ConfigModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showProjectZomboidFields, pzBranches]);
 
-  // Branch is picked from the fetched list; a custom branch can be set manually via
-  // the PZ_BRANCH environment variable (which stays in sync with this select).
   const branchOptions = React.useMemo(() => {
     const opts: { value: string; label: string }[] = [];
     const seen = new Set<string>();
@@ -533,7 +521,6 @@ function ConfigModal({
       seen.add(b.name);
       opts.push({ value: b.name, label: b.name });
     }
-    // A value set via PZ_BRANCH that is not in the fetched list still shows up.
     const current = pzBranch.trim();
     if (current && !seen.has(current)) opts.push({ value: current, label: current });
     return opts;
@@ -562,7 +549,6 @@ function ConfigModal({
             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Server Name
             </label>
-            {/* A duplicate name is auto-suffixed with " (n)" live as the user types, so the final name is always shown. */}
             <input type="text" value={serverName}
               onChange={(e) => setServerName(makeUniqueServerName(e.target.value, usedServerNames))}
               placeholder="My Game Server" className={inputCls} />
@@ -604,6 +590,48 @@ function ConfigModal({
                   Regenerate
                 </button>
               </div>
+            </div>
+          )}
+
+          {showValheimFields && (
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                Server Password
+                <InfoTip text="Required to join. The server is listed in the community browser, which Valheim only allows with a password. You can change it later in the server settings." />
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showValheimPw ? 'text' : 'password'}
+                    value={valheimPassword}
+                    onChange={(e) => setValheimPassword(e.target.value)}
+                    placeholder="At least 5 characters"
+                    spellCheck={false}
+                    autoComplete="off"
+                    className={`${inputCls} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowValheimPw((v) => !v)}
+                    aria-label={showValheimPw ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  >
+                    {showValheimPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setValheimPassword(generatePalworldAdminPassword())}
+                  className="flex-shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                >
+                  Regenerate
+                </button>
+              </div>
+              {valheimPasswordTooShort && (
+                <p className="mt-1.5 text-xs text-red-400">
+                  Must be at least 5 characters.
+                </p>
+              )}
             </div>
           )}
 
@@ -928,7 +956,7 @@ function ConfigModal({
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 hover:bg-gray-200 dark:bg-gray-700/50 dark:hover:bg-gray-600/50 text-gray-700 dark:text-white border border-gray-300 dark:border-gray-600/50 transition-all">
               Cancel
             </AppButton>
-            <AppButton tone="primary" onClick={onConfirm} disabled={loading || !serverName.trim() || eulaBlocked || rustRconTooShort}
+            <AppButton tone="primary" onClick={onConfirm} disabled={loading || !serverName.trim() || eulaBlocked || rustRconTooShort || valheimPasswordTooShort}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
               {loading ? 'Installing…' : 'Install'}
               <ArrowRight className="w-4 h-4" />
@@ -941,14 +969,12 @@ function ConfigModal({
   );
 }
 
-// ---------- LinuxGSM featured ----------
 const LGSM_FEATURED = [
   '7 days to die', 'ark:', 'arma reforger', 'dayz',
   'garry', 'humanitz', 'palworld', 'project zomboid',
   'rust', 'satisfactory', 'team fortress 2', 'teamspeak 3', 'valheim',
 ];
 
-// ---------- Main component ----------
 export function InstallGameServer({
   isOpen, onClose, onInstall, installing, installError, installProgressPercent,
   installStatus, installServerId, installInteraction, setInstallInteraction, installPlan = [],
@@ -961,21 +987,17 @@ export function InstallGameServer({
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [installingName, setInstallingName] = useState('');
 
-  // Unified list state
   const [unifiedSearch, setUnifiedSearch] = useState('');
   const [showExternal, setShowExternal] = useState(false);
-  // Remembers which form launched the in-flight install so "Reconfigure and Retry" reopens the right one.
   const [installWasExternal, setInstallWasExternal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [versionModalImages, setVersionModalImages] = useState<OvhcloudImage[]>([]);
 
-  // LinuxGSM catalog
   const [lgsmGames, setLgsmGames] = useState<LinuxGsmGame[]>([]);
   const [lgsmLoading, setLgsmLoading] = useState(false);
   const [lgsmError, setLgsmError] = useState<string | null>(null);
   const [lgsmFlags, setLgsmFlags] = useState<Record<string, { steamCred: boolean; gameCopy: boolean }>>({});
 
-  // Config modal state
   const [showConfig, setShowConfig] = useState(false);
   const [configTitle, setConfigTitle] = useState('');
   const [configSubtitle, setConfigSubtitle] = useState('');
@@ -989,6 +1011,7 @@ export function InstallGameServer({
   const [hytaleOptions, setHytaleOptions] = useState({ patchline: '', profileUuid: '' });
   const [showHytale, setShowHytale] = useState(false);
   const [showPalworldAdmin, setShowPalworldAdmin] = useState(false);
+  const [showValheim, setShowValheim] = useState(false);
   const [showProjectZomboid, setShowProjectZomboid] = useState(false);
   const [showRust, setShowRust] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -1001,7 +1024,6 @@ export function InstallGameServer({
   const [steamPassword, setSteamPassword] = useState('');
   const [pendingPayloadBase, setPendingPayloadBase] = useState<Partial<InstallGameHandlerPayload> | null>(null);
 
-  // External (custom image) state
   const [extDockerImage, setExtDockerImage] = useState('');
   const [extServerName, setExtServerName] = useState('');
   const [extTcpPorts, setExtTcpPorts] = useState<PortRow[]>([]);
@@ -1019,15 +1041,11 @@ export function InstallGameServer({
   const [extCpuLimit, setExtCpuLimit] = useState('');
   const [extMemoryLimitMb, setExtMemoryLimitMb] = useState('');
 
-  // Minecraft version picker state
   const [configMcServerType, setConfigMcServerType] = useState<McServerType | null>(null);
   const [pickerInitialEnv, setPickerInitialEnv] = useState<Record<string, string>>({});
   const [pickerEnv, setPickerEnv] = useState<Record<string, string>>({});
-  // Java variants of the opened Minecraft image; drives the picker's Java select, which
-  // swaps imageId/dockerImage in the pending payload. Empty for bedrock and non-minecraft.
   const [pickerJavaImages, setPickerJavaImages] = useState<JavaImageOption[]>([]);
 
-  // Load LinuxGSM catalog when modal opens
   useEffect(() => {
     if (!isOpen || lgsmGames.length > 0 || lgsmLoading) return;
     let cancelled = false;
@@ -1056,8 +1074,6 @@ export function InstallGameServer({
     );
   }, [pickerEnv]);
 
-  // Reset every transient config field to baseline at the start of each opener so state never
-  // leaks between two selections. Each opener then sets only the chosen game's values.
   const resetConfigState = () => {
     setConfigTitle('');
     setConfigSubtitle('');
@@ -1073,6 +1089,7 @@ export function InstallGameServer({
     setShowPalworldAdmin(false);
     setShowProjectZomboid(false);
     setShowRust(false);
+    setShowValheim(false);
     setConfigError(null);
     setMountRows([]);
     setHealthcheckFromCatalog(null);
@@ -1118,7 +1135,9 @@ export function InstallGameServer({
           ? [...baseEnv, { key: 'PZ_ADMIN_PASSWORD', value: generatePalworldAdminPassword() }]
           : image.family === 'rust'
             ? [...baseEnv, { key: 'RUST_RCON_PASSWORD', value: generatePalworldAdminPassword() }]
-            : baseEnv
+            : image.family === 'valheim'
+              ? [...baseEnv, { key: 'VALHEIM_SERVER_PASSWORD', value: generatePalworldAdminPassword() }]
+              : baseEnv
     );
     setConfigShowEnv(true);
     setConfigRequireEula(image.requiredEnvKeys.includes('EULA'));
@@ -1127,6 +1146,7 @@ export function InstallGameServer({
     setShowPalworldAdmin(image.family === 'palworld');
     setShowProjectZomboid(image.family === 'project-zomboid');
     setShowRust(image.family === 'rust');
+    setShowValheim(image.family === 'valheim');
     setConfigError(null);
     const needsBackupMount =
       image.family === 'minecraft' || image.family === 'project-zomboid' || image.family === 'rust';
@@ -1144,8 +1164,6 @@ export function InstallGameServer({
     setShowConfig(true);
   };
 
-  // The Java select resolved to a different image: swap it in the pending payload. The
-  // four Java variants of a type share ports/env/mounts, so nothing else needs recomputing.
   const handlePickerJavaImage = (img: { imageId: string; dockerImage: string }) =>
     setPendingPayloadBase((prev) => (prev ? { ...prev, imageId: img.imageId, dockerImage: img.dockerImage } : prev));
 
@@ -1214,7 +1232,6 @@ export function InstallGameServer({
     }
     const cpuVal = parseFloat(cpuLimit);
     const memVal = parseInt(memoryLimitMb, 10);
-    // A duplicate name is auto-resolved to "<name> (n)" rather than blocking creation.
     const uniqueName = makeUniqueServerName(serverName.trim(), usedServerNames);
     const payload: InstallGameHandlerPayload = {
       ...pendingPayloadBase as any,
@@ -1255,7 +1272,6 @@ export function InstallGameServer({
     }
     const extCpuVal = parseFloat(extCpuLimit);
     const extMemVal = parseInt(extMemoryLimitMb, 10);
-    // A duplicate name is auto-resolved to "<name> (n)" rather than blocking creation.
     const uniqueExtName = makeUniqueServerName(extServerName.trim(), usedServerNames);
     const payload: InstallGameHandlerPayload = {
       provider: 'external',
@@ -1275,7 +1291,6 @@ export function InstallGameServer({
     await onInstall(payload);
   };
 
-  // Filtered lists
   const searchLower = unifiedSearch.toLowerCase().trim();
 
   const ovhFiltered = OVH_UNIFIED.filter(g =>
@@ -1313,7 +1328,6 @@ export function InstallGameServer({
             className="bg-gp-surface-card w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-2xl h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 bg-gp-surface-card rounded-t-2xl">
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Install Game Server</h2>
@@ -1331,15 +1345,12 @@ export function InstallGameServer({
               </AppButton>
             </div>
 
-            {/* Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
 
-              {/* ---- Unified game list ---- */}
               {!showExternal && (
                 <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
                   <div className="space-y-4">
 
-                    {/* Search bar + Custom image button */}
                     <div className="flex gap-3 items-stretch">
                       <div className="relative flex-1">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -1370,7 +1381,6 @@ export function InstallGameServer({
                       </button>
                     </div>
 
-                    {/* Loading */}
                     {lgsmLoading && (
                       <div className="flex items-center justify-center py-10">
                         <div className="flex flex-col items-center gap-3">
@@ -1380,14 +1390,12 @@ export function InstallGameServer({
                       </div>
                     )}
 
-                    {/* Error */}
                     {lgsmError && !lgsmLoading && (
                       <div className="flex items-center justify-center py-4">
                         <p className="text-sm text-red-400">{lgsmError}</p>
                       </div>
                     )}
 
-                    {/* No results */}
                     {noResults && (
                       <div className="flex flex-col items-center justify-center py-12 gap-2">
                         <Search className="w-8 h-8 text-gray-300 dark:text-gray-600" />
@@ -1395,11 +1403,9 @@ export function InstallGameServer({
                       </div>
                     )}
 
-                    {/* Game grid */}
                     {!lgsmLoading && !noResults && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
-                        {/* OVHcloud games first */}
                         {ovhFiltered.map((game) => (
                           <div
                             key={game.id}
@@ -1428,7 +1434,6 @@ export function InstallGameServer({
                           </div>
                         ))}
 
-                        {/* LinuxGSM games after */}
                         {lgsmFiltered.slice(0, Math.max(0, 200 - ovhFiltered.length)).map((game) => (
                           <div
                             key={game.shortname}
@@ -1463,7 +1468,6 @@ export function InstallGameServer({
                           </div>
                         ))}
 
-                        {/* Refine hint when truncated */}
                         {lgsmFiltered.length > 200 - ovhFiltered.length && (
                           <div className="sm:col-span-2 text-center">
                             <p className="text-xs text-gray-400 py-1">
@@ -1477,7 +1481,6 @@ export function InstallGameServer({
                 </div>
               )}
 
-              {/* ---- Custom image (External) ---- */}
               {showExternal && (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <div className="flex-1 overflow-y-auto px-6 py-5">
@@ -1666,7 +1669,6 @@ export function InstallGameServer({
         </div>
       )}
 
-      {/* Minecraft version selection modal */}
       {showVersionModal && (
         <GameVersionModal
           images={versionModalImages}
@@ -1702,6 +1704,7 @@ export function InstallGameServer({
           showPalworldAdmin={showPalworldAdmin}
           showProjectZomboidFields={showProjectZomboid}
           showRustFields={showRust}
+          showValheimFields={showValheim}
           usedServerNames={usedServerNames}
           requireSteamCredentials={requireSteamCredentials || undefined}
           steamUsername={steamUsername}
@@ -1750,7 +1753,6 @@ export function InstallGameServer({
           const usedUdp = new Set(usedPorts?.udp ?? []);
           const allocatedTcp = new Set<number>();
           const allocatedUdp = new Set<number>();
-          // Re-pick a free host port for each row, skipping empty rows so they stay empty.
           const remapTcp = (prev: PortRow[]) => prev.map((row) => {
             if (!row.host.trim()) return row;
             const port = findAvailablePort(Number(row.host), new Set([...usedTcp, ...allocatedTcp]));
@@ -1764,7 +1766,6 @@ export function InstallGameServer({
             return { ...row, host: String(port) };
           });
           if (installWasExternal) {
-            // The custom-image form lives inside the isOpen-gated modal, so reopen it before showing.
             setExtTcpPorts(remapTcp);
             setExtUdpPorts(remapUdp);
             setShowExternal(true);

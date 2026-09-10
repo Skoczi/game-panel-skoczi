@@ -17,6 +17,8 @@ import {
   PROJECT_ZOMBOID_PRESETS,
   RUST_OVHCLOUD_OPTIONS,
   RUST_PRESETS,
+  VALHEIM_OVHCLOUD_OPTIONS,
+  VALHEIM_PRESETS,
   MINECRAFT_OVHCLOUD_OPTIONS,
   MINECRAFT_PRESETS,
   SCHEDULED_TASKS_OPTIONS,
@@ -67,7 +69,6 @@ interface UserEditDialogProps {
   membersError: string | null;
   onSaveChanges: () => void;
   saveLoading: boolean;
-  /** Error shown inline; the modal stays open on failure, so a page banner would be hidden. */
   saveError?: string | null;
 }
 
@@ -116,16 +117,17 @@ export function UserEditDialog({
   const isPalworldOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'palworld';
   const isProjectZomboidOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'project-zomboid';
   const isRustOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'rust';
+  const isValheimOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'valheim';
   const isExternalServer = selectedServer?.provider === 'external';
   const isBusy = saveLoading;
 
-  // Wipe permissions are generic, but the role UI only shows the modes the game supports.
   const wipeFamily = isMinecraftOvhcloudServer ? 'minecraft'
     : isHytaleOvhcloudServer ? 'hytale'
     : isPalworldOvhcloudServer ? 'palworld'
     : isProjectZomboidOvhcloudServer ? 'project-zomboid'
     : isCs2OvhcloudServer ? 'counter-strike'
     : isRustOvhcloudServer ? 'rust'
+    : isValheimOvhcloudServer ? 'valheim'
     : null;
   const supportedWipeModes = getSupportedWipeModes(wipeFamily);
   const wipeOptions = WIPE_OPTIONS.filter((opt) =>
@@ -320,9 +322,9 @@ export function UserEditDialog({
                           : isPalworldOvhcloudServer ? PALWORLD_PRESETS
                           : isProjectZomboidOvhcloudServer ? PROJECT_ZOMBOID_PRESETS
                           : isRustOvhcloudServer ? RUST_PRESETS
+                          : isValheimOvhcloudServer ? VALHEIM_PRESETS
                           : isCs2OvhcloudServer ? CS2_PRESETS
                           : null;
-                        // Replace Viewer and Operator with game-enriched versions, keep Full access
                         const presetChips = !gamePresets
                           ? SERVER_PRESETS
                           : (() => {
@@ -334,7 +336,6 @@ export function UserEditDialog({
                               );
                             })();
                         const noAccessActive = addMemberPerms.length === 0;
-                        // "Custom" = permissions match neither "No access" nor any named preset.
                         const customActive =
                           !noAccessActive &&
                           !presetChips.some((preset) => samePermissionSet(addMemberPerms, preset.permissions));
@@ -365,7 +366,6 @@ export function UserEditDialog({
                                 </AppButton>
                               );
                             })}
-                            {/* Read-only status chip: highlighted only when permissions match no preset. */}
                             <AppButton
                               type="button"
                               aria-disabled="true"
@@ -381,7 +381,6 @@ export function UserEditDialog({
                       })()}
                     </div>
 
-                    {/* General permissions */}
                     {[
                       { label: 'General', options: SERVER_GENERAL_OPTIONS },
                       { label: 'File Manager', options: FILE_MANAGER_OPTIONS },
@@ -416,7 +415,6 @@ export function UserEditDialog({
                       </div>
                     ))}
 
-                    {/* Backups — hidden for external images and CS2 */}
                     {!isExternalServer && !isCs2OvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Backups</span>
@@ -447,7 +445,6 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Wipe — OVHcloud games that support it; only the supported modes */}
                     {!isExternalServer && wipeOptions.length > 0 && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Wipe</span>
@@ -478,7 +475,6 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Minecraft — OVHcloud only */}
                     {isMinecraftOvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Minecraft</span>
@@ -511,7 +507,6 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Hytale — OVHcloud only */}
                     {isHytaleOvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Hytale</span>
@@ -542,7 +537,6 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Palworld — OVHcloud only */}
                     {isPalworldOvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Palworld</span>
@@ -573,7 +567,6 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Project Zomboid — OVHcloud only */}
                     {isProjectZomboidOvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Project Zomboid</span>
@@ -604,7 +597,6 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Rust — OVHcloud only */}
                     {isRustOvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Rust</span>
@@ -635,7 +627,36 @@ export function UserEditDialog({
                       </div>
                     )}
 
-                    {/* Counter-Strike 2 — OVHcloud only */}
+                    {isValheimOvhcloudServer && (
+                      <div>
+                        <span className="mb-2 block text-xs font-medium text-gray-400">Valheim</span>
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                          {VALHEIM_OVHCLOUD_OPTIONS.map((opt) => {
+                            const checked = isServerPermissionChecked(addMemberKnown, opt.value);
+                            return (
+                              <AppToggle
+                                key={`server-opt-${opt.value}`}
+                                ariaLabel={opt.label}
+                                checked={checked}
+                                size="compact"
+                                onChange={() =>
+                                  setAddMemberKnown((current) =>
+                                    toggleServerPermission(current, opt.value)
+                                  )
+                                }
+                                label={opt.label}
+                                className={`w-full flex-row-reverse justify-between rounded border px-3 py-2 transition-colors ${
+                                  checked
+                                    ? 'border-[var(--color-cyan-400)]/50 bg-[#0050D7]/10'
+                                    : 'border-gray-700 bg-[#111827]'
+                                }`}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {isCs2OvhcloudServer && (
                       <div>
                         <span className="mb-2 block text-xs font-medium text-gray-400">Counter-Strike 2</span>

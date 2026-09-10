@@ -13,6 +13,11 @@ function envOrDefault(name: string, fallback: string): string {
     return v.trim();
 }
 
+function urlEnv(name: string): string | null {
+    const trimmed = String(process.env[name] ?? '').trim();
+    return trimmed ? trimmed.replace(/\/+$/, '') : null;
+}
+
 const CONTAINER_DATA_DIR = '/data';
 
 function boolEnv(name: string, fallback: boolean): boolean {
@@ -73,12 +78,13 @@ type AppConfig = {
     gamepanelAppRoot: string;
     dockerSocket: string;
     composeProjectName: string;
+    gamesNetwork: string;
     updaterImage: string;
     repositoryUrl: string;
     instanceId: string | null;
     instanceSecret: string | null;
     telemetryEnabled: boolean;
-    telemetryApiBaseUrl: string | null;
+    databaseApiBaseUrl: string | null;
 };
 
 let cached: AppConfig | null = null;
@@ -112,12 +118,13 @@ export function getConfig(): AppConfig {
         gamepanelAppRoot,
         dockerSocket: envOrDefault('DOCKER_SOCKET', '/var/run/docker.sock'),
         composeProjectName: envOrDefault('COMPOSE_PROJECT_NAME', 'gamepanel'),
+        gamesNetwork: envOrDefault('GAMEPANEL_GAMES_NETWORK', 'gamepanel-games'),
         updaterImage: envOrDefault('GAMEPANEL_UPDATER_IMAGE', gamePanelImage('gamepanel-updater')),
         repositoryUrl: envOrDefault('GAMEPANEL_REPOSITORY_URL', 'https://github.com/ovh/game-panel.git'),
         instanceId: process.env.APP_INSTANCE_ID?.trim() || null,
         instanceSecret: process.env.APP_INSTANCE_SECRET?.trim() || null,
         telemetryEnabled: boolEnv('TELEMETRY_ENABLED', true),
-        telemetryApiBaseUrl: process.env.TELEMETRY_API_BASE_URL?.trim() || null,
+        databaseApiBaseUrl: urlEnv('TELEMETRY_API_BASE_URL'),
     };
 
     return cached;

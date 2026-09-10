@@ -12,8 +12,6 @@ export interface ServerMetricHistoryPoint {
 export interface LogEntry {
   id: number;
   timestamp: string;
-  // Pre-formatted local date/time, computed once at ingestion so the console never has to
-  // run new Date()/formatting per row on every render (or when toggling the Date/Time column).
   displayTime?: string;
   type: 'info' | 'warning' | 'error' | 'success' | 'command' | 'action';
   message: string;
@@ -29,7 +27,6 @@ export interface ServerHistoryEntry {
 }
 
 export type ServerHistoryById = Record<string, ServerHistoryEntry[]>;
-
 
 const LEADING_ISO_TIMESTAMP_PATTERN =
   /^\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+\-]\d{2}:\d{2}))(.*)$/;
@@ -55,7 +52,6 @@ const CANONICAL_SERVER_STATUSES = new Set<GameServerStatus>([
   'unhealthy',
   'failed',
 ]);
-// Short-lived transitions where no action makes sense (a few seconds each)
 const TRANSITION_SERVER_STATUSES = new Set<GameServerStatus>([
   'starting',
   'stopping',
@@ -96,18 +92,15 @@ export function isServerInstallingStatus(status: unknown): boolean {
   return mapBackendStatusToUi(status) === 'installing';
 }
 
-// True only for short-lived transitions (starting/stopping/restarting)
 export function isServerTransitioningStatus(status: unknown): boolean {
   return TRANSITION_SERVER_STATUSES.has(mapBackendStatusToUi(status));
 }
 
-// "Up-like": container is running, whether healthy (`running`) or `unhealthy`.
 export function isServerUpLike(status: unknown): boolean {
   const ui = mapBackendStatusToUi(status);
   return ui === 'running' || ui === 'unhealthy';
 }
 
-// "Down-like": container is not running, whether cleanly `stopped` or `failed`.
 export function isServerDownLike(status: unknown): boolean {
   const ui = mapBackendStatusToUi(status);
   return ui === 'stopped' || ui === 'failed';
@@ -138,8 +131,6 @@ export function formatServerStatusLabel(status: unknown): string {
   }
 }
 
-// Format an ISO timestamp to a local "YYYY-MM-DD HH:mm:ss" string for the console.
-// Called once per line at ingestion (see normalizeLogEntries) rather than per render.
 export function formatLogDisplayTime(value: string): string {
   const parsed = new Date(value);
   const date = !Number.isNaN(parsed.getTime()) ? parsed : new Date();

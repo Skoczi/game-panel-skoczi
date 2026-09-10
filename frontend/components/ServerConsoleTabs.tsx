@@ -4,6 +4,7 @@ import { AppButton, AppToggle } from '../src/ui/components';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { ansiToHtml, stripAnsi } from '../utils/ansi';
 import { isServerDownLike, formatLogDisplayTime } from '../utils/serverRuntime';
+import { supportsConsoleCommand } from '../utils/providerCapabilities';
 import type { GameServer } from '../types/gameServer';
 import type { CLIMessage } from '../types/cli';
 
@@ -89,9 +90,6 @@ export function ServerConsoleTabs({
   const [autoScrollServer, setAutoScrollServer] = useState(true);
   const [pendingCliLogs, setPendingCliLogs] = useState(0);
   const [pendingServerLogs, setPendingServerLogs] = useState(0);
-  // Delay showing the "jump to bottom" button so it doesn't flicker during the
-  // initial scroll-to-bottom when a tab opens (autoScroll is briefly false while
-  // the container settles). Hidden instantly when we're back at the bottom.
   const [showCliJump, setShowCliJump] = useState(false);
   const [showServerJump, setShowServerJump] = useState(false);
 
@@ -237,7 +235,6 @@ export function ServerConsoleTabs({
     if (!isCLIConsoleActive || isMinimized) return;
 
     if (autoScrollCli) {
-      // Scrolling is handled by the pin layout-effect below; just clear the counter.
       setPendingCliLogs(0);
       return;
     }
@@ -258,7 +255,6 @@ export function ServerConsoleTabs({
     if (isMinimized) return;
 
     if (autoScrollServer) {
-      // Scrolling is handled by the pin layout-effect below; just clear the counter.
       setPendingServerLogs(0);
       return;
     }
@@ -268,7 +264,7 @@ export function ServerConsoleTabs({
 
   // Keep the view pinned to the bottom while auto-scroll is on. Runs synchronously
   // before paint on every new log, so it can't lose a requestAnimationFrame race
-  // with streaming logs (which previously let a stray scroll event drop auto-scroll).
+  // with streaming logs.
   useLayoutEffect(() => {
     if (isCLIConsoleActive || isMinimized || !autoScrollServer) return;
     const el = serverContainerRef.current;
@@ -361,7 +357,6 @@ export function ServerConsoleTabs({
     }
   };
 
-
   const cardBg = 'bg-gp-surface-card shadow-[0_4px_24px_rgba(2,6,23,0.55),0_1px_4px_rgba(2,6,23,0.3)]';
   const borderColor = 'border-gray-700';
   const textSecondary = 'text-gray-400';
@@ -418,8 +413,10 @@ export function ServerConsoleTabs({
 
   const handleSendCommand = async () => {
     if (!activeTab || !commandValue.trim() || commandSending) return;
-    // External images have no console script — the backend returns 501, so never call it.
+    // External images have no console script and some games expose no command interface at
+    // all — the backend returns 501, so never call it.
     if (activeServer?.provider === 'external') return;
+    if (!supportsConsoleCommand(activeServer?.providerMetadataJson)) return;
     const cmd = commandValue.trim();
     setCommandHistory((prev) => [cmd, ...prev].slice(0, 100));
     setHistoryIndex(-1);
@@ -479,7 +476,6 @@ export function ServerConsoleTabs({
 
   useBodyScrollLock(isFullscreen);
 
-  // Exit fullscreen with Escape.
   useEffect(() => {
     if (!isFullscreen) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -489,7 +485,6 @@ export function ServerConsoleTabs({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isFullscreen]);
 
-  // Persist the resized height and keep it bounded when the window shrinks.
   useEffect(() => {
     try { localStorage.setItem(CONSOLE_HEIGHT_STORAGE_KEY, String(panelHeight)); } catch { /* ignore */ }
   }, [panelHeight]);
@@ -507,8 +502,6 @@ export function ServerConsoleTabs({
     return Math.min(max, Math.max(MIN_CONSOLE_HEIGHT, height));
   }
 
-  // Height follows both the pointer and the page scroll, so growing the panel
-  // past the fold keeps working once the page auto-scrolls under the cursor.
   const resizeHeightFor = (clientY: number): number => {
     const state = resizeStateRef.current;
     if (!state) return panelHeight;
@@ -516,8 +509,6 @@ export function ServerConsoleTabs({
     return clampConsoleHeight(state.startHeight + delta);
   };
 
-  // While dragging near a viewport edge, keep scrolling the page so the handle
-  // can follow the pointer instead of getting stuck at the fold.
   const runResizeAutoScroll = () => {
     if (!resizeStateRef.current) return;
     const y = resizePointerYRef.current;
@@ -771,9 +762,6 @@ export function ServerConsoleTabs({
                           key={log.id}
                           className="mb-1 flex items-start gap-2 rounded px-1 leading-5 hover:bg-white/5"
                         >
-                          {/* Always rendered; hidden via CSS when the container carries
-                              gp-console-hide-time, so toggling Date/Time is a single class
-                              change, not a per-row DOM mutation over thousands of rows. */}
                           <span className="gp-log-time shrink-0 text-gray-500">
                             [{log.displayTime ?? formatLogDisplayTime(log.timestamp)}]
                           </span>
@@ -802,11 +790,14 @@ export function ServerConsoleTabs({
               {(() => {
                 const canSend = canSendCommandByServer?.[activeServer.id] ?? false;
                 const isStopped = isServerDownLike(activeServer.status);
-                // External images have no console script (backend returns 501) — disable input.
                 const isExternal = activeServer.provider === 'external';
-                const isInputDisabled = commandSending || !canSend || isStopped || isExternal;
+                const hasConsole = supportsConsoleCommand(activeServer.providerMetadataJson);
+                const noConsole = isExternal || !hasConsole;
+                const isInputDisabled = commandSending || !canSend || isStopped || noConsole;
                 const inputPlaceholder = isExternal
                   ? 'Console commands are not available for custom (external) images.'
+                  : !hasConsole
+                  ? 'This game has no console — it exposes no command interface.'
                   : isStopped
                     ? 'The server is stopped. Start it to send commands.'
                     : canSend
@@ -833,7 +824,7 @@ export function ServerConsoleTabs({
                     />
                     <button
                       onClick={() => void handleSendCommand()}
-                      disabled={commandSending || !commandValue.trim() || !canSend || isExternal}
+                      disabled={commandSending || !commandValue.trim() || !canSend || noConsole}
                       title="Send command (Enter)"
                       className="shrink-0 rounded p-1.5 text-gray-600 transition-colors hover:bg-[var(--color-cyan-400)]/10 hover:text-[var(--color-cyan-400)] disabled:cursor-not-allowed disabled:opacity-30"
                     >

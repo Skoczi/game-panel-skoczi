@@ -8,7 +8,6 @@ export interface FileRoot {
   containerPath: string;
 }
 
-// Last File Manager position (root + path) per server, persisted in localStorage.
 const FILE_MANAGER_POSITIONS_KEY = 'gp_filemanager_positions';
 const DEFAULT_POSITION = { root: 'data', path: '/' };
 
@@ -83,7 +82,6 @@ export function useFileManagerState({ activeTab, isOpen, serverId, containerConf
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [deleteMultiNames, setDeleteMultiNames] = useState<string[] | null>(null);
 
-  // Signals the path-reset effect to land on a saved path instead of resetting to '/'.
   const pendingRestoreRef = useRef<FileManagerPosition | null>(null);
 
   const loadFiles = async (path: string) => {
@@ -116,12 +114,10 @@ export function useFileManagerState({ activeTab, isOpen, serverId, containerConf
 
   useEffect(() => {
     if (!isOpen) return;
-    // Restore the last position for this server instead of resetting to root.
     const saved = readSavedPosition(serverId);
     if (saved.root === currentRoot) {
       pendingRestoreRef.current = null;
     } else {
-      // Root differs → flag the restore so the path-reset effect keeps the saved path.
       pendingRestoreRef.current = saved;
       setCurrentRoot(saved.root);
     }
@@ -152,7 +148,6 @@ export function useFileManagerState({ activeTab, isOpen, serverId, containerConf
 
   useEffect(() => {
     const pending = pendingRestoreRef.current;
-    // A pending restore keeps the saved path; a user root switch resets to '/'.
     const nextPath = pending && pending.root === currentRoot ? pending.path : '/';
     pendingRestoreRef.current = null;
     setCurrentPath(nextPath);
@@ -173,7 +168,6 @@ export function useFileManagerState({ activeTab, isOpen, serverId, containerConf
     void loadFiles(currentPath);
   }, [isOpen, activeTab, currentPath, currentRoot, serverId]);
 
-  // Remember the current position per server so it can be restored on reopen.
   useEffect(() => {
     if (!isOpen || serverId == null) return;
     writeSavedPosition(serverId, { root: currentRoot, path: currentPath });

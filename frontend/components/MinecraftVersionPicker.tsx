@@ -23,9 +23,6 @@ import {
   type PaperBuild,
 } from '../utils/minecraftCatalog';
 
-// The Java variants (images) available for the selected server type. Passing this in
-// turns on the automatic Java-version select (install flow only); omitting it keeps
-// the picker Java-free (settings tab, where the image can't be swapped).
 export interface JavaImageOption {
   major: number;
   imageId: string;
@@ -82,7 +79,6 @@ export function MinecraftVersionPicker({
 }: MinecraftVersionPickerProps) {
   const [status, setStatus] = useState<LoadStatus>('loading');
 
-  // Catalog data
   const [javaVersions, setJavaVersions] = useState<JavaVersion[]>([]);
   const [paperMcVersions, setPaperMcVersions] = useState<McVersionInfo[]>([]);
   const [paperBuilds, setPaperBuilds] = useState<PaperBuild[]>([]);
@@ -95,7 +91,6 @@ export function MinecraftVersionPicker({
   const [neoforgeVersions, setNeoforgeVersions] = useState<NeoForgeVersion[]>([]);
   const [bedrockVersions, setBedrockVersions] = useState<BedrockVersion[]>([]);
 
-  // Selection state
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [showBeta, setShowBeta] = useState(false);
 
@@ -107,15 +102,10 @@ export function MinecraftVersionPicker({
   const [neoforgeVersion, setNeoforgeVersion] = useState(initialEnv.NEOFORGE_VERSION ?? '');
   const [bedrockChannel, setBedrockChannel] = useState<'release' | 'preview'>('release');
 
-  // Automatic Java resolution (install flow only — gated on javaImages). javaMajor is the
-  // effective selection (auto or user override); recommendedMajor is what the Minecraft
-  // version resolves to, used only to mark the recommended option. Default to the highest
-  // image (the variant the modal opens with) until the catalog loads and resolves it.
   const [javaMajor, setJavaMajor] = useState<number | null>(() =>
     javaImages && javaImages.length > 0 ? Math.max(...javaImages.map((v) => v.major)) : null);
   const [recommendedMajor, setRecommendedMajor] = useState<number | null>(null);
 
-  // Load catalog on mount
   useEffect(() => {
     setStatus('loading');
     let cancelled = false;
@@ -134,8 +124,6 @@ export function MinecraftVersionPicker({
               : undefined;
             const init = matched?.version ?? releases[0]?.version ?? versions[0]?.version ?? '';
             setMcVersion(init);
-            // Preselect the server's real version: if it's a snapshot, reveal snapshots
-            // so it appears in (and stays selected in) the dropdown.
             if (matched?.type === 'snapshot') setShowSnapshots(true);
             break;
           }
@@ -202,7 +190,6 @@ export function MinecraftVersionPicker({
               ? versions.find((v) => v.version === initialEnv.NEOFORGE_VERSION)
               : undefined;
             setNeoforgeVersion(matched?.version ?? stable[0]?.version ?? versions[0]?.version ?? '');
-            // Preselect the server's real version: if it's a beta build, reveal betas.
             if (matched && matched.channel !== 'stable') setShowBeta(true);
             break;
           }
@@ -228,7 +215,6 @@ export function MinecraftVersionPicker({
     return () => { cancelled = true; };
   }, [serverType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Paper: re-fetch builds when mcVersion changes
   useEffect(() => {
     if (serverType !== 'paper' || !mcVersion || status !== 'loaded') return;
     setBuildsStatus('loading');
@@ -247,7 +233,6 @@ export function MinecraftVersionPicker({
     return () => { cancelled = true; };
   }, [serverType, mcVersion, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Forge: re-fetch builds when mcVersion changes
   useEffect(() => {
     if (serverType !== 'forge' || !mcVersion || status !== 'loaded') return;
     setBuildsStatus('loading');
@@ -270,7 +255,6 @@ export function MinecraftVersionPicker({
     return () => { cancelled = true; };
   }, [serverType, mcVersion, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Compute env and notify parent
   const onEnvChangeRef = useRef(onEnvChange);
   useEffect(() => { onEnvChangeRef.current = onEnvChange; });
 
@@ -308,9 +292,6 @@ export function MinecraftVersionPicker({
     }
   }, [computedEnv]);
 
-  // ── Automatic Java resolution ──────────────────────────────────────────────
-  // The version list (with javaVersion) and the selected version that drive the
-  // resolution, per server type. Build/loader/installer selects never re-trigger it.
   const javaDriver = useMemo((): { ordered: McVersionInfo[]; selected: string } | null => {
     switch (serverType) {
       case 'vanilla': return { ordered: javaVersions, selected: mcVersion };
@@ -322,9 +303,6 @@ export function MinecraftVersionPicker({
     }
   }, [serverType, mcVersion, neoforgeVersion, javaVersions, paperMcVersions, forgeMcVersions, fabricMcVersions, neoforgeVersions]);
 
-  // Re-resolve whenever the driving version changes — deliberately overwriting a prior
-  // manual override (§4.4). Skipped when the catalog failed or the version is unresolvable
-  // (empty / literal "latest"), where we keep whatever Java is selected (§5).
   useEffect(() => {
     if (!javaImages || javaImages.length === 0 || status !== 'loaded' || !javaDriver) return;
     const { ordered, selected } = javaDriver;
@@ -336,7 +314,6 @@ export function MinecraftVersionPicker({
     setJavaMajor(recommended);
   }, [javaImages, status, javaDriver]);
 
-  // Push the selected Java variant's image up to the parent (install payload).
   const onJavaImageChangeRef = useRef(onJavaImageChange);
   useEffect(() => { onJavaImageChangeRef.current = onJavaImageChange; });
   useEffect(() => {
@@ -345,8 +322,6 @@ export function MinecraftVersionPicker({
     if (img) onJavaImageChangeRef.current?.({ imageId: img.imageId, dockerImage: img.dockerImage });
   }, [javaMajor, javaImages]);
 
-  // The Java select — rendered as the last select of the normal block for every
-  // Java-based server type. Null when the picker is Java-free (no javaImages / bedrock).
   const renderJavaSelect = () => {
     if (!javaImages || javaImages.length === 0 || serverType === 'bedrock') return null;
     return (
@@ -367,7 +342,6 @@ export function MinecraftVersionPicker({
     );
   };
 
-  // ── Vanilla ────────────────────────────────────────────────────────────────
   if (serverType === 'vanilla') {
     const visibleVersions = showSnapshots ? javaVersions : javaVersions.filter((v) => v.type === 'release');
     return (
@@ -406,7 +380,6 @@ export function MinecraftVersionPicker({
     );
   }
 
-  // ── Paper ──────────────────────────────────────────────────────────────────
   if (serverType === 'paper') {
     return (
       <div className="space-y-2.5">
@@ -460,7 +433,6 @@ export function MinecraftVersionPicker({
     );
   }
 
-  // ── Forge ──────────────────────────────────────────────────────────────────
   if (serverType === 'forge') {
     return (
       <div className="space-y-2.5">
@@ -515,7 +487,6 @@ export function MinecraftVersionPicker({
     );
   }
 
-  // ── Fabric ─────────────────────────────────────────────────────────────────
   if (serverType === 'fabric') {
     const stableMcVersions = fabricMcVersions.filter((v) => v.stable);
     const visibleMc = stableMcVersions.length > 0 ? stableMcVersions : fabricMcVersions;
@@ -578,7 +549,6 @@ export function MinecraftVersionPicker({
     );
   }
 
-  // ── NeoForge ───────────────────────────────────────────────────────────────
   if (serverType === 'neoforge') {
     const visibleVersions = showBeta
       ? neoforgeVersions
@@ -623,7 +593,6 @@ export function MinecraftVersionPicker({
     );
   }
 
-  // ── Bedrock ────────────────────────────────────────────────────────────────
   if (serverType === 'bedrock') {
     return (
       <div className="space-y-2">
@@ -640,7 +609,6 @@ export function MinecraftVersionPicker({
             <input className={`${inputCls} mt-1.5`}
               value={computedEnv.MC_VERSION ?? ''} disabled={!canEdit}
               onChange={() => {
-                /* fallback: just set mc version manually */
               }}
               placeholder="e.g. 1.21.80.03" />
           </>

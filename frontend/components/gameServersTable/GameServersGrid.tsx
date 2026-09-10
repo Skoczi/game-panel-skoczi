@@ -9,9 +9,6 @@ interface GameServersGridProps extends GameServerCardActions {
   onOpenInstallModal?: () => void;
 }
 
-// Card grid view. Reuses GameServerCard (same card as the mobile list) laid out in a
-// responsive multi-column grid. The container owns all state/handlers, so this stays
-// purely presentational.
 export function GameServersGrid({
   filteredAndSortedServers,
   canOpenInstallModal,

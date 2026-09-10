@@ -10,6 +10,7 @@ import ovhcloudRoutes from '../providers/ovhcloud/routes.js';
 import { createServerDeleteRoutes } from './servers/delete.js';
 import { createServerInstallRoutes } from './servers/install.js';
 import { createServerInteractionRoutes } from './servers/interactions.js';
+import { createServerMetricsRoutes } from './servers/metrics.js';
 import { createServerPatchRoutes } from './servers/patch.js';
 import { createServerPowerRoutes } from './servers/power.js';
 import { createServerReadRoutes } from './servers/read.js';
@@ -30,6 +31,9 @@ router.use('/:id/terminal', terminalRoutes);
 router.use('/:id/console', consoleRoutes);
 // /api/servers/:id/scheduled-tasks
 router.use('/:id/scheduled-tasks', scheduledTasksRoutes);
+
+// GET /api/servers/metrics and /api/servers/:id/metrics
+router.use('/', createServerMetricsRoutes());
 
 // /api/servers
 router.use('/', createServerReadRoutes());

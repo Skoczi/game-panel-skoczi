@@ -467,92 +467,10 @@ EOF
 }
 
 write_compose_file() {
-  cat >"$COMPOSE_FILE" <<'EOF'
-services:
-  traefik:
-    image: __TRAEFIK_IMAGE__
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}"
-      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.le.acme.httpchallenge=true"
-      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--log.level=INFO"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "letsencrypt:/letsencrypt"
-    networks:
-      - web
-    restart: unless-stopped
-
-  backend:
-    build:
-      context: ../app
-      dockerfile: backend/Dockerfile
-    environment:
-      NODE_ENV: production
-      PORT: "${PORT}"
-      DOMAIN: "${DOMAIN}"
-      JWT_SECRET: "${JWT_SECRET}"
-      ADMIN_USERNAME: "${ADMIN_USERNAME}"
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
-      GAMEPANEL_APP_ROOT: "${GAMEPANEL_APP_ROOT}"
-      GAMEPANEL_REPOSITORY_URL: "${GAMEPANEL_REPOSITORY_URL}"
-      DOCKER_SOCKET: "${DOCKER_SOCKET}"
-      TRUST_PROXY: "${TRUST_PROXY}"
-      APP_INSTANCE_ID: "${APP_INSTANCE_ID}"
-      APP_INSTANCE_SECRET: "${APP_INSTANCE_SECRET}"
-      TELEMETRY_ENABLED: "${TELEMETRY_ENABLED}"
-      TELEMETRY_API_BASE_URL: "${TELEMETRY_API_BASE_URL}"
-    volumes:
-      - "../data:/data"
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "../servers:${GAMEPANEL_APP_ROOT}/servers"
-    networks:
-      - web
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gamepanel_api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.gamepanel_api.entrypoints=websecure"
-      - "traefik.http.routers.gamepanel_api.tls=true"
-      - "traefik.http.routers.gamepanel_api.tls.certresolver=le"
-      - "traefik.http.services.gamepanel_api.loadbalancer.server.port=${PORT}"
-
-  frontend:
-    build:
-      context: ../app
-      dockerfile: frontend/Dockerfile
-      args:
-        VITE_DB_API_BASE_URL: "${VITE_DB_API_BASE_URL}"
-    networks:
-      - web
-    restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gamepanel_front.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.gamepanel_front.entrypoints=websecure"
-      - "traefik.http.routers.gamepanel_front.tls=true"
-      - "traefik.http.routers.gamepanel_front.tls.certresolver=le"
-      - "traefik.http.services.gamepanel_front.loadbalancer.server.port=8080"
-
-networks:
-  web:
-
-volumes:
-  letsencrypt:
-EOF
-  sed -i "s#__TRAEFIK_IMAGE__#${TRAEFIK_IMAGE}#g" "$COMPOSE_FILE"
-  chown root:"$APP_GROUP" "$COMPOSE_FILE"
-  chmod 0644 "$COMPOSE_FILE"
+  GP_COMPOSE_FILE="$COMPOSE_FILE" \
+  GP_APP_GROUP="$APP_GROUP" \
+  GP_TRAEFIK_IMAGE="$TRAEFIK_IMAGE" \
+    bash "$SCRIPT_DIR/lib/render-compose.sh"
 }
 
 send_installed_instance() {
@@ -604,6 +522,28 @@ EOF
   rm -f "$response_file"
 }
 
+wait_for_panel_http() {
+  local timeout_seconds="${1:-90}"
+  local interval=3
+  local elapsed=0
+  local code=""
+
+  while [[ "$elapsed" -lt "$timeout_seconds" ]]; do
+    code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 \
+      -H "Host: ${DOMAIN}" "https://127.0.0.1/api/health" 2>/dev/null || true)"
+
+    if [[ "$code" == "200" ]]; then
+      return 0
+    fi
+
+    sleep "$interval"
+    elapsed=$((elapsed + interval))
+  done
+
+  warn "The panel did not answer through Traefik (last HTTP status: ${code:-none})."
+  return 1
+}
+
 wait_for_stack() {
   local max_attempts=60
   local sleep_seconds=2
@@ -623,7 +563,8 @@ wait_for_stack() {
       --filter "label=com.docker.compose.service=traefik")"
 
     if [[ -n "$backend_id" && -n "$frontend_id" && -n "$traefik_id" ]]; then
-      return
+      wait_for_panel_http 90 || return 1
+      return 0
     fi
 
     sleep "$sleep_seconds"
@@ -631,6 +572,7 @@ wait_for_stack() {
 
   warn "Stack did not become fully ready in time. Current status:"
   compose_cmd ps || true
+  return 1
 }
 
 main() {
@@ -705,11 +647,17 @@ main() {
 
   log "Starting GamePanel stack..."
   compose_cmd up -d --build
-  wait_for_stack
+  local stack_ready="true"
+  wait_for_stack || stack_ready="false"
   send_installed_instance
 
   printf '\n'
-  log "Installation complete."
+  if [[ "$stack_ready" == "true" ]]; then
+    log "Installation complete."
+  else
+    warn "Installation finished, but the panel did not answer yet."
+    warn "Check the backend logs: docker logs ${COMPOSE_PROJECT_NAME}-backend-1"
+  fi
   printf 'URL: https://%s\n' "$DOMAIN"
   printf 'Admin username: %s\n' "$ADMIN_USERNAME"
   printf 'Compose file: %s\n' "$COMPOSE_FILE"

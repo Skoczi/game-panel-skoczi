@@ -308,6 +308,11 @@ jobs:
             "docker-images/rust" \
             "docker-images/rust/Dockerfile"
 
+          build_image \
+            "gamepanel-valheim" \
+            "docker-images/valheim" \
+            "docker-images/valheim/Dockerfile"
+
           # ----- Operational images -----
 
           build_image \
@@ -473,6 +478,12 @@ jobs:
         uses: actions/dockerPush
         with:
           image: game-panel/gamepanel-rust:${{ steps.compute-version.outputs.IMAGE_VERSION }}
+          tags: "${{ steps.compute-version.outputs.IMAGE_VERSION }}"
+
+      - id: push-gamepanel-valheim
+        uses: actions/dockerPush
+        with:
+          image: game-panel/gamepanel-valheim:${{ steps.compute-version.outputs.IMAGE_VERSION }}
           tags: "${{ steps.compute-version.outputs.IMAGE_VERSION }}"
 
       # ----- Operational images -----

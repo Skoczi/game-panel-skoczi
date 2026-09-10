@@ -19,9 +19,6 @@ interface PanelUpdateModalProps {
   updateInfo: PanelUpdateCheck | null;
 }
 
-// One version's release notes. The GitHub body already carries the version and date,
-// so we don't repeat them here — only a pre-release badge and a "View on GitHub" link.
-// `heading` (optional) shares the top row with the link so they align on one line.
 function ReleaseNotesBlock({ release, isDark, heading }: { release: ReleaseNotes; isDark: boolean; heading?: string }) {
   const hasMeta = heading || release.prerelease || release.htmlUrl;
   return (
@@ -132,7 +129,6 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
         </AppModalHeader>
 
         <AppModalBody className="flex-1 overflow-y-auto px-5 py-5">
-          {/* Started state */}
           {state === 'started' && (
             <div className="flex flex-col items-center gap-4 text-center">
               <div className={`rounded-full p-3 ${isDark ? 'bg-green-500/10' : 'bg-green-50'}`}>
@@ -159,7 +155,6 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
             </div>
           )}
 
-          {/* Error state */}
           {state === 'error' && (
             <div className="flex flex-col gap-4">
               <div className="flex items-start gap-3">
@@ -196,7 +191,6 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
             </div>
           )}
 
-          {/* Idle state — no update available or can't check */}
           {(state === 'idle' || state === 'starting') && (noUpdate || noLatest) && (
             <div className="flex flex-col gap-4">
               <div className={`rounded-lg border px-4 py-3 text-sm ${
@@ -217,7 +211,6 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
             </div>
           )}
 
-          {/* Idle state — update available */}
           {(state === 'idle' || state === 'starting') && updateInfo?.updateAvailable && (
             <div className="flex flex-col gap-4">
               <div className={`rounded-lg border px-4 py-4 ${
@@ -244,7 +237,6 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
                 </div>
               </div>
 
-              {/* Changelogs */}
               {((updateInfo.newerReleases?.length ?? 0) > 0 || updateInfo.currentRelease) && (
                 <div className="space-y-4">
                   {updateInfo.newerReleases?.length > 0 && (
@@ -303,7 +295,6 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
             </div>
           )}
 
-          {/* No updateInfo yet — still loading */}
           {!updateInfo && (state === 'idle' || state === 'starting') && (
             <div className="flex flex-col gap-3 py-2">
               <div className={`h-16 animate-pulse rounded-lg ${isDark ? 'bg-white/5' : 'bg-[#f1f5f9]'}`} />

@@ -8,6 +8,7 @@ import { PalworldSections, type PalworldSectionsProps } from './serverSettings/P
 import { ProjectZomboidSections, type ProjectZomboidSectionsProps } from './serverSettings/ProjectZomboidTab';
 import { CS2Sections, type CS2SectionsProps } from './serverSettings/CS2ConfigTab';
 import { RustSections, type RustSectionsProps } from './serverSettings/RustTab';
+import { ValheimSections, type ValheimSectionsProps } from './serverSettings/ValheimTab';
 import { AppButton, AppInput, AppSelect, AppSlider, AppToggle, InfoTip } from '../src/ui/components';
 import {
   type CatalogGameDefinition,
@@ -47,6 +48,7 @@ interface GameConfigTabProps {
   projectZomboidProps?: ProjectZomboidSectionsProps | null;
   cs2Props?: CS2SectionsProps | null;
   rustProps?: RustSectionsProps | null;
+  valheimProps?: ValheimSectionsProps | null;
   ovhcloudConfigFiles?: string[];
 }
 
@@ -165,6 +167,7 @@ export function GameConfigTab({
   projectZomboidProps,
   cs2Props,
   rustProps,
+  valheimProps,
   ovhcloudConfigFiles,
 }: GameConfigTabProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -670,7 +673,7 @@ export function GameConfigTab({
   const borderColor = 'border-gray-700';
   const textPrimary = 'text-white';
   const textSecondary = 'text-gray-400';
-  const hasGameConfiguration = detectedConfigFiles.length > 0 || verifiedConfigFiles.length > 0 || Boolean(minecraftProps) || Boolean(hytaleProps) || Boolean(palworldProps) || Boolean(projectZomboidProps) || Boolean(cs2Props) || Boolean(rustProps);
+  const hasGameConfiguration = detectedConfigFiles.length > 0 || verifiedConfigFiles.length > 0 || Boolean(minecraftProps) || Boolean(hytaleProps) || Boolean(palworldProps) || Boolean(projectZomboidProps) || Boolean(cs2Props) || Boolean(rustProps) || Boolean(valheimProps);
   const showSaveSuccessToast = Boolean(saveSuccessMessage && !configChanged);
   const showBottomStatusPanel = Boolean(saveError);
 
@@ -914,16 +917,8 @@ export function GameConfigTab({
             <div className="px-1 sm:px-2">
               <MinecraftSections
                 {...minecraftProps}
-                advancedLinksNode={
-                  <GameConfigAdvancedLinks
-                    configFiles={detectedConfigFiles}
-                    isLoading={configFilesLoading}
-                    error={configFilesError}
-                    canReadFileManager={canReadFileManager}
-                    canWriteFileManager={canWriteFileManager}
-                    onOpenFileManagerPath={openFileInFileManager}
-                  />
-                }
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
               />
             </div>
           )}
@@ -931,16 +926,8 @@ export function GameConfigTab({
             <div className="px-1 sm:px-2">
               <HytaleSections
                 {...hytaleProps}
-                advancedLinksNode={
-                  <GameConfigAdvancedLinks
-                    configFiles={detectedConfigFiles}
-                    isLoading={configFilesLoading}
-                    error={configFilesError}
-                    canReadFileManager={canReadFileManager}
-                    canWriteFileManager={canWriteFileManager}
-                    onOpenFileManagerPath={openFileInFileManager}
-                  />
-                }
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
               />
             </div>
           )}
@@ -949,16 +936,8 @@ export function GameConfigTab({
             <div className="px-1 sm:px-2">
               <PalworldSections
                 {...palworldProps}
-                advancedLinksNode={
-                  <GameConfigAdvancedLinks
-                    configFiles={detectedConfigFiles}
-                    isLoading={configFilesLoading}
-                    error={configFilesError}
-                    canReadFileManager={canReadFileManager}
-                    canWriteFileManager={canWriteFileManager}
-                    onOpenFileManagerPath={openFileInFileManager}
-                  />
-                }
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
               />
             </div>
           )}
@@ -967,23 +946,19 @@ export function GameConfigTab({
             <div className="px-1 sm:px-2">
               <ProjectZomboidSections
                 {...projectZomboidProps}
-                advancedLinksNode={
-                  <GameConfigAdvancedLinks
-                    configFiles={detectedConfigFiles}
-                    isLoading={configFilesLoading}
-                    error={configFilesError}
-                    canReadFileManager={canReadFileManager}
-                    canWriteFileManager={canWriteFileManager}
-                    onOpenFileManagerPath={openFileInFileManager}
-                  />
-                }
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
               />
             </div>
           )}
 
           {cs2Props && (
             <div className="px-1 sm:px-2">
-              <CS2Sections {...cs2Props} />
+              <CS2Sections
+                {...cs2Props}
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
+              />
             </div>
           )}
 
@@ -991,21 +966,23 @@ export function GameConfigTab({
             <div className="px-1 sm:px-2">
               <RustSections
                 {...rustProps}
-                advancedLinksNode={
-                  <GameConfigAdvancedLinks
-                    configFiles={detectedConfigFiles}
-                    isLoading={configFilesLoading}
-                    error={configFilesError}
-                    canReadFileManager={canReadFileManager}
-                    canWriteFileManager={canWriteFileManager}
-                    onOpenFileManagerPath={openFileInFileManager}
-                  />
-                }
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
               />
             </div>
           )}
 
-          {!minecraftProps && !hytaleProps && !palworldProps && !projectZomboidProps && !cs2Props && !rustProps && (
+          {valheimProps && (
+            <div className="px-1 sm:px-2">
+              <ValheimSections
+                {...valheimProps}
+                canReadFileManager={canReadFileManager}
+                onOpenFileManagerPath={openFileInFileManager}
+              />
+            </div>
+          )}
+
+          {!minecraftProps && !hytaleProps && !palworldProps && !projectZomboidProps && !cs2Props && !rustProps && !valheimProps && (
             <GameConfigAdvancedLinks
               configFiles={detectedConfigFiles}
               isLoading={configFilesLoading}

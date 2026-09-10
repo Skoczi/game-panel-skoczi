@@ -1,4 +1,6 @@
 import { docker } from './client.js';
+import { buildServerNetworkAlias } from './networks.js';
+import { getConfig } from '../../config.js';
 import { randomUUID } from 'node:crypto';
 import { logInfo } from '../logger.js';
 import type { NormalizedPorts } from '../ports.js';
@@ -215,6 +217,8 @@ export async function createContainer(
         ? healthcheck.Test?.[0] !== 'NONE'
         : await imageHasHealthcheck(spec.image);
 
+    const { gamesNetwork } = getConfig();
+
     logInfo('DOCKER', `Creating container ${safeName} (provider=${spec.provider}, image=${spec.image})`);
 
     const container = await docker.createContainer({
@@ -235,7 +239,13 @@ export async function createContainer(
         },
         ExposedPorts: exposedPorts,
         ...(healthcheck ? { Healthcheck: healthcheck } : {}),
+        NetworkingConfig: {
+            EndpointsConfig: {
+                [gamesNetwork]: { Aliases: [buildServerNetworkAlias(serverId)] },
+            },
+        },
         HostConfig: {
+            NetworkMode: gamesNetwork,
             PortBindings: portBindings,
             RestartPolicy: { Name: spec.restartPolicy ?? 'unless-stopped' },
             Binds: buildBinds(spec.mounts),
@@ -359,6 +369,10 @@ export async function removeContainer(containerId: string): Promise<void> {
     }
 
     await c.remove({ force: true });
+}
+
+export async function renameContainer(containerId: string, name: string): Promise<void> {
+    await docker.getContainer(containerId).rename({ name });
 }
 
 export async function removeManagedContainersForServer(serverId: number): Promise<void> {

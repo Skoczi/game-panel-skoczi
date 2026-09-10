@@ -2,79 +2,72 @@ import { promises as fs } from 'node:fs';
 import type { GameServerRow } from '../../../../types/gameServer.js';
 import { resolveServerPath } from '../../../../services/fileExplorer.js';
 import { ensureIsFile } from '../../../../utils/fsBrowser.js';
-import * as dockerUtils from '../../../../utils/docker.js';
 import { parseStoredEnv } from '../../../runtimeConfig.js';
+import type {
+    FileSettingsAccessor,
+    SettingDefinition,
+    SettingOption,
+    SettingsWritePolicy,
+    SettingValue,
+} from '../../settings/types.js';
+import { invalidSettingInput } from '../../settings/values.js';
 import { assertOvhcloudProjectZomboidServer, PROJECT_ZOMBOID_DEFAULT_SERVERNAME } from '../projectZomboid.js';
 
-type PzSettingType = 'boolean' | 'integer' | 'float' | 'string' | 'select';
 type PzSettingFile = 'ini' | 'sandbox';
-type PzSelectOption = { value: number; label: string };
-
-type PzSettingDefinition = {
-    key: string;
-    file: PzSettingFile;
-    label: string;
-    description: string;
-    type: PzSettingType;
-    options?: PzSelectOption[];
-    min?: number;
-    max?: number;
-};
-
-type PzSettingValue = string | number | boolean;
-
-export type PzSetting = PzSettingDefinition & {
-    value: PzSettingValue;
-};
+type PzSettingDefinition = SettingDefinition & { file: PzSettingFile };
 
 const MAX_STRING_SETTING_LENGTH = 4096;
 
-function opts(labels: string[]): PzSelectOption[] {
+const PROJECT_ZOMBOID_WRITE_POLICY: SettingsWritePolicy = {
+    writableWhileRunning: false,
+    writeBlockedReason:
+        'Stop the server before changing settings: Project Zomboid rewrites its config files on shutdown and would overwrite the changes.',
+};
+
+function opts(labels: string[]): SettingOption[] {
     return labels.map((label, index) => ({ value: index + 1, label }));
 }
 
-export const PROJECT_ZOMBOID_SETTING_DEFINITIONS: PzSettingDefinition[] = [
-    // --- server (servertest.ini) ---
-    { key: 'PublicName', file: 'ini', label: 'Server name', description: 'Name shown in the in-game and Steam server browser.', type: 'string' },
-    { key: 'PublicDescription', file: 'ini', label: 'Server description', description: 'Short description shown in the in-game server browser.', type: 'string' },
-    { key: 'Public', file: 'ini', label: 'List in server browser', description: 'Show the server in the in-game public browser.', type: 'boolean' },
-    { key: 'Password', file: 'ini', label: 'Server password', description: 'Password required to join. Leave empty for no password.', type: 'string' },
-    { key: 'MaxPlayers', file: 'ini', label: 'Maximum players', description: 'Maximum concurrent players (excludes admins). Above 32 may cause desync.', type: 'integer', min: 1, max: 100 },
-    { key: 'PVP', file: 'ini', label: 'PVP', description: 'Allow players to hurt and kill other players.', type: 'boolean' },
-    { key: 'PauseEmpty', file: 'ini', label: 'Pause when empty', description: 'Game time stops when no players are online.', type: 'boolean' },
-    { key: 'Open', file: 'ini', label: 'Open join', description: 'Allow clients to join without a pre-created whitelist account.', type: 'boolean' },
-    { key: 'SaveWorldEveryMinutes', file: 'ini', label: 'Autosave interval (minutes)', description: 'Save loaded map parts every N real minutes. 0 disables periodic autosave.', type: 'integer', min: 0, max: 1440 },
-    { key: 'ServerWelcomeMessage', file: 'ini', label: 'Welcome message', description: 'Message shown in chat on login. Use <LINE> for line breaks.', type: 'string' },
-    { key: 'AllowCoop', file: 'ini', label: 'Allow co-op / splitscreen', description: 'Allow co-op / splitscreen players.', type: 'boolean' },
-    { key: 'SleepAllowed', file: 'ini', label: 'Sleep allowed', description: 'Players may sleep when tired (not required).', type: 'boolean' },
-    { key: 'SleepNeeded', file: 'ini', label: 'Sleep needed', description: 'Players get tired and need to sleep (ignored if sleep is not allowed).', type: 'boolean' },
-    { key: 'AnnounceDeath', file: 'ini', label: 'Announce deaths', description: 'Broadcast a global chat message whenever a player dies.', type: 'boolean' },
-    { key: 'VoiceEnable', file: 'ini', label: 'Voice chat (VOIP)', description: 'Enable in-game voice chat.', type: 'boolean' },
-    { key: 'PingLimit', file: 'ini', label: 'Ping limit (ms)', description: 'Kick players above this ping. 0 disables.', type: 'integer', min: 0, max: 3000 },
+const PZ_SETTING_DEFINITIONS: PzSettingDefinition[] = [
+    { key: 'PublicName', file: 'ini', group: 'branding', label: 'Server name', description: 'Name shown in the in-game and Steam server browser.', type: 'string', maxLength: MAX_STRING_SETTING_LENGTH },
+    { key: 'PublicDescription', file: 'ini', group: 'branding', label: 'Server description', description: 'Short description shown in the in-game server browser.', type: 'string', maxLength: MAX_STRING_SETTING_LENGTH },
+    { key: 'Public', file: 'ini', group: 'network', label: 'List in server browser', description: 'Show the server in the in-game public browser.', type: 'boolean' },
+    { key: 'Password', file: 'ini', group: 'security', label: 'Server password', description: 'Password required to join. Leave empty for no password.', type: 'string', secret: true, maxLength: MAX_STRING_SETTING_LENGTH },
+    { key: 'MaxPlayers', file: 'ini', group: 'players', label: 'Maximum players', description: 'Maximum concurrent players (excludes admins). Above 32 may cause desync.', type: 'integer', min: 1, max: 100 },
+    { key: 'PVP', file: 'ini', group: 'gameplay', label: 'PVP', description: 'Allow players to hurt and kill other players.', type: 'boolean' },
+    { key: 'PauseEmpty', file: 'ini', group: 'gameplay', label: 'Pause when empty', description: 'Game time stops when no players are online.', type: 'boolean' },
+    { key: 'Open', file: 'ini', group: 'players', label: 'Open join', description: 'Allow clients to join without a pre-created whitelist account.', type: 'boolean' },
+    { key: 'SaveWorldEveryMinutes', file: 'ini', group: 'performance', label: 'Autosave interval (minutes)', description: 'Save loaded map parts every N real minutes. 0 disables periodic autosave.', type: 'integer', min: 0, max: 1440 },
+    { key: 'ServerWelcomeMessage', file: 'ini', group: 'branding', label: 'Welcome message', description: 'Message shown in chat on login. Use <LINE> for line breaks.', type: 'string', maxLength: MAX_STRING_SETTING_LENGTH },
+    { key: 'AllowCoop', file: 'ini', group: 'players', label: 'Allow co-op / splitscreen', description: 'Allow co-op / splitscreen players.', type: 'boolean' },
+    { key: 'SleepAllowed', file: 'ini', group: 'gameplay', label: 'Sleep allowed', description: 'Players may sleep when tired (not required).', type: 'boolean' },
+    { key: 'SleepNeeded', file: 'ini', group: 'gameplay', label: 'Sleep needed', description: 'Players get tired and need to sleep (ignored if sleep is not allowed).', type: 'boolean' },
+    { key: 'AnnounceDeath', file: 'ini', group: 'gameplay', label: 'Announce deaths', description: 'Broadcast a global chat message whenever a player dies.', type: 'boolean' },
+    { key: 'VoiceEnable', file: 'ini', group: 'players', label: 'Voice chat (VOIP)', description: 'Enable in-game voice chat.', type: 'boolean' },
+    { key: 'PingLimit', file: 'ini', group: 'network', label: 'Ping limit (ms)', description: 'Kick players above this ping. 0 disables.', type: 'integer', min: 0, max: 3000 },
     {
-        key: 'MapRemotePlayerVisibility', file: 'ini', label: 'Players on map', type: 'select',
+        key: 'MapRemotePlayerVisibility', file: 'ini', group: 'gameplay', label: 'Players on map', type: 'select',
         description: 'Which remote players are shown on the in-game map.',
         options: opts(['Hidden', 'Friends', 'Friends and nearby', 'Everyone']),
     },
 
-    // --- world (servertest_SandboxVars.lua) ---
     {
-        key: 'Zombies', file: 'sandbox', label: 'Zombie population', type: 'select',
+        key: 'Zombies', file: 'sandbox', group: 'world', label: 'Zombie population', type: 'select',
         description: 'Overall zombie density across the map.',
         options: opts(['Insane', 'Very High', 'High', 'Normal', 'Low', 'None']),
     },
     {
-        key: 'Distribution', file: 'sandbox', label: 'Zombie distribution', type: 'select',
+        key: 'Distribution', file: 'sandbox', group: 'world', label: 'Zombie distribution', type: 'select',
         description: 'How zombies are spread across the map.',
         options: opts(['Urban Focused', 'Uniform']),
     },
     {
-        key: 'ZombieRespawn', file: 'sandbox', label: 'Zombie respawn', type: 'select',
+        key: 'ZombieRespawn', file: 'sandbox', group: 'world', label: 'Zombie respawn', type: 'select',
         description: 'How frequently new zombies are added to the world.',
         options: opts(['High', 'Normal', 'Low', 'None']),
     },
     {
-        key: 'DayLength', file: 'sandbox', label: 'Day length', type: 'select',
+        key: 'DayLength', file: 'sandbox', group: 'world', label: 'Day length', type: 'select',
         description: 'Length of an in-game day.',
         options: opts([
             '15 Minutes', '30 Minutes', '1 Hour', '1 Hour 30 Minutes', '2 Hours', '3 Hours', '4 Hours',
@@ -84,94 +77,93 @@ export const PROJECT_ZOMBOID_SETTING_DEFINITIONS: PzSettingDefinition[] = [
         ]),
     },
     {
-        key: 'StartMonth', file: 'sandbox', label: 'Start month', type: 'select',
+        key: 'StartMonth', file: 'sandbox', group: 'world', label: 'Start month', type: 'select',
         description: 'Month in which the game starts.',
         options: opts(['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']),
     },
     {
-        key: 'StartTime', file: 'sandbox', label: 'Start time', type: 'select',
+        key: 'StartTime', file: 'sandbox', group: 'world', label: 'Start time', type: 'select',
         description: 'Time of day at which the game starts.',
         options: opts(['7 AM', '9 AM', '12 PM', '2 PM', '5 PM', '9 PM', '12 AM', '2 AM', '5 AM']),
     },
     {
-        key: 'DayNightCycle', file: 'sandbox', label: 'Day/night cycle', type: 'select',
+        key: 'DayNightCycle', file: 'sandbox', group: 'world', label: 'Day/night cycle', type: 'select',
         description: 'Whether the time of day changes naturally.',
         options: opts(['Normal', 'Endless Day', 'Endless Night']),
     },
     {
-        key: 'ClimateCycle', file: 'sandbox', label: 'Weather', type: 'select',
+        key: 'ClimateCycle', file: 'sandbox', group: 'world', label: 'Weather', type: 'select',
         description: 'Whether weather changes or stays fixed.',
         options: opts(['Normal', 'No Weather', 'Endless Rain', 'Endless Storm', 'Endless Snow', 'Endless Blizzard']),
     },
     {
-        key: 'WaterShut', file: 'sandbox', label: 'Water shutoff', type: 'select',
+        key: 'WaterShut', file: 'sandbox', group: 'world', label: 'Water shutoff', type: 'select',
         description: 'How long before plumbing stops being an infinite water source.',
         options: opts(['Instant', '0-30 Days', '0-2 Months', '0-6 Months', '0-1 Year', '0-5 Years', '2-6 Months', '6-12 Months', 'Disabled']),
     },
     {
-        key: 'ElecShut', file: 'sandbox', label: 'Electricity shutoff', type: 'select',
+        key: 'ElecShut', file: 'sandbox', group: 'world', label: 'Electricity shutoff', type: 'select',
         description: 'How long before the world electricity turns off for good.',
         options: opts(['Instant', '14-30 Days', '14 Days - 2 Months', '14 Days - 6 Months', '14 Days - 1 Year', '14 Days - 5 Years', '2-6 Months', '6-12 Months', 'Disabled']),
     },
 
-    // --- zombie lore (servertest_SandboxVars.lua -> ZombieLore.*) ---
     {
-        key: 'ZombieLore.Speed', file: 'sandbox', label: 'Zombie speed', type: 'select',
+        key: 'ZombieLore.Speed', file: 'sandbox', group: 'gameplay', label: 'Zombie speed', type: 'select',
         description: 'How fast zombies move.',
         options: opts(['Sprinters', 'Fast Shamblers', 'Shamblers', 'Random']),
     },
     {
-        key: 'ZombieLore.Strength', file: 'sandbox', label: 'Zombie strength', type: 'select',
+        key: 'ZombieLore.Strength', file: 'sandbox', group: 'gameplay', label: 'Zombie strength', type: 'select',
         description: 'Damage zombies inflict per attack.',
         options: opts(['Superhuman', 'Normal', 'Weak', 'Random']),
     },
     {
-        key: 'ZombieLore.Toughness', file: 'sandbox', label: 'Zombie toughness', type: 'select',
+        key: 'ZombieLore.Toughness', file: 'sandbox', group: 'gameplay', label: 'Zombie toughness', type: 'select',
         description: 'How hard zombies are to kill.',
         options: opts(['Tough', 'Normal', 'Fragile', 'Random']),
     },
     {
-        key: 'ZombieLore.Transmission', file: 'sandbox', label: 'Infection transmission', type: 'select',
+        key: 'ZombieLore.Transmission', file: 'sandbox', group: 'gameplay', label: 'Infection transmission', type: 'select',
         description: 'How the Knox infection spreads.',
         options: opts(['Blood and Saliva', 'Saliva Only', "Everyone's Infected", 'None']),
     },
     {
-        key: 'ZombieLore.Mortality', file: 'sandbox', label: 'Infection mortality', type: 'select',
+        key: 'ZombieLore.Mortality', file: 'sandbox', group: 'gameplay', label: 'Infection mortality', type: 'select',
         description: 'How quickly the infection takes effect.',
         options: opts(['Instant', '0-30 Seconds', '0-1 Minutes', '0-12 Hours', '2-3 Days', '1-2 Weeks', 'Never']),
     },
     {
-        key: 'ZombieLore.Reanimate', file: 'sandbox', label: 'Reanimation time', type: 'select',
+        key: 'ZombieLore.Reanimate', file: 'sandbox', group: 'gameplay', label: 'Reanimation time', type: 'select',
         description: 'How quickly infected corpses rise as zombies.',
         options: opts(['Instant', '0-30 Seconds', '0-1 Minutes', '0-12 Hours', '2-3 Days', '1-2 Weeks']),
     },
     {
-        key: 'ZombieLore.Cognition', file: 'sandbox', label: 'Zombie cognition', type: 'select',
+        key: 'ZombieLore.Cognition', file: 'sandbox', group: 'gameplay', label: 'Zombie cognition', type: 'select',
         description: 'Zombie intelligence / navigation.',
         options: opts(['Navigate and Use Doors', 'Navigate', 'Basic Navigation', 'Random']),
     },
     {
-        key: 'ZombieLore.Memory', file: 'sandbox', label: 'Zombie memory', type: 'select',
+        key: 'ZombieLore.Memory', file: 'sandbox', group: 'gameplay', label: 'Zombie memory', type: 'select',
         description: 'How long zombies remember a player after seeing or hearing them.',
         options: opts(['Long', 'Normal', 'Short', 'None', 'Random', 'Random (Normal-None)']),
     },
     {
-        key: 'ZombieLore.Sight', file: 'sandbox', label: 'Zombie sight', type: 'select',
+        key: 'ZombieLore.Sight', file: 'sandbox', group: 'gameplay', label: 'Zombie sight', type: 'select',
         description: 'Zombie vision radius.',
         options: opts(['Eagle', 'Normal', 'Poor', 'Random', 'Random (Normal-Poor)']),
     },
     {
-        key: 'ZombieLore.Hearing', file: 'sandbox', label: 'Zombie hearing', type: 'select',
+        key: 'ZombieLore.Hearing', file: 'sandbox', group: 'gameplay', label: 'Zombie hearing', type: 'select',
         description: 'Zombie hearing radius.',
         options: opts(['Pinpoint', 'Normal', 'Poor', 'Random', 'Random (Normal-Poor)']),
     },
 ];
 
-const DEFINITIONS_BY_KEY = new Map(PROJECT_ZOMBOID_SETTING_DEFINITIONS.map((d) => [d.key, d]));
+const DEFINITIONS_BY_KEY = new Map(PZ_SETTING_DEFINITIONS.map((definition) => [definition.key, definition]));
 
-function invalidInput(message: string): never {
-    throw Object.assign(new Error(message), { statusCode: 400 });
-}
+const PROJECT_ZOMBOID_SETTING_DEFINITIONS: SettingDefinition[] = PZ_SETTING_DEFINITIONS.map(
+    ({ file: _file, ...definition }) => definition
+);
 
 export function resolveServerName(server: GameServerRow): string {
     const prefix = 'PZ_SERVERNAME=';
@@ -186,7 +178,7 @@ export function iniFilePath(serverName: string): string {
     return `/zomboid/Server/${serverName}.ini`;
 }
 
-function sandboxFilePath(serverName: string): string {
+export function sandboxFilePath(serverName: string): string {
     return `/zomboid/Server/${serverName}_SandboxVars.lua`;
 }
 
@@ -207,9 +199,7 @@ export async function writeConfigFile(serverId: number, filePath: string, conten
     await fs.writeFile(resolved.absPath, content, 'utf8');
 }
 
-// --- INI (flat KEY=VALUE, one per line) ---
-
-export function getIniRawValue(content: string, key: string): string | null {
+function getIniRawValue(content: string, key: string): string | null {
     const match = content.match(new RegExp(`(?:^|\\n)${key}=([^\\n\\r]*)`));
     return match ? match[1] : null;
 }
@@ -222,8 +212,6 @@ export function setIniRawValue(content: string, key: string, rawValue: string): 
     const suffix = content.endsWith('\n') ? '' : '\n';
     return `${content}${suffix}${key}=${rawValue}\n`;
 }
-
-// --- Lua (SandboxVars table; supports top-level KEY and one-level PARENT.CHILD) ---
 
 function sandboxSubBlockRange(content: string, parent: string): { start: number; end: number } | null {
     const open = content.match(new RegExp(`${parent}\\s*=\\s*\\{`));
@@ -269,9 +257,7 @@ function setLuaRawValue(content: string, path: string, rawValue: string): string
     return content.replace(re, `$1${rawValue}`);
 }
 
-// --- value conversion ---
-
-function convertRawValue(definition: PzSettingDefinition, raw: string): PzSettingValue | null {
+function parseRawValue(definition: SettingDefinition, raw: string): SettingValue | null {
     const trimmed = raw.trim();
     switch (definition.type) {
         case 'boolean': {
@@ -298,119 +284,100 @@ function convertRawValue(definition: PzSettingDefinition, raw: string): PzSettin
     }
 }
 
-function serializeValue(definition: PzSettingDefinition, value: unknown): string {
+function renderRawValue(definition: PzSettingDefinition, value: SettingValue): string {
     switch (definition.type) {
-        case 'boolean': {
-            if (typeof value !== 'boolean') invalidInput(`${definition.key} must be a boolean`);
-            return value ? 'true' : 'false';
-        }
+        case 'boolean': return value ? 'true' : 'false';
         case 'integer':
-        case 'float': {
-            const numeric = typeof value === 'number' ? value : Number(value);
-            if (!Number.isFinite(numeric)) invalidInput(`${definition.key} must be a number`);
-            if (definition.type === 'integer' && !Number.isInteger(numeric)) invalidInput(`${definition.key} must be an integer`);
-            if (definition.min !== undefined && numeric < definition.min) invalidInput(`${definition.key} must be >= ${definition.min}`);
-            if (definition.max !== undefined && numeric > definition.max) invalidInput(`${definition.key} must be <= ${definition.max}`);
-            return String(numeric);
-        }
-        case 'select': {
-            const numeric = typeof value === 'number' ? value : Number(value);
-            if (!Number.isInteger(numeric) || !definition.options?.some((option) => option.value === numeric)) {
-                invalidInput(`${definition.key} must be one of: ${definition.options?.map((o) => o.value).join(', ')}`);
-            }
-            return String(numeric);
-        }
-        case 'string': {
-            if (typeof value !== 'string') invalidInput(`${definition.key} must be a string`);
-            if (value.length > MAX_STRING_SETTING_LENGTH || /[\r\n\0]/.test(value)) {
-                invalidInput(`${definition.key} contains invalid characters`);
-            }
-            return definition.file === 'sandbox' ? `"${value}"` : value;
-        }
+        case 'float':
+        case 'select': return String(value);
+        case 'string': return definition.file === 'sandbox' ? `"${value}"` : String(value);
     }
 }
 
-export async function listProjectZomboidSettings(server: GameServerRow): Promise<PzSetting[]> {
-    assertOvhcloudProjectZomboidServer(server);
+type PzSettingsSnapshot = {
+    serverName: string;
+    ini: string | null;
+    sandbox: string | null;
+    iniDirty: boolean;
+    sandboxDirty: boolean;
+};
 
-    const serverName = resolveServerName(server);
-    const iniContent = await readConfigFile(server.id, iniFilePath(serverName), false);
-    const sandboxContent = await readConfigFile(server.id, sandboxFilePath(serverName), false);
+const PROJECT_ZOMBOID_FILE_SETTINGS: FileSettingsAccessor<PzSettingsSnapshot> = {
+    onMissing: 'omit',
 
-    return PROJECT_ZOMBOID_SETTING_DEFINITIONS
-        .map((definition) => {
-            const content = definition.file === 'ini' ? iniContent : sandboxContent;
-            if (content === null) return null;
+    policy(): SettingsWritePolicy {
+        return PROJECT_ZOMBOID_WRITE_POLICY;
+    },
 
-            const raw = definition.file === 'ini'
-                ? getIniRawValue(content, definition.key)
-                : getLuaRawValue(content, definition.key);
-            if (raw === null) return null;
+    definitions(): SettingDefinition[] {
+        return PROJECT_ZOMBOID_SETTING_DEFINITIONS;
+    },
 
-            const value = convertRawValue(definition, raw);
-            if (value === null) return null;
+    async load(server: GameServerRow): Promise<PzSettingsSnapshot> {
+        assertOvhcloudProjectZomboidServer(server);
 
-            return { ...definition, value };
-        })
-        .filter((setting): setting is PzSetting => Boolean(setting));
-}
+        const serverName = resolveServerName(server);
 
-export async function patchProjectZomboidSettings(
-    server: GameServerRow & { docker_container_id: string },
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: PzSetting[] }> {
-    assertOvhcloudProjectZomboidServer(server);
+        return {
+            serverName,
+            ini: await readConfigFile(server.id, iniFilePath(serverName), false),
+            sandbox: await readConfigFile(server.id, sandboxFilePath(serverName), false),
+            iniDirty: false,
+            sandboxDirty: false,
+        };
+    },
 
-    const entries = Object.entries(updates);
-    if (entries.length === 0) invalidInput('settings must contain at least one value');
+    read(snapshot: PzSettingsSnapshot, definition: SettingDefinition): SettingValue | null {
+        const internal = DEFINITIONS_BY_KEY.get(definition.key);
+        if (!internal) return null;
 
-    if (server.docker_container_id) {
-        const status = await dockerUtils.checkContainerStatus(server.docker_container_id);
-        if (status === 'running') {
-            throw Object.assign(
-                new Error('Stop the server before changing settings: Project Zomboid rewrites its config files on shutdown and would overwrite the changes.'),
-                { statusCode: 409 }
-            );
-        }
-    }
+        const content = internal.file === 'ini' ? snapshot.ini : snapshot.sandbox;
+        if (content === null) return null;
 
-    const serverName = resolveServerName(server);
-    const iniPath = iniFilePath(serverName);
-    const sandboxPath = sandboxFilePath(serverName);
+        const raw = internal.file === 'ini'
+            ? getIniRawValue(content, definition.key)
+            : getLuaRawValue(content, definition.key);
 
-    let iniContent = await readConfigFile(server.id, iniPath, false);
-    let sandboxContent = await readConfigFile(server.id, sandboxPath, false);
-    let iniDirty = false;
-    let sandboxDirty = false;
+        return raw === null ? null : parseRawValue(definition, raw);
+    },
 
-    const updated: string[] = [];
+    write(snapshot: PzSettingsSnapshot, definition: SettingDefinition, value: SettingValue): boolean {
+        const internal = DEFINITIONS_BY_KEY.get(definition.key);
+        if (!internal) return false;
 
-    for (const [key, value] of entries) {
-        const definition = DEFINITIONS_BY_KEY.get(key);
-        if (!definition) invalidInput(`Unsupported Project Zomboid setting: ${key}`);
+        const raw = renderRawValue(internal, value);
 
-        const rawValue = serializeValue(definition, value);
-
-        if (definition.file === 'ini') {
-            if (iniContent === null) invalidInput('Server configuration is not generated yet; start the server once before editing settings.');
-            iniContent = setIniRawValue(iniContent, definition.key, rawValue);
-            iniDirty = true;
-        } else {
-            if (sandboxContent === null) invalidInput('Server configuration is not generated yet; start the server once before editing settings.');
-            const next = setLuaRawValue(sandboxContent, definition.key, rawValue);
-            if (next === null) invalidInput(`Setting ${definition.key} was not found in the sandbox configuration.`);
-            sandboxContent = next;
-            sandboxDirty = true;
+        if (internal.file === 'ini') {
+            if (snapshot.ini === null) {
+                invalidSettingInput('Server configuration is not generated yet; start the server once before editing settings.');
+            }
+            snapshot.ini = setIniRawValue(snapshot.ini, definition.key, raw);
+            snapshot.iniDirty = true;
+            return true;
         }
 
-        updated.push(key);
-    }
+        if (snapshot.sandbox === null) {
+            invalidSettingInput('Server configuration is not generated yet; start the server once before editing settings.');
+        }
 
-    if (iniDirty && iniContent !== null) await writeConfigFile(server.id, iniPath, iniContent);
-    if (sandboxDirty && sandboxContent !== null) await writeConfigFile(server.id, sandboxPath, sandboxContent);
+        const next = setLuaRawValue(snapshot.sandbox, definition.key, raw);
+        if (next === null) return false;
 
-    return {
-        updated,
-        settings: await listProjectZomboidSettings(server),
-    };
+        snapshot.sandbox = next;
+        snapshot.sandboxDirty = true;
+        return true;
+    },
+
+    async save(server: GameServerRow, snapshot: PzSettingsSnapshot): Promise<void> {
+        if (snapshot.iniDirty && snapshot.ini !== null) {
+            await writeConfigFile(server.id, iniFilePath(snapshot.serverName), snapshot.ini);
+        }
+        if (snapshot.sandboxDirty && snapshot.sandbox !== null) {
+            await writeConfigFile(server.id, sandboxFilePath(snapshot.serverName), snapshot.sandbox);
+        }
+    },
+};
+
+export function projectZomboidFileSettingsAccessor(): FileSettingsAccessor<PzSettingsSnapshot> {
+    return PROJECT_ZOMBOID_FILE_SETTINGS;
 }

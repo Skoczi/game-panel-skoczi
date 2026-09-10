@@ -19,6 +19,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN dpkg --add-architecture i386 \
    && apt-get update \
+   && apt-get upgrade -y \
    && apt-get install -y --no-install-recommends \
    ca-certificates \
    curl \
@@ -27,7 +28,6 @@ RUN dpkg --add-architecture i386 \
    lib32gcc-s1 \
    lib32stdc++6 \
    libicu74 \
-   netcat-openbsd \
    tar \
    unzip \
    && rm -rf /var/lib/apt/lists/*

@@ -59,12 +59,26 @@ async function getFilesystemTotalBytes(targetPath: string): Promise<number> {
   return totalKb * 1024;
 }
 
-async function getDirectorySizeBytes(targetPath: string): Promise<number> {
-  const { stdout } = await execFileAsync('du', ['-sk', targetPath]);
-  const sizeKb = Number.parseInt(stdout.trim().split(/\s+/)[0] ?? '', 10);
+function parseDuTotalKb(stdout: unknown): number | null {
+  if (typeof stdout !== 'string') return null;
 
-  if (!Number.isFinite(sizeKb) || sizeKb < 0) return 0;
-  return sizeKb * 1024;
+  const sizeKb = Number.parseInt(stdout.trim().split(/\s+/)[0] ?? '', 10);
+  if (!Number.isFinite(sizeKb) || sizeKb < 0) return null;
+
+  return sizeKb;
+}
+
+async function getDirectorySizeBytes(targetPath: string): Promise<number> {
+  let stdout: unknown;
+  try {
+    ({ stdout } = await execFileAsync('du', ['-sk', targetPath]));
+  } catch (error) {
+    const partial = parseDuTotalKb((error as { stdout?: unknown }).stdout);
+    if (partial === null) throw error;
+    return partial * 1024;
+  }
+
+  return (parseDuTotalKb(stdout) ?? 0) * 1024;
 }
 
 function isFresh(entry: DiskCacheEntry | undefined, ttlMs: number): boolean {

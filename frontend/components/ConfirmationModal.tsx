@@ -40,7 +40,6 @@ export function ConfirmationModal({
     }
   }, [isOpen]);
 
-  // Autofocus the type-to-confirm input so destructive confirmations are keyboard-ready.
   useEffect(() => {
     if (!isOpen || !requiredText) return;
     const timer = setTimeout(() => inputRef.current?.focus(), 50);
@@ -55,7 +54,6 @@ export function ConfirmationModal({
     setSubmitting(true);
     setError(null);
     try {
-      // Await the action so failures surface inline and the modal only closes on success.
       await onConfirm();
       onClose();
     } catch (err: any) {
@@ -164,5 +162,4 @@ export function ConfirmationModal({
     </AppModal>
   );
 }
-
 

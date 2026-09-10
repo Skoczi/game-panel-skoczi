@@ -9,8 +9,12 @@ import {
     normalizeMinecraftEnv,
 } from '../images/minecraft.js';
 import { createMinecraftBackup, restoreMinecraftBackup } from '../images/minecraft/backups.js';
+import { minecraftConfigFiles } from '../images/minecraft/configFiles.js';
+import { minecraftLaunchSettingsAccessor } from '../images/minecraft/launchSettings.js';
+import { minecraftFileSettingsAccessor } from '../images/minecraft/settings.js';
 import { resolveMinecraftSoftWipeTargets } from '../images/minecraft/wipe.js';
 import minecraftRoutes from '../images/minecraft/routes.js';
+import { PERMISSIONS } from '../../../permissions.js';
 import { OVHCLOUD_DOCKER_STOP_TIMEOUT_SECONDS } from './common.js';
 import type { OvhcloudImageAdapter, OvhcloudInstallResolution } from './types.js';
 
@@ -27,6 +31,18 @@ export const minecraftAdapter: OvhcloudImageAdapter = {
     wipe: {
         soft: resolveMinecraftSoftWipeTargets,
         hard: true,
+    },
+    settings: {
+        label: 'Minecraft',
+        file: {
+            permissions: {
+                read: PERMISSIONS.minecraft.settings.read,
+                write: PERMISSIONS.minecraft.settings.write,
+            },
+            accessor: minecraftFileSettingsAccessor,
+        },
+        launch: minecraftLaunchSettingsAccessor,
+        configFiles: minecraftConfigFiles,
     },
     routes: [
         { path: '/minecraft', router: minecraftRoutes },

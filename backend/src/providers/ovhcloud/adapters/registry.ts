@@ -6,6 +6,7 @@ import { minecraftAdapter } from './minecraft.js';
 import { palworldAdapter } from './palworld.js';
 import { projectZomboidAdapter } from './projectZomboid.js';
 import { rustAdapter } from './rust.js';
+import { valheimAdapter } from './valheim.js';
 import type { OvhcloudImageAdapter } from './types.js';
 
 const KNOWN_OVHCLOUD_ADAPTERS: OvhcloudImageAdapter[] = [
@@ -15,6 +16,7 @@ const KNOWN_OVHCLOUD_ADAPTERS: OvhcloudImageAdapter[] = [
     palworldAdapter,
     projectZomboidAdapter,
     rustAdapter,
+    valheimAdapter,
 ];
 
 export function getKnownOvhcloudAdapters(): OvhcloudImageAdapter[] {

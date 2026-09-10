@@ -1,26 +1,8 @@
 import { useState } from 'react';
-import { apiClient } from '../../utils/api';
-import { GameSettingsSection } from './GameSettingsSection';
+import { OvhcloudSettingsSection } from './OvhcloudSettingsSection';
 import { ProjectZomboidModsSection } from './ProjectZomboidModsSection';
-import { ServerEnvFieldsCard, type EnvFieldDef } from './ServerEnvFieldsCard';
 import { GameWipeTab } from './GameWipeTab';
 import { buildWipeModes } from './wipeModes';
-
-const ENV_FIELDS: EnvFieldDef[] = [
-  {
-    key: 'PZ_ADMIN_PASSWORD',
-    label: 'Admin Password',
-    type: 'password',
-    description: 'In-game admin account password (used to run privileged console commands). This is not the server join password.',
-  },
-  {
-    key: 'PZ_UPDATE_ON_START',
-    label: 'Update on start',
-    type: 'toggle',
-    defaultValue: 'false',
-    description: 'When enabled, the server checks for and installs game updates via SteamCMD each time it starts.',
-  },
-];
 
 export interface ProjectZomboidSectionsProps {
   serverId: number;
@@ -35,14 +17,13 @@ export interface ProjectZomboidSectionsProps {
   canManageEnv?: boolean;
   canEditContainerConfig?: boolean;
   containerConfigSaveCount?: number;
-  advancedLinksNode?: React.ReactNode;
+  canReadFileManager?: boolean;
+  onOpenFileManagerPath?: (path: string) => void;
   borderColor: string;
   contentBg: string;
   textPrimary: string;
   textSecondary: string;
 }
-
-// ── ProjectZomboidSections (horizontal sub-tabs, like Hytale) ─────────────
 
 type ProjectZomboidSubTab = 'settings' | 'mods' | 'wipe';
 
@@ -58,14 +39,13 @@ export function ProjectZomboidSections({
   onReinstallStarted,
   canManageEnv,
   canEditContainerConfig,
-  containerConfigSaveCount,
-  advancedLinksNode,
+  canReadFileManager,
+  onOpenFileManagerPath,
   borderColor,
   contentBg,
   textPrimary,
   textSecondary,
 }: ProjectZomboidSectionsProps) {
-  // The "Server Settings" tab holds the game settings plus the env-backed controls.
   const showSettingsTab = canReadSettings || Boolean(canManageEnv);
 
   const showWipeTab = buildWipeModes('project-zomboid', {
@@ -92,7 +72,6 @@ export function ProjectZomboidSections({
 
   return (
     <div>
-      {/* Horizontal tab bar — only shown when there are multiple tabs */}
       {tabs.length > 1 && (
         <div className={`flex flex-wrap border-b ${borderColor} mb-3 gap-0`}>
           {tabs.map((tab) => (
@@ -114,34 +93,18 @@ export function ProjectZomboidSections({
 
       {visited.has('settings') && showSettingsTab && (
         <div className={`space-y-4 ${activeTab !== 'settings' ? 'hidden' : ''}`}>
-          {canReadSettings && (
-            <GameSettingsSection
-              serverId={serverId}
-              serverStatus={serverStatus}
-              canRead={canReadSettings}
-              canWrite={canWriteSettings}
-              load={(id) => apiClient.getProjectZomboidSettings(id)}
-              save={(id, changed) => apiClient.patchProjectZomboidSettings(id, changed)}
-              editableOnlyWhenStopped
-              borderColor={borderColor}
-              contentBg={contentBg}
-              textPrimary={textPrimary}
-              textSecondary={textSecondary}
-            />
-          )}
-          {canManageEnv && (
-            <ServerEnvFieldsCard
-              serverId={serverId}
-              serverStatus={serverStatus}
-              fields={ENV_FIELDS}
-              canEdit={Boolean(canManageEnv && canEditContainerConfig)}
-              containerConfigSaveCount={containerConfigSaveCount}
-              borderColor={borderColor}
-              contentBg={contentBg}
-              textPrimary={textPrimary}
-            />
-          )}
-          {advancedLinksNode && <div>{advancedLinksNode}</div>}
+          <OvhcloudSettingsSection
+            serverId={serverId}
+            serverStatus={serverStatus}
+            canWriteFile={canWriteSettings}
+            canWriteLaunch={Boolean(canManageEnv && canEditContainerConfig)}
+            canReadFileManager={canReadFileManager}
+            onOpenFileManagerPath={onOpenFileManagerPath}
+            borderColor={borderColor}
+            contentBg={contentBg}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+          />
         </div>
       )}
 

@@ -1,3 +1,5 @@
+import type { GameServerRow } from '../../../types/gameServer.js';
+import { getOvhcloudCounterStrike2Metadata } from '../../serverMetadata.js';
 import { normalizeEnvPayload } from '../../installPayload.js';
 
 export const COUNTER_STRIKE_2_IMAGE_ID = 'counter-strike-2';
@@ -46,4 +48,8 @@ export function buildCounterStrike2ProviderMetadata(
             },
         },
     };
+}
+
+export function assertOvhcloudCounterStrike2Server(server: GameServerRow): void {
+    getOvhcloudCounterStrike2Metadata(server);
 }

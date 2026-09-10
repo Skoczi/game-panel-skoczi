@@ -13,31 +13,41 @@ const { gamepanelDataDir } = getConfig();
 const dbFilePath = path.join(gamepanelDataDir, 'game-panel.db');
 
 let db: Database | null = null;
+let initializing: Promise<Database> | null = null;
 
 export async function initializeDatabase(): Promise<Database> {
   if (db) return db;
 
+  initializing ??= openAndInitialize().finally(() => {
+    initializing = null;
+  });
+
+  return initializing;
+}
+
+async function openAndInitialize(): Promise<Database> {
   const dbDir = path.dirname(dbFilePath);
   await fs.mkdir(dbDir, { recursive: true });
 
-  db = await open({
+  const database = await open({
     filename: dbFilePath,
     driver: sqlite3.Database,
   });
 
-  await db.exec('PRAGMA foreign_keys = ON');
+  await database.exec('PRAGMA foreign_keys = ON');
 
-  const freshDatabase = await isFreshDatabase(db);
-  await ensureSchemaMigrationsTable(db);
+  const freshDatabase = await isFreshDatabase(database);
+  await ensureSchemaMigrationsTable(database);
 
   if (freshDatabase) {
-    await createSchema(db);
-    await markBundledMigrationsAsApplied(db);
+    await createSchema(database);
+    await markBundledMigrationsAsApplied(database);
   } else {
-    await runPendingMigrations(db);
+    await runPendingMigrations(database);
   }
 
-  return db;
+  db = database;
+  return database;
 }
 
 export async function getDatabase(): Promise<Database> {

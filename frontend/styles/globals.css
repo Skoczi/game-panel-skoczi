@@ -316,13 +316,18 @@
   transform-origin: center bottom;
 }
 
+/* The ODS combobox owns its inner input, so the class cannot be put on it — it is matched
+   by descendant instead. --gp-autofill-surface lets each context repaint its own surface. */
 input.prevent-autofill:-webkit-autofill,
 input.prevent-autofill:-webkit-autofill:hover,
-input.prevent-autofill:-webkit-autofill:focus {
+input.prevent-autofill:-webkit-autofill:focus,
+.gp-app-combobox-control[data-ods='combobox-control'] [data-ods='input']:-webkit-autofill,
+.gp-app-combobox-control[data-ods='combobox-control'] [data-ods='input']:-webkit-autofill:hover,
+.gp-app-combobox-control[data-ods='combobox-control'] [data-ods='input']:-webkit-autofill:focus {
   -webkit-text-fill-color: #ffffff;
   caret-color: #ffffff;
-  -webkit-box-shadow: 0 0 0 1000px #1f2937 inset;
-  box-shadow: 0 0 0 1000px #1f2937 inset;
+  -webkit-box-shadow: 0 0 0 1000px var(--gp-autofill-surface, #1f2937) inset;
+  box-shadow: 0 0 0 1000px var(--gp-autofill-surface, #1f2937) inset;
   transition: background-color 5000s ease-in-out 0s;
 }
 
@@ -560,7 +565,10 @@ html:not(.dark) .modal-scrollbar-dark::-webkit-scrollbar-thumb:hover { backgroun
 
 html:not(.dark) input.prevent-autofill:-webkit-autofill,
 html:not(.dark) input.prevent-autofill:-webkit-autofill:hover,
-html:not(.dark) input.prevent-autofill:-webkit-autofill:focus {
+html:not(.dark) input.prevent-autofill:-webkit-autofill:focus,
+html:not(.dark) .gp-app-combobox-control[data-ods='combobox-control'] [data-ods='input']:-webkit-autofill,
+html:not(.dark) .gp-app-combobox-control[data-ods='combobox-control'] [data-ods='input']:-webkit-autofill:hover,
+html:not(.dark) .gp-app-combobox-control[data-ods='combobox-control'] [data-ods='input']:-webkit-autofill:focus {
   -webkit-text-fill-color: #0f172a;
   caret-color: #0f172a;
   -webkit-box-shadow: 0 0 0 1000px #ffffff inset;

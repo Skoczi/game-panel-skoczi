@@ -60,7 +60,6 @@ export function canOpenServerSettings(
   _permissionsByServer: Record<string, string[]> | undefined,
   _serverId: string
 ) {
-  // Always openable; each tab is greyed-out and gated server-side when the user lacks the permission.
   return true;
 }
 

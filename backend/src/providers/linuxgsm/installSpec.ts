@@ -1,8 +1,19 @@
 import { getLinuxGsmGameForInstall } from '../../services/linuxGsmManifest.js';
 import { normalizeMountsPayload } from '../../utils/mounts.js';
-import { asOptionalString } from '../installPayload.js';
+import { asOptionalString, normalizeEnvPayload } from '../installPayload.js';
 import type { ProviderInstallContext, ResolvedInstallSpec } from '../installTypes.js';
 import { getProviderRuntimeIdentity, runtimeConfigForIdentity } from '../runtimeIdentity.js';
+
+function normalizeLinuxGsmEnv(payload: unknown): string[] {
+    let env = normalizeEnvPayload(payload);
+
+    if (!env.some((entry) => /^UPDATE_CHECK=.+/.test(entry))) {
+        env = env.filter((entry) => !entry.startsWith('UPDATE_CHECK='));
+        env.push('UPDATE_CHECK=0');
+    }
+
+    return env;
+}
 
 export async function resolveLinuxGsmInstallSpec(
     ctx: ProviderInstallContext
@@ -24,7 +35,7 @@ export async function resolveLinuxGsmInstallSpec(
         healthcheck: ctx.healthcheck,
         resourceLimits: ctx.resourceLimits,
         mounts,
-        env: [],
+        env: normalizeLinuxGsmEnv(ctx.body.env),
         runtimeIdentity,
         runtimeConfig: runtimeConfigForIdentity(runtimeIdentity, '/data', '/app'),
         providerMetadata: {

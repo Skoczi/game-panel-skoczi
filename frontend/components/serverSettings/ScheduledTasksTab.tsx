@@ -11,8 +11,6 @@ import { apiClient } from '../../utils/api';
 import { CronPicker } from './CronPicker';
 import { ConfirmationModal } from '../ConfirmationModal';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface PrePostStep {
   type: 'game_command' | 'sleep';
   command?: string;
@@ -58,8 +56,6 @@ const DEFAULT_FORM: TaskForm = {
   command: '',
   workdir: '',
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function describeCron(expr: string, nextRunAt?: string | null): string {
   const p = expr.trim().split(/\s+/);
@@ -132,8 +128,6 @@ function taskToForm(task: ScheduledTask): TaskForm {
     workdir: task.payload.workdir ?? '',
   };
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-xs text-gray-400">Never run</span>;
@@ -226,7 +220,6 @@ function StepsEditor({ label, steps, onChange, textPrimary, textSecondary, borde
   const idsRef = useRef<number[]>([]);
   const nextIdRef = useRef(0);
 
-  // Keep IDs in sync with steps length
   while (idsRef.current.length < steps.length) idsRef.current.push(nextIdRef.current++);
   if (idsRef.current.length > steps.length) idsRef.current = idsRef.current.slice(0, steps.length);
 
@@ -295,8 +288,6 @@ function StepsEditor({ label, steps, onChange, textPrimary, textSecondary, borde
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 interface ScheduledTasksTabProps {
   serverId?: number | null;
   serverBackupSupported: boolean;
@@ -339,7 +330,6 @@ export function ScheduledTasksTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // -1 = new task, >0 = edit task id, null = closed
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<TaskForm>(DEFAULT_FORM);
   const [formError, setFormError] = useState<string | null>(null);
@@ -469,7 +459,6 @@ export function ScheduledTasksTab({
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>Scheduled Tasks</h3>
@@ -499,14 +488,12 @@ export function ScheduledTasksTab({
 
         {error && <div className="text-sm text-red-400">{error}</div>}
 
-        {/* ── Form ── */}
         {editingId !== null && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-5 space-y-5`}>
             <h4 className={`text-base font-semibold ${textPrimary}`}>
               {editingId === -1 ? 'New Task' : 'Edit Task'}
             </h4>
 
-            {/* Type */}
             <div>
               <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
                 Type
@@ -530,7 +517,6 @@ export function ScheduledTasksTab({
               </div>
             </div>
 
-            {/* Schedule */}
             <div>
               <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
                 Schedule
@@ -546,7 +532,6 @@ export function ScheduledTasksTab({
               />
             </div>
 
-            {/* Enabled */}
             <div className={`flex items-center justify-between p-3 rounded-lg border ${borderColor} bg-gray-50 dark:bg-gray-900/30`}>
               <p className={`text-sm font-medium ${textPrimary}`}>Enabled</p>
               <AppToggle
@@ -557,7 +542,6 @@ export function ScheduledTasksTab({
               />
             </div>
 
-            {/* Backup: includeServerArtifact */}
             {form.type === 'backup' && showIncludeServerArtifact && (
               <div className={`flex items-center justify-between p-3 rounded-lg border ${borderColor} bg-gray-50 dark:bg-gray-900/30`}>
                 <div>
@@ -573,7 +557,6 @@ export function ScheduledTasksTab({
               </div>
             )}
 
-            {/* Custom: command + workdir */}
             {form.type === 'custom' && (
               <div className="space-y-4">
                 <div>
@@ -603,7 +586,6 @@ export function ScheduledTasksTab({
               </div>
             )}
 
-            {/* Pre / Post steps */}
             {showPrePost && (
               <div className="space-y-5">
                 <StepsEditor
@@ -649,7 +631,6 @@ export function ScheduledTasksTab({
           </div>
         )}
 
-        {/* ── Task list ── */}
         {loading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-[var(--gp-ods-accent-primary)]" />
@@ -681,7 +662,6 @@ export function ScheduledTasksTab({
                   key={task.id}
                   className={`${contentBg} border ${borderColor} rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between transition-colors ${hoverBg}`}
                 >
-                  {/* Left: type + schedule + status */}
                   <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <TypeBadge type={task.type} />
@@ -705,7 +685,6 @@ export function ScheduledTasksTab({
                     )}
                   </div>
 
-                  {/* Right: toggle + actions */}
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <AppToggle
                       ariaLabel="Task enabled"

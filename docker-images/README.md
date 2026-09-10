@@ -12,6 +12,7 @@ This directory holds the Docker image sources maintained alongside OVHcloud Game
 | Palworld | `palworld/` | Palworld dedicated server runtime. |
 | Project Zomboid | `project-zomboid/` | Project Zomboid dedicated server runtime. |
 | Rust | `rust/` | Rust dedicated server runtime. |
+| Valheim | `valheim/` | Valheim dedicated server runtime. |
 
 ## 🛠️ Game Panel images
 
@@ -42,6 +43,7 @@ Game server images follow the same general conventions:
 | Palworld | Supported (REST API) | Native (game-managed) | Supported | Not supported | Steam app id 2394010; on-demand save via REST. |
 | Project Zomboid | Supported | Supported | Supported | Steam Workshop | Steam app id 380870; SteamCMD install; branch selection via `PZ_BRANCH`. |
 | Rust | Supported | Supported | Supported | Oxide/uMod | Steam app id 258550; SteamCMD install; Rust+ companion app. |
+| Valheim | Not supported | Native (game-managed) | Supported | BepInEx | Steam app id 896660; SteamCMD install; every option is a launch argument. |
 
 ## 📚 Documentation
 
@@ -51,6 +53,7 @@ Game server images follow the same general conventions:
 - [Palworld image](palworld/README.md)
 - [Project Zomboid image](project-zomboid/README.md)
 - [Rust image](rust/README.md)
+- [Valheim image](valheim/README.md)
 - [Game Panel Updater image](gamepanel/updater/README.md)
 
 ## 📝 Notes

@@ -11,8 +11,6 @@ import type {
   AddonContext, AddonSearchHit, AddonSearchResponse, InstalledAddon, InstalledResponse,
 } from '../../utils/minecraftAddons';
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
 interface MinecraftAddonsSectionProps {
   serverId: number;
   serverStatus?: string | null;
@@ -25,8 +23,6 @@ interface MinecraftAddonsSectionProps {
 }
 
 type UploadItem = { id: string; name: string; progress: number; error?: string; done: boolean };
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatFileSize(bytes: number): string {
   if (!bytes) return '0 B';
@@ -45,8 +41,6 @@ function prettyCategory(c: string): string {
   return c.charAt(0).toUpperCase() + c.slice(1).replace(/-/g, ' ');
 }
 
-// ── Catalog browser (search + install) ──────────────────────────────────────
-
 const PAGE_SIZE = 20;
 
 function AddonBrowser({
@@ -58,8 +52,6 @@ function AddonBrowser({
   canWrite: boolean;
   kindLabel: string;
   onInstalled: () => void;
-  // Authoritative installed state (projectId → installed versionId) from the parent's
-  // /installed list, used to hint the detail modal since /projects/:id may lag behind.
   installedByProject: Map<string, string | null>;
   borderColor: string;
   contentBg: string;
@@ -100,7 +92,6 @@ function AddonBrowser({
     }
   }, [serverId, query, sort, category, anyVersion]);
 
-  // Debounce free-text search; sort/category/anyVersion change fires immediately (reset to page 0).
   useEffect(() => {
     const t = setTimeout(() => { void runSearch(0); }, query ? 350 : 0);
     return () => clearTimeout(t);
@@ -120,8 +111,6 @@ function AddonBrowser({
     }
   };
 
-  // On page change, scroll the Game Config panel's scroll container (the div carrying
-  // Tailwind's `overflow-y-auto`) so the catalog card's top lands near the viewport top.
   const goToPage = (nextOffset: number) => {
     void runSearch(nextOffset);
     requestAnimationFrame(() => {
@@ -142,9 +131,6 @@ function AddonBrowser({
   const from = total === 0 ? 0 : offset + 1;
   const to = Math.min(offset + PAGE_SIZE, total);
 
-  // Installed map handed to the detail modal: the parent's authoritative list plus the
-  // grid's optimistic just-installed ids (version unknown), so the detail — and every
-  // dependency it lists — is labelled correctly even before the parent refetches.
   const detailInstalledMap = new Map(installedByProject);
   for (const id of installedIds) if (!detailInstalledMap.has(id)) detailInstalledMap.set(id, null);
 
@@ -153,13 +139,11 @@ function AddonBrowser({
   return (
     <>
     <div ref={browserRef} className={`${contentBg} border ${borderColor} rounded-xl overflow-hidden scroll-mt-4`}>
-        {/* Header */}
         <div className={`flex items-center gap-2 border-b ${borderColor} px-4 py-3`}>
           <Search className="w-4 h-4 text-gray-400" />
           <h4 className={`text-sm font-semibold ${textPrimary}`}>Browse {kindLabel} on Modrinth</h4>
         </div>
 
-        {/* Filters */}
         <div className={`flex flex-wrap items-center gap-2 border-b ${borderColor} px-4 py-3`}>
           <div className="relative flex-1 min-w-[180px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -198,7 +182,6 @@ function AddonBrowser({
           </div>
         )}
 
-        {/* Results */}
         <div className="p-4">
           {loading && hits.length === 0 && (
             <div className="flex items-center gap-2 py-8 justify-center text-sm text-gray-400">
@@ -263,7 +246,6 @@ function AddonBrowser({
           )}
         </div>
 
-        {/* Pagination */}
         {total > PAGE_SIZE && (
           <div className={`flex items-center justify-between gap-3 border-t ${borderColor} px-4 py-3`}>
             <span className={`text-xs ${textSecondary}`}>{from}–{to} of {total}</span>
@@ -293,8 +275,6 @@ function AddonBrowser({
   );
 }
 
-// ── MinecraftAddonsSection ───────────────────────────────────────────────────
-
 export function MinecraftAddonsSection({
   serverId, serverStatus, canRead, canWrite,
   borderColor, contentBg, textPrimary, textSecondary,
@@ -308,7 +288,6 @@ export function MinecraftAddonsSection({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingBulk, setPendingBulk] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  // Set once the user makes a change; the "restart to apply" note only shows then.
   const [restartNeeded, setRestartNeeded] = useState(false);
   const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -322,8 +301,6 @@ export function MinecraftAddonsSection({
   const catalogAvailable = data?.catalogAvailable ?? false;
   const updateCheckAvailable = data?.updateCheckAvailable ?? false;
   const addons = data?.addons ?? [];
-  // projectId → installed versionId, so both the browser and the detail modal can tell
-  // an already-installed mod apart even when /projects/:id doesn't report it yet.
   const installedByProject = new Map<string, string | null>();
   for (const a of addons) if (a.projectId) installedByProject.set(a.projectId, a.versionId);
 
@@ -457,10 +434,8 @@ export function MinecraftAddonsSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* order-* reorders the visual layout (installed → catalog → manual import) without moving the DOM. */}
       {restartNeeded && <RestartToApplyNote serverStatus={serverStatus} />}
 
-      {/* Catalog browser — shown inline whenever Modrinth is reachable */}
       {catalogAvailable && context && (
         <div className="order-2">
           <AddonBrowser
@@ -478,7 +453,6 @@ export function MinecraftAddonsSection({
         </div>
       )}
 
-      {/* Degraded catalog banner */}
       {!loading && !error && data && !catalogAvailable && (
         <div className="order-2 flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-600 dark:text-amber-300">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -486,7 +460,6 @@ export function MinecraftAddonsSection({
         </div>
       )}
 
-      {/* Manual upload — for jars the catalog can't cover (SpigotMC, CurseForge, private builds) */}
       {canWrite && (
         <div
           onDragOver={onDragOver}
@@ -510,7 +483,6 @@ export function MinecraftAddonsSection({
         </div>
       )}
 
-      {/* Upload queue */}
       {uploadQueue.length > 0 && (
         <div className={`order-4 ${contentBg} border ${borderColor} rounded-xl overflow-hidden`}>
           {uploadQueue.map((item) => (
@@ -532,7 +504,6 @@ export function MinecraftAddonsSection({
         </div>
       )}
 
-      {/* Installed list */}
       <div className={`order-1 ${contentBg} border ${borderColor} rounded-xl overflow-hidden`}>
         <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b ${borderColor}`}>
           <div className="flex items-center gap-2 min-w-0">

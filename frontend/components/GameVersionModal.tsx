@@ -54,8 +54,6 @@ export function GameVersionModal({ images, onSelect, onClose }: GameVersionModal
             {availableTypes.map(({ key, label }) => {
               const typeImages = images.filter(img => getMcServerType(img.imageId) === key);
 
-              // The Java version is resolved automatically in the install modal from the
-              // Minecraft version, so selecting a type goes straight to configuration.
               return (
                 <button
                   key={key}

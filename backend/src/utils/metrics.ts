@@ -1,14 +1,13 @@
 import type { ServerMetricRow, SystemMetricRow } from '../types/database.js';
-import { toIsoTimestamp } from '../utils/time.js';
-
-import { round2 } from '../utils/number.js';
+import { round2 } from './number.js';
+import { toIsoTimestamp } from './time.js';
 
 type MetricRow = Record<string, any> & {
     timestamp?: string;
     ts?: number;
 };
 
-export type SerializedMetricPoint = {
+export type MetricSample = {
     cpuUsage: number;
     memoryUsage: number;
     diskUsage: number;
@@ -16,14 +15,31 @@ export type SerializedMetricPoint = {
         in: number;
         out: number;
     };
+};
+
+export type SerializedMetricPoint = MetricSample & {
     timestamp: string;
 };
 
-export function parseLimit(raw: unknown, fallback = 100, max = 2000): number {
-    const n = Number.parseInt(String(raw ?? ''), 10);
-    if (!Number.isFinite(n) || n <= 0) return fallback;
-    return Math.min(n, max);
-}
+export type MetricsHistoryMeta = {
+    window: '24h';
+    downsample: string;
+    rawCount: number;
+    sentCount: number;
+};
+
+export const METRICS_HISTORY_RAW_LIMIT = 10_000;
+
+const METRICS_HISTORY_WINDOW = '24h' as const;
+const METRICS_HISTORY_DOWNSAMPLE = '0-1h:10s,1-6h:30s,6-24h:120s';
+
+const METRIC_NUMERIC_KEYS = [
+    'cpu_usage',
+    'memory_usage',
+    'disk_usage',
+    'network_in',
+    'network_out',
+];
 
 function parseTimestampToMs(ts: string): number {
     const iso = ts.includes('T') ? ts : `${ts.replace(' ', 'T')}Z`;
@@ -107,5 +123,28 @@ export function serializeMetricPoint(row: Pick<
             out: Math.max(0, Math.round(Number(row.network_out) || 0)),
         },
         timestamp: toIsoTimestamp(row.timestamp),
+    };
+}
+
+export function buildMetricsHistory(
+    rowsNewestFirst: Array<ServerMetricRow | SystemMetricRow>,
+    limit: number,
+): { points: SerializedMetricPoint[]; meta: MetricsHistoryMeta } {
+    const chronological = [...rowsNewestFirst].reverse();
+    const downsampled = downsampleMetrics(chronological, Date.now(), METRIC_NUMERIC_KEYS);
+
+    const capped = downsampled.length > limit
+        ? downsampled.slice(downsampled.length - limit)
+        : downsampled;
+    const points = capped.map(serializeMetricPoint);
+
+    return {
+        points,
+        meta: {
+            window: METRICS_HISTORY_WINDOW,
+            downsample: METRICS_HISTORY_DOWNSAMPLE,
+            rawCount: rowsNewestFirst.length,
+            sentCount: points.length,
+        },
     };
 }

@@ -238,7 +238,7 @@ export function HostStatus() {
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault(); // Keep drag interactions smooth inside charts.
+    e.preventDefault();
     setIsDragging(true);
     setDragStart(e.clientX);
   };

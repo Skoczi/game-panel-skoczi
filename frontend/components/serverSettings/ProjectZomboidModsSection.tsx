@@ -16,7 +16,6 @@ export interface ProjectZomboidModsSectionProps {
   textSecondary: string;
 }
 
-// Split a free-text field (semicolon / comma / space / newline separated) into ids.
 function parseIds(raw: string): string[] {
   return Array.from(new Set(raw.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean)));
 }
@@ -75,9 +74,6 @@ function ModIdRow({
   );
 }
 
-// One Workshop item — master toggle, remove, up/down reorder buttons, and (when it
-// has more than one Mod ID) a nested list of its individual Mod IDs. Memoized so a
-// reorder only re-renders the two affected rows, not the whole (large) list.
 const ModRow = memo(function ModRow({
   mod,
   index,
@@ -115,7 +111,6 @@ const ModRow = memo(function ModRow({
       className={`rounded-xl border ${borderColor} bg-gp-surface-base/45 p-2.5 ${mod.enabled ? '' : 'opacity-55'}`}
     >
       <div className="group flex items-center gap-3">
-        {/* Reorder buttons */}
         {canWrite && (
           <div className="flex flex-shrink-0 flex-col gap-1">
             <button
@@ -139,7 +134,6 @@ const ModRow = memo(function ModRow({
           </div>
         )}
 
-        {/* Thumbnail */}
         <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-gp-surface-elevated">
           {mod.previewUrl && (
             <img src={mod.previewUrl} alt="" className={`h-full w-full object-cover ${mod.enabled ? '' : 'grayscale'}`} />
@@ -149,7 +143,6 @@ const ModRow = memo(function ModRow({
           </span>
         </div>
 
-        {/* Info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className={`truncate text-sm font-semibold ${textPrimary}`}>
@@ -171,7 +164,6 @@ const ModRow = memo(function ModRow({
           <Tags tags={mod.tags} />
         </div>
 
-        {/* Actions */}
         <div className="flex flex-shrink-0 items-center gap-2">
           <AppToggle
             ariaLabel={`Enable ${mod.title || mod.workshopId}`}
@@ -194,7 +186,6 @@ const ModRow = memo(function ModRow({
         </div>
       </div>
 
-      {/* Nested Mod IDs (only when the item bundles more than one) */}
       {showSubList && (
         <div className="ml-9 mt-2 space-y-1">
           {mod.modIds.map((m) => (
@@ -276,8 +267,6 @@ export function ProjectZomboidModsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-grow the Workshop IDs textarea to fit its content (min height keeps the
-  // multi-line placeholder visible); the user can't resize it manually.
   useEffect(() => {
     const el = addTextareaRef.current;
     if (!el) return;
@@ -313,9 +302,7 @@ export function ProjectZomboidModsSection({
       setMods(data.mods ?? []);
       const result = { added: data.added ?? [], failed: data.failed ?? [], skipped: data.skipped ?? [] };
       setAddResult(result);
-      // Keep only the failed ids in the box so the user can retry them easily.
       setWorkshopIdsText(result.failed.join('\n'));
-      // Nothing left to retry → close the modal; the new mods show in the list.
       if (result.failed.length === 0) setAddOpen(false);
     } catch (err: any) {
       setError(errorMessage(err, 'Failed to add mods.'));
@@ -348,7 +335,7 @@ export function ProjectZomboidModsSection({
     const reordered = mods.slice();
     const [item] = reordered.splice(index, 1);
     reordered.splice(newIndex, 0, item);
-    setMods(reordered); // optimistic; runMutation reconciles with the server response
+    setMods(reordered);
     void runMutation(
       () => apiClient.reorderProjectZomboidMods(serverId, reordered.map((m) => m.workshopId)),
       'Failed to reorder mods.'
@@ -362,7 +349,6 @@ export function ProjectZomboidModsSection({
 
   return (
     <div className={`${contentBg} border ${borderColor} rounded-lg p-4 space-y-3`}>
-      {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h4 className={`text-base font-semibold ${textPrimary}`}>Steam Workshop Mods</h4>
@@ -393,7 +379,6 @@ export function ProjectZomboidModsSection({
       )}
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      {/* Add mods — modal (kept out of the list so the page stays clean) */}
       <AppModal open={addOpen && canWrite} onOpenChange={(open) => { if (!open && !adding) setAddOpen(false); }}>
         <AppModalContent
           dismissible={false}
@@ -467,7 +452,6 @@ export function ProjectZomboidModsSection({
         </AppModalContent>
       </AppModal>
 
-      {/* Mod list */}
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <Loader2 className="w-4 h-4 animate-spin" />

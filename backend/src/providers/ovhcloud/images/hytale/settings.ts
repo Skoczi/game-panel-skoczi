@@ -2,49 +2,46 @@ import { promises as fs } from 'node:fs';
 import type { GameServerRow } from '../../../../types/gameServer.js';
 import { resolveServerPath } from '../../../../services/fileExplorer.js';
 import { ensureIsFile } from '../../../../utils/fsBrowser.js';
+import type {
+    FileSettingsAccessor,
+    SettingDefinition,
+    SettingValue,
+} from '../../settings/types.js';
 import { assertOvhcloudHytaleServer } from '../hytale.js';
 
-type HytaleSettingType = 'integer' | 'string';
-
-type HytaleSettingDefinition = {
-    key: string;
-    label: string;
-    description: string;
-    type: HytaleSettingType;
-    min?: number;
-    max?: number;
-};
-
-type HytaleSettingValue = string | number;
-
-export type HytaleSetting = HytaleSettingDefinition & {
-    value: HytaleSettingValue;
-};
 
 const MAX_STRING_SETTING_LENGTH = 2048;
 const HYTALE_SETTINGS_FILE_PATH = '/game/Server/config.json';
 
-export const HYTALE_SETTING_DEFINITIONS: HytaleSettingDefinition[] = [
+const HYTALE_SETTING_DEFINITIONS: SettingDefinition[] = [
     {
         key: 'ServerName',
+        group: 'branding',
         label: 'Server name',
         description: 'Name of the server displayed to players in the Hytale server list.',
         type: 'string',
+        maxLength: MAX_STRING_SETTING_LENGTH,
     },
     {
         key: 'MOTD',
+        group: 'branding',
         label: 'Server MOTD',
         description: 'Message of the day displayed to players when connecting to the server.',
         type: 'string',
+        maxLength: MAX_STRING_SETTING_LENGTH,
     },
     {
         key: 'Password',
+        group: 'security',
         label: 'Server password',
         description: 'Password required to join the server. Leave empty to make the server public.',
         type: 'string',
+        secret: true,
+        maxLength: MAX_STRING_SETTING_LENGTH,
     },
     {
         key: 'MaxPlayers',
+        group: 'players',
         label: 'Maximum players',
         description: 'Maximum number of players that can connect to the server at the same time.',
         type: 'integer',
@@ -53,6 +50,7 @@ export const HYTALE_SETTING_DEFINITIONS: HytaleSettingDefinition[] = [
     },
     {
         key: 'MaxViewRadius',
+        group: 'performance',
         label: 'Maximum view radius',
         description: 'Maximum view distance sent to players, in chunks. Lower values improve performance and reduce memory usage.',
         type: 'integer',
@@ -61,13 +59,7 @@ export const HYTALE_SETTING_DEFINITIONS: HytaleSettingDefinition[] = [
     },
 ];
 
-const SETTING_DEFINITIONS_BY_KEY = new Map(
-    HYTALE_SETTING_DEFINITIONS.map((definition) => [definition.key, definition])
-);
-
-function invalidInput(message: string): never {
-    throw Object.assign(new Error(message), { statusCode: 400 });
-}
+type HytaleSettingsSnapshot = { filePath: string; document: Record<string, unknown> };
 
 async function resolveHytaleSettingsFile(serverId: number): Promise<{ absPath: string; rootDir: string }> {
     const resolved = await resolveServerPath({ serverId, root: 'data', path: HYTALE_SETTINGS_FILE_PATH });
@@ -78,7 +70,7 @@ async function resolveHytaleSettingsFile(serverId: number): Promise<{ absPath: s
     };
 }
 
-async function readHytaleSettingsFile(serverId: number): Promise<{ filePath: string; settingsDocument: Record<string, unknown> }> {
+async function readHytaleSettingsFile(serverId: number): Promise<HytaleSettingsSnapshot> {
     const resolved = await resolveHytaleSettingsFile(serverId);
     const raw = await fs.readFile(resolved.absPath, 'utf8');
 
@@ -95,11 +87,11 @@ async function readHytaleSettingsFile(serverId: number): Promise<{ filePath: str
 
     return {
         filePath: resolved.absPath,
-        settingsDocument: parsed as Record<string, unknown>,
+        document: parsed as Record<string, unknown>,
     };
 }
 
-function convertSettingValue(definition: HytaleSettingDefinition, rawValue: unknown): HytaleSettingValue | null {
+function parseJsonValue(definition: SettingDefinition, rawValue: unknown): SettingValue | null {
     if (definition.type === 'integer') {
         return typeof rawValue === 'number' && Number.isInteger(rawValue) ? rawValue : null;
     }
@@ -107,76 +99,35 @@ function convertSettingValue(definition: HytaleSettingDefinition, rawValue: unkn
     return typeof rawValue === 'string' ? rawValue : null;
 }
 
-function serializeSettingValue(definition: HytaleSettingDefinition, value: unknown): HytaleSettingValue {
-    if (definition.type === 'integer') {
-        const integer = typeof value === 'number'
-            ? value
-            : typeof value === 'string' && value.trim() !== ''
-                ? Number(value)
-                : Number.NaN;
+const HYTALE_FILE_SETTINGS: FileSettingsAccessor<HytaleSettingsSnapshot> = {
+    onMissing: 'omit',
 
-        if (!Number.isInteger(integer)) invalidInput(`${definition.key} must be an integer`);
-        if (definition.min !== undefined && integer < definition.min) {
-            invalidInput(`${definition.key} must be greater than or equal to ${definition.min}`);
-        }
-        if (definition.max !== undefined && integer > definition.max) {
-            invalidInput(`${definition.key} must be less than or equal to ${definition.max}`);
-        }
+    definitions(): SettingDefinition[] {
+        return HYTALE_SETTING_DEFINITIONS;
+    },
 
-        return integer;
-    }
+    async load(server: GameServerRow): Promise<HytaleSettingsSnapshot> {
+        assertOvhcloudHytaleServer(server);
+        return readHytaleSettingsFile(server.id);
+    },
 
-    if (typeof value !== 'string') invalidInput(`${definition.key} must be a string`);
-    if (value.length > MAX_STRING_SETTING_LENGTH || /[\0\r\n]/.test(value)) {
-        invalidInput(`${definition.key} is invalid`);
-    }
+    read(snapshot: HytaleSettingsSnapshot, definition: SettingDefinition): SettingValue | null {
+        if (!Object.prototype.hasOwnProperty.call(snapshot.document, definition.key)) return null;
+        return parseJsonValue(definition, snapshot.document[definition.key]);
+    },
 
-    return value;
-}
+    write(snapshot: HytaleSettingsSnapshot, definition: SettingDefinition, value: SettingValue): boolean {
+        if (!Object.prototype.hasOwnProperty.call(snapshot.document, definition.key)) return false;
 
-export async function listHytaleSettings(server: GameServerRow): Promise<HytaleSetting[]> {
-    assertOvhcloudHytaleServer(server);
+        snapshot.document[definition.key] = value;
+        return true;
+    },
 
-    const { settingsDocument } = await readHytaleSettingsFile(server.id);
+    async save(_server: GameServerRow, snapshot: HytaleSettingsSnapshot): Promise<void> {
+        await fs.writeFile(snapshot.filePath, `${JSON.stringify(snapshot.document, null, 2)}\n`, 'utf8');
+    },
+};
 
-    return HYTALE_SETTING_DEFINITIONS
-        .filter((definition) => Object.prototype.hasOwnProperty.call(settingsDocument, definition.key))
-        .map((definition) => {
-            const value = convertSettingValue(definition, settingsDocument[definition.key]);
-            if (value === null) return null;
-            return { ...definition, value };
-        })
-        .filter((setting): setting is HytaleSetting => Boolean(setting));
-}
-
-export async function patchHytaleSettings(
-    server: GameServerRow,
-    updates: Record<string, unknown>
-): Promise<{ updated: string[]; settings: HytaleSetting[] }> {
-    assertOvhcloudHytaleServer(server);
-
-    const entries = Object.entries(updates);
-    if (entries.length === 0) invalidInput('settings must contain at least one value');
-
-    const { filePath, settingsDocument } = await readHytaleSettingsFile(server.id);
-    const updated: string[] = [];
-
-    for (const [key, value] of entries) {
-        const definition = SETTING_DEFINITIONS_BY_KEY.get(key);
-        if (!definition) invalidInput(`Unsupported Hytale setting: ${key}`);
-
-        if (!Object.prototype.hasOwnProperty.call(settingsDocument, key)) {
-            throw Object.assign(new Error(`Hytale setting is not present in config.json: ${key}`), { statusCode: 404 });
-        }
-
-        settingsDocument[key] = serializeSettingValue(definition, value);
-        updated.push(key);
-    }
-
-    await fs.writeFile(filePath, `${JSON.stringify(settingsDocument, null, 2)}\n`, 'utf8');
-
-    return {
-        updated,
-        settings: await listHytaleSettings(server),
-    };
+export function hytaleFileSettingsAccessor(): FileSettingsAccessor<HytaleSettingsSnapshot> {
+    return HYTALE_FILE_SETTINGS;
 }

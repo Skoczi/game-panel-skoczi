@@ -18,6 +18,7 @@ import downloadRoutes from './routes/download.js';
 import { setupWebSocket } from './websocket/handler.js';
 import { getAppVersion } from './utils/appInfo.js';
 import { logError, logInfo } from './utils/logger.js';
+import { reconcileGamesNetwork } from './utils/docker.js';
 import { startLinuxGsmManifestRefreshJob } from './services/linuxGsmManifest.js';
 import { startFileTransferCleanupJob } from './services/fileTransfers.js';
 import { startDownloadTokenCleanupJob } from './services/downloadTokens.js';
@@ -132,6 +133,11 @@ async function startServer(): Promise<void> {
 
     // Sync current Docker health -> DB once at boot
     await reconcileDockerHealthToDb();
+
+    // Make sure the games network exists and every game container sits on it
+    await reconcileGamesNetwork().catch((error) => {
+      logError('APP:STARTUP:GAMES_NETWORK', error);
+    });
 
     // Clear a panel update job left dangling by an interrupted updater
     await reconcileStalePanelUpdate().catch((error) => {

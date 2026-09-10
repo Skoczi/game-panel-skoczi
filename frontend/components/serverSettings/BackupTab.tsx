@@ -133,7 +133,6 @@ export function BackupTab({
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>Backups</h3>
@@ -154,7 +153,6 @@ export function BackupTab({
           )}
         </div>
 
-        {/* Not supported banner */}
         {backupsNotSupported && (
           <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
             <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -167,7 +165,6 @@ export function BackupTab({
           </div>
         )}
 
-        {/* Retention Policy — LinuxGSM only */}
         {isLinuxGSMGame && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6 space-y-6 sm:space-y-8`}>
             <h4 className={`text-lg font-semibold ${textPrimary}`}>Retention Policy</h4>
@@ -248,7 +245,6 @@ export function BackupTab({
           </div>
         )}
 
-        {/* Available Backups */}
         {!backupsNotSupported && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6 space-y-3 sm:space-y-4`}>
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">

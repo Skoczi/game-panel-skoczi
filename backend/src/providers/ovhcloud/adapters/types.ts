@@ -8,6 +8,8 @@ import type { NormalizedPorts } from '../../../utils/ports.js';
 import type { NormalizedResourceLimits } from '../../../utils/resourceLimits.js';
 import type { GameServerRow } from '../../../types/gameServer.js';
 import type { InstallStep } from '../../../services/installPlan.js';
+import type { OvhcloudSettingsSupport } from '../settings/types.js';
+import type { FsEntry } from '../../../utils/fsBrowser.js';
 
 export type OvhcloudBackupLocation = {
     root: string;
@@ -37,11 +39,22 @@ export type OvhcloudBackupRestoreInput = {
     location: OvhcloudBackupLocation;
 };
 
+export type OvhcloudBackupFilePair = {
+    listBackups(entries: FsEntry[]): FsEntry[];
+    membersOf(name: string): string[];
+};
+
+export type OvhcloudBackupDirectory = {
+    isBackup(name: string): boolean;
+};
+
 export type OvhcloudBackupSupport = {
-    kind?: 'archive' | 'directory';
+    kind?: 'archive' | 'directory' | 'file-pair';
     extensions: string[];
     location: OvhcloudBackupLocation;
     resolveLocation?(server: GameServerRow): Promise<OvhcloudBackupLocation>;
+    filePair?: OvhcloudBackupFilePair;
+    directory?: OvhcloudBackupDirectory;
     create?(server: GameServerRow & { docker_container_id: string }, options?: Record<string, unknown>): Promise<OvhcloudBackupCreateResult>;
     createUnsupportedMessage?: string;
     restore?(server: GameServerRow & { docker_container_id: string }, input: OvhcloudBackupRestoreInput): Promise<OvhcloudBackupRestoreResult>;
@@ -111,6 +124,7 @@ export type OvhcloudImageAdapter = {
     lifecycle?: OvhcloudLifecycleSupport;
     console?: OvhcloudConsoleSupport | ((server: GameServerRow) => OvhcloudConsoleSupport | undefined);
     wipe?: OvhcloudWipeSupport;
+    settings?: OvhcloudSettingsSupport;
     installSteps?: InstallStep[];
     routes?: OvhcloudFeatureRoute[];
 };

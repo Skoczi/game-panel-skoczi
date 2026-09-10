@@ -7,6 +7,11 @@ import { round2 } from '../../utils/number.js';
 import { logError } from '../../utils/logger.js';
 import { nowIso } from '../../utils/time.js';
 import { getCachedServerStorageDiskUsagePercent } from '../../utils/diskUsage.js';
+import {
+    getServerMetricsSamples,
+    retainServerMetricsSamples,
+    setServerMetricsSample,
+} from '../../utils/serverMetricsCache.js';
 
 const RETENTION_DAYS = 1;
 const PRUNE_EVERY_MS = 30 * 60_000;
@@ -15,6 +20,23 @@ let lastPruneAt = 0;
 type ServerMetricsPollerOptions = {
     intervalMs?: number;
 };
+
+function broadcastServerMetrics(wss: WebSocketServer): void {
+    const payload = {
+        type: 'servers-metrics:update',
+        metrics: getServerMetricsSamples(),
+        timestamp: nowIso(),
+    } as const;
+
+    wss.clients.forEach((client) => {
+        const ws = client as AuthenticatedWebSocket;
+        if (ws.readyState !== WebSocket.OPEN) return;
+        if (!ws.userId) return;
+        if (!ws.subs?.serversMetrics) return;
+
+        sendSafe(ws, payload);
+    });
+}
 
 export function startServerMetricsPoller(wss: WebSocketServer, opts?: ServerMetricsPollerOptions): NodeJS.Timeout {
     const intervalMs = opts?.intervalMs ?? 10_000;
@@ -32,6 +54,7 @@ export function startServerMetricsPoller(wss: WebSocketServer, opts?: ServerMetr
             }
 
             const runningServers = await serverRepository.findRunningServers();
+            retainServerMetricsSamples(runningServers.map((server) => server.id));
 
             for (const server of runningServers) {
                 if (!server?.docker_container_id) continue;
@@ -58,27 +81,15 @@ export function startServerMetricsPoller(wss: WebSocketServer, opts?: ServerMetr
                     stats.networkUsage.out
                 );
 
-                const payload = {
-                    type: 'metrics:update',
-                    serverId: server.id,
-                    metrics: {
-                        cpuUsage: round2(stats.cpuUsage), // %
-                        memoryUsage: round2(stats.memoryUsage), // %
-                        diskUsage: round2(diskUsage), // %
-                        network: stats.networkUsage, // bytes/s
-                    },
-                    timestamp: nowIso(),
-                } as const;
-
-                wss.clients.forEach((client) => {
-                    const ws = client as AuthenticatedWebSocket;
-                    if (ws.readyState !== WebSocket.OPEN) return;
-                    if (!ws.userId) return;
-                    if (!ws.subs?.metrics?.has(server.id)) return;
-
-                    sendSafe(ws, payload);
+                setServerMetricsSample(server.id, {
+                    cpuUsage: round2(stats.cpuUsage), // %
+                    memoryUsage: round2(stats.memoryUsage), // %
+                    diskUsage: round2(diskUsage), // %
+                    network: stats.networkUsage, // bytes/s
                 });
             }
+
+            broadcastServerMetrics(wss);
         } catch (error) {
             logError('WS:POLLER:SERVER_METRICS', error);
         }

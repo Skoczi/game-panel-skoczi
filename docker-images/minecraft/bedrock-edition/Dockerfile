@@ -15,7 +15,9 @@ LABEL org.opencontainers.image.title="Minecraft Bedrock Edition Server Image" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.base.name="ubuntu:24.04"
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
       jq \

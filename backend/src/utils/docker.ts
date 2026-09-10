@@ -7,6 +7,7 @@ export {
   stopContainer,
   restartContainer,
   updateContainerResourceLimits,
+  renameContainer,
   removeContainer,
   removeManagedContainersForServer,
   listPublishedHostPorts,
@@ -14,6 +15,12 @@ export {
   inspectContainerRuntime,
   runOneShotContainer,
 } from './docker/containers.js';
+
+export {
+  buildServerNetworkAlias,
+  ensureGamesNetwork,
+  reconcileGamesNetwork,
+} from './docker/networks.js';
 
 export { execInContainer } from './docker/exec.js';
 export { execShellCommand } from './docker/cli.js';

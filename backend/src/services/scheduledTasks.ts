@@ -21,7 +21,6 @@ import {
     getServerStopTimeoutSeconds,
     restartOvhcloudServerIfHandled,
 } from './ovhcloudLifecycle.js';
-import { removeLinuxGsmContainerCronsBestEffort } from './linuxGsmCrons.js';
 
 type ScheduledTaskType = ScheduledTaskRow['type'];
 type ScheduledTaskLastStatus = 'success' | 'failed' | 'skipped';
@@ -378,8 +377,6 @@ async function executeRestartTask(server: GameServerRow & { docker_container_id:
             );
         }
 
-        const fresh = await serverRepository.findById(server.id);
-        if (fresh) await removeLinuxGsmContainerCronsBestEffort(fresh);
         await completeDockerPowerTransition(server.id);
     } catch (error) {
         clearServerTransition(server.id);

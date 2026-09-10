@@ -3,8 +3,6 @@ import { Check, Eye, EyeOff, Loader2, Save } from 'lucide-react';
 import { AppButton, AppInput, AppToggle, InfoTip } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
 
-// Small muted label + shared info tooltip, so env-backed controls read identically
-// across all games.
 function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   return (
     <div className="flex items-center gap-1.5 mb-1.5">
@@ -44,7 +42,6 @@ export type EnvFieldDef = {
   description?: string;
   type: 'password' | 'toggle' | 'text';
   defaultValue?: string;
-  // Minimum length for text/password fields; blocks saving when unmet.
   minLength?: number;
 };
 
@@ -60,8 +57,6 @@ export interface ServerEnvFieldsCardProps {
   textPrimary: string;
 }
 
-// One card grouping several container env vars, saved together: persist all
-// changed fields via the server env, then restart the server if it is running.
 export function ServerEnvFieldsCard({
   serverId,
   serverStatus,
@@ -103,7 +98,6 @@ export function ServerEnvFieldsCard({
   const isRunning = serverStatus === 'running';
   const isDirty = env !== null && fields.some((f) => values[f.key] !== (env[f.key] ?? f.defaultValue ?? ''));
 
-  // Per-field minimum-length validation (e.g. Rust RCON needs ≥ 8 chars).
   const fieldError = (f: EnvFieldDef): string | null =>
     f.minLength && (values[f.key] ?? '').trim().length < f.minLength
       ? `Must be at least ${f.minLength} characters.`
@@ -145,7 +139,6 @@ export function ServerEnvFieldsCard({
           {title && <h4 className={`text-sm font-semibold ${textPrimary}`}>{title}</h4>}
           {fields.map((f) =>
             f.type === 'toggle' ? (
-              // Inline row (label left, toggle right) — mirrors the CS2 config.
               <div key={f.key} className={`flex items-center justify-between gap-4 rounded-lg border ${borderColor} p-3`}>
                 <div className="-mb-1.5 min-w-0">
                   <FieldLabel label={f.label} tooltip={f.description} />

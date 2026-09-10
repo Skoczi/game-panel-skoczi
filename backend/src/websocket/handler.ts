@@ -12,8 +12,8 @@ import {
   handleSubscribeInstall,
   handleSubscribeLogs,
   handleSubscribeActions,
-  handleSubscribeMetrics,
   handleSubscribeServers,
+  handleSubscribeServersMetrics,
   handleSubscribeSystemMetrics,
   handleUnsubscribe,
   handleSubscribeFileTransfers,
@@ -234,10 +234,9 @@ async function routeMessage(
       return;
     }
 
-    case 'subscribe:metrics': {
-      await handleSubscribeMetrics(ws, message.serverId, message);
+    case 'subscribe:servers-metrics':
+      await handleSubscribeServersMetrics(ws);
       return;
-    }
 
     case 'subscribe:system-metrics':
       await handleSubscribeSystemMetrics(ws, message);

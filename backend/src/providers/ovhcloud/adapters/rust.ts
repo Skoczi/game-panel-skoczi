@@ -13,7 +13,11 @@ import {
     restoreRustBackup,
 } from '../images/rust/backups.js';
 import rustRoutes from '../images/rust/routes.js';
+import { rustConfigFiles } from '../images/rust/configFiles.js';
+import { rustLaunchSettingsAccessor } from '../images/rust/launchSettings.js';
+import { rustFileSettingsAccessor } from '../images/rust/settings.js';
 import { resolveRustSoftWipeTargets } from '../images/rust/wipe.js';
+import { PERMISSIONS } from '../../../permissions.js';
 import { OVHCLOUD_DOCKER_STOP_TIMEOUT_SECONDS } from './common.js';
 import type { OvhcloudImageAdapter, OvhcloudInstallResolution } from './types.js';
 
@@ -40,6 +44,18 @@ export const rustAdapter: OvhcloudImageAdapter = {
         },
         create: createRustBackup,
         restore: restoreRustBackup,
+    },
+    settings: {
+        label: 'Rust',
+        file: {
+            permissions: {
+                read: PERMISSIONS.rust.settings.read,
+                write: PERMISSIONS.rust.settings.write,
+            },
+            accessor: rustFileSettingsAccessor,
+        },
+        launch: rustLaunchSettingsAccessor,
+        configFiles: rustConfigFiles,
     },
     routes: [
         { path: '/rust', router: rustRoutes },

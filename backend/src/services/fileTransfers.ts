@@ -539,12 +539,39 @@ export async function resolveDownloadTarget(params: {
     };
 }
 
+type ZipEntry =
+    | { type: 'dir'; absPath: string; zipPath: string }
+    | { type: 'file'; absPath: string; zipPath: string; mtime: Date; mode: number };
+
+function createZipFile(): yazl.ZipFile {
+    const zip = new yazl.ZipFile();
+
+    zip.on('error', (error: unknown) => {
+        const failure = error instanceof Error ? error : new Error(String(error));
+        (zip.outputStream as Readable).destroy(failure);
+    });
+
+    return zip;
+}
+
+function addZipFileEntry(zip: yazl.ZipFile, entry: Extract<ZipEntry, { type: 'file' }>): void {
+    zip.addReadStreamLazy(
+        entry.zipPath,
+        { compress: false, mtime: entry.mtime, mode: entry.mode },
+        (cb) => {
+            const stream = createReadStream(entry.absPath);
+            stream.on('error', (error) => zip.emit('error', error));
+            cb(null, stream);
+        }
+    );
+}
+
 async function collectZipEntries(params: {
     rootDir: string;
     dirPath: string;
     prefix: string;
-}): Promise<Array<{ absPath: string; zipPath: string; type: 'file' | 'dir' }>> {
-    const out: Array<{ absPath: string; zipPath: string; type: 'file' | 'dir' }> = [];
+}): Promise<ZipEntry[]> {
+    const out: ZipEntry[] = [];
 
     async function walk(absDir: string, zipDir: string): Promise<void> {
         await ensureResolvedPathInsideRoot(absDir, params.rootDir);
@@ -562,7 +589,7 @@ async function collectZipEntries(params: {
             if (st.isDirectory()) {
                 await walk(abs, zipPath);
             } else if (st.isFile()) {
-                out.push({ absPath: abs, zipPath, type: 'file' });
+                out.push({ absPath: abs, zipPath, type: 'file', mtime: st.mtime, mode: st.mode });
             }
         }
     }
@@ -576,7 +603,7 @@ export async function streamDirectoryZip(params: {
     output: NodeJS.WritableStream;
 }): Promise<void> {
     await ensureIsDir(params.target.absPath, params.target.rootDir);
-    const zip = new yazl.ZipFile();
+    const zip = createZipFile();
     const prefix = getBasenameFromApiPath(params.target.path === '/' ? params.target.root : params.target.path);
     const entries = await collectZipEntries({
         rootDir: params.target.rootDir,
@@ -588,8 +615,30 @@ export async function streamDirectoryZip(params: {
         if (entry.type === 'dir') {
             zip.addEmptyDirectory(entry.zipPath);
         } else {
-            zip.addFile(entry.absPath, entry.zipPath, { compress: false });
+            addZipFileEntry(zip, entry);
         }
+    }
+
+    zip.end({ forceZip64Format: true, comment: '' });
+    await pipeline(zip.outputStream, params.output);
+}
+
+export async function streamFilesZip(params: {
+    files: Array<{ absPath: string; rootDir: string; zipName: string }>;
+    output: NodeJS.WritableStream;
+}): Promise<void> {
+    const zip = createZipFile();
+
+    for (const file of params.files) {
+        await ensureIsFile(file.absPath, file.rootDir);
+        const st = await fs.lstat(file.absPath);
+        addZipFileEntry(zip, {
+            type: 'file',
+            absPath: file.absPath,
+            zipPath: file.zipName,
+            mtime: st.mtime,
+            mode: st.mode,
+        });
     }
 
     zip.end({ forceZip64Format: true, comment: '' });

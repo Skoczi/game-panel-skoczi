@@ -8,7 +8,7 @@ export interface OvhcloudPort {
 export interface OvhcloudImage {
   imageId: string;
   name: string;
-  family: 'minecraft' | 'counter-strike' | 'hytale' | 'palworld' | 'project-zomboid' | 'rust';
+  family: 'minecraft' | 'counter-strike' | 'hytale' | 'palworld' | 'project-zomboid' | 'rust' | 'valheim';
   dockerImage: string;
   defaultTcpPorts: OvhcloudPort[];
   defaultUdpPorts: OvhcloudPort[];
@@ -65,7 +65,6 @@ function mcNeoForge(imageId: string, name: string): OvhcloudImage {
 }
 
 export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
-  // --- Minecraft Paper ---
   mc('minecraft-paper-java25', 'Minecraft Paper', {
     PAPER_BUILD: 'latest',
     PAPERMC_USER_AGENT: 'gamepanel/1.0',
@@ -83,13 +82,11 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     PAPERMC_USER_AGENT: 'gamepanel/1.0',
   }, ['PAPER_BUILD', 'PAPERMC_USER_AGENT']),
 
-  // --- Minecraft Java Edition ---
   mc('minecraft-java-edition-java25', 'Minecraft Java Edition'),
   mc('minecraft-java-edition-java21', 'Minecraft Java Edition'),
   mc('minecraft-java-edition-java17', 'Minecraft Java Edition'),
   mc('minecraft-java-edition-java8', 'Minecraft Java Edition'),
 
-  // --- Minecraft Fabric ---
   mc('minecraft-fabric-java25', 'Minecraft Fabric', {
     FABRIC_LOADER_VERSION: 'latest',
     FABRIC_INSTALLER_VERSION: 'latest',
@@ -107,19 +104,16 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     FABRIC_INSTALLER_VERSION: 'latest',
   }, ['FABRIC_LOADER_VERSION', 'FABRIC_INSTALLER_VERSION']),
 
-  // --- Minecraft NeoForge ---
   mcNeoForge('minecraft-neoforge-java25', 'Minecraft NeoForge'),
   mcNeoForge('minecraft-neoforge-java21', 'Minecraft NeoForge'),
   mcNeoForge('minecraft-neoforge-java17', 'Minecraft NeoForge'),
   mcNeoForge('minecraft-neoforge-java8', 'Minecraft NeoForge'),
 
-  // --- Minecraft Forge ---
   mc('minecraft-forge-java25', 'Minecraft Forge', { FORGE_VERSION: 'latest' }, ['FORGE_VERSION']),
   mc('minecraft-forge-java21', 'Minecraft Forge', { FORGE_VERSION: 'latest' }, ['FORGE_VERSION']),
   mc('minecraft-forge-java17', 'Minecraft Forge', { FORGE_VERSION: 'latest' }, ['FORGE_VERSION']),
   mc('minecraft-forge-java8', 'Minecraft Forge', { FORGE_VERSION: 'latest' }, ['FORGE_VERSION']),
 
-  // --- Minecraft Bedrock ---
   {
     imageId: 'minecraft-bedrock-edition',
     name: 'Minecraft Bedrock Edition',
@@ -132,7 +126,6 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     supportsHytaleOptions: false,
   },
 
-  // --- Counter-Strike 2 ---
   {
     imageId: 'counter-strike-2',
     name: 'Counter-Strike 2',
@@ -145,7 +138,6 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     supportsHytaleOptions: false,
   },
 
-  // --- Hytale ---
   {
     imageId: 'hytale',
     name: 'Hytale',
@@ -158,7 +150,6 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     supportsHytaleOptions: true,
   },
 
-  // --- Palworld ---
   {
     imageId: 'palworld',
     name: 'Palworld',
@@ -174,8 +165,6 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     supportsHytaleOptions: false,
   },
 
-
-  // --- Project Zomboid ---
   {
     imageId: 'project-zomboid',
     name: 'Project Zomboid',
@@ -191,7 +180,6 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
     supportsHytaleOptions: false,
   },
 
-  // --- Rust ---
   // WebRCON (28016/tcp) is intentionally NOT published: the panel reaches RCON from
   // inside the container. Users can add that mapping manually for an external tool.
   {
@@ -205,6 +193,27 @@ export const OVHCLOUD_IMAGES: OvhcloudImage[] = [
       { port: 28017, label: 'Steam Query' },
     ],
     defaultEnv: {},
+    requiredEnvKeys: [],
+    supportsHytaleOptions: false,
+  },
+
+  {
+    imageId: 'valheim',
+    name: 'Valheim',
+    family: 'valheim',
+    dockerImage: ovhImage('gamepanel-valheim'),
+    defaultTcpPorts: [],
+    defaultUdpPorts: [
+      { port: 2456, label: 'Game' },
+      { port: 2457, label: 'Steam Query' },
+    ],
+    // Listed in the community browser, which the game only allows with a password — the
+    // install form generates one. VALHEIM_SERVER_PASSWORD is added there, not here.
+    defaultEnv: {
+      VALHEIM_SERVER_NAME: 'Valheim Server',
+      VALHEIM_WORLD_NAME: 'Dedicated',
+      VALHEIM_PUBLIC: '1',
+    },
     requiredEnvKeys: [],
     supportsHytaleOptions: false,
   },

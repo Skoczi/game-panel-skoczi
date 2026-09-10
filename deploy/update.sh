@@ -101,6 +101,12 @@ wait_for_stack() {
       --filter "label=com.docker.compose.service=traefik")"
 
     if [[ -n "$backend_id" && -n "$frontend_id" && -n "$traefik_id" ]]; then
+      if wait_for_panel_http 90; then
+        return
+      fi
+
+      warn "The stack is up but the panel is not reachable through Traefik."
+      warn "If it stays unreachable, restore the previous version with: sudo bash deploy/rollback.sh"
       return
     fi
 
@@ -126,6 +132,7 @@ main() {
   APP_SOURCE_DIR="${APP_ROOT}/app"
   DEPLOY_DIR="${APP_ROOT}/deploy"
   DATA_DIR="${APP_ROOT}/data"
+  BACKUP_DIR="${APP_ROOT}/update-backups"
   ENV_FILE="${DEPLOY_DIR}/.env"
   COMPOSE_FILE="${DEPLOY_DIR}/compose.yml"
 
@@ -141,8 +148,19 @@ main() {
   SOURCE_ROOT="$LOCAL_SOURCE_ROOT"
   assert_app_versions_match "$SOURCE_ROOT"
 
+  local from_version="" to_version="" backup_path=""
+  from_version="$(read_app_version "$APP_SOURCE_DIR")"
+  to_version="$(read_app_version "$SOURCE_ROOT")"
+
+  log "Creating the update backup..."
+  backup_path="$(create_backup_unit "$from_version" "$to_version")"
+  prune_backups
+  log "Backup created: $backup_path"
+
   sync_project_sources
   ensure_runtime_env_defaults
+
+  render_compose_if_available
 
   log "Running deploy migrations..."
   run_deploy_migrations

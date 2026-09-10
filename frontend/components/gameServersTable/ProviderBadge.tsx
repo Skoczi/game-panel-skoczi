@@ -5,7 +5,6 @@ interface ProviderBadgeProps {
   provider?: string;
 }
 
-// OVH emblem SVG — path extracted from @ovhcloud/ods-react LogoEmblem, viewBox 0 0 53 32
 function OvhEmblem({ isDark, style }: { isDark: boolean; style?: CSSProperties }) {
   return (
     <svg
@@ -24,7 +23,6 @@ function OvhEmblem({ isDark, style }: { isDark: boolean; style?: CSSProperties }
   );
 }
 
-// Standalone logo without any slot container — use anywhere you need just the icon
 export function ProviderLogo({ provider, height = 22 }: { provider?: string; height?: number }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -60,7 +58,6 @@ export function ProviderLogo({ provider, height = 22 }: { provider?: string; hei
   return null;
 }
 
-// Fixed-width slot so server names always start at the same x position
 const BADGE_SLOT = 36;
 
 export function ProviderBadge({ provider }: ProviderBadgeProps) {

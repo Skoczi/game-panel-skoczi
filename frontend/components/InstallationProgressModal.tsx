@@ -129,7 +129,6 @@ export function InstallationProgressModal({
     });
   }, [installPlan, normalizedStatus]);
 
-  // Escape only dismisses once the install has settled; an in-progress install has no quick close.
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(isOpen, dialogRef, {
     onEscape: installationStatus === 'installing' ? undefined : onClose,
@@ -230,7 +229,6 @@ export function InstallationProgressModal({
                 ))}
               </div>
 
-              {/* ── Interaction panels ── */}
               {installInteraction?.status === 'pending' && installInteraction.kind === 'hytale_auth_required' && (() => {
                 const p = installInteraction.payload as {
                   verificationUriComplete?: string;
@@ -240,8 +238,6 @@ export function InstallationProgressModal({
                 };
                 const url = p.verificationUriComplete ?? p.verificationUri ?? '';
                 const mins = expiresInSec !== null ? Math.ceil(expiresInSec / 60) : null;
-                // The same interaction kind covers both the downloader auth and the
-                // Hytale account auth; `purpose` lets us show a more specific subtitle.
                 const authSubtitle =
                   p.purpose === 'downloader'
                     ? 'Authorize the download on your Hytale account'

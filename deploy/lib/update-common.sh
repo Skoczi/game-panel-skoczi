@@ -237,6 +237,57 @@ sync_project_sources() {
     | tar -C "$APP_SOURCE_DIR" -xf -
 }
 
+render_compose_if_available() {
+  local renderer="$APP_SOURCE_DIR/deploy/lib/render-compose.sh"
+
+  if [[ ! -f "$renderer" ]]; then
+    warn "No compose renderer in $APP_SOURCE_DIR; keeping the existing compose file."
+    return
+  fi
+
+  log "Rendering the compose file from the updated sources..."
+  GP_COMPOSE_FILE="$COMPOSE_FILE" bash "$renderer"
+}
+
+ensure_games_network_if_declared() {
+  local network="${GP_GAMES_NETWORK:-gamepanel-games}"
+
+  grep -q "name: ${network}" "$COMPOSE_FILE" 2>/dev/null || return 0
+  docker network inspect "$network" >/dev/null 2>&1 && return 0
+
+  log "Recreating the missing Docker network ${network}..."
+  docker network create --label gamepanel.managed=true "$network" >/dev/null
+}
+
+wait_for_panel_http() {
+  local timeout_seconds="${1:-90}"
+  local interval=3
+  local elapsed=0
+  local domain=""
+  local code=""
+
+  domain="$(read_env_raw_value 'DOMAIN')"
+  if [[ -z "$domain" ]]; then
+    warn "DOMAIN is not set in $ENV_FILE; skipping the HTTP routing check."
+    return 0
+  fi
+
+  while [[ "$elapsed" -lt "$timeout_seconds" ]]; do
+    code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 5 \
+      -H "Host: ${domain}" "https://127.0.0.1/api/health" 2>/dev/null || true)"
+
+    if [[ "$code" == "200" ]]; then
+      return 0
+    fi
+
+    sleep "$interval"
+    elapsed=$((elapsed + interval))
+  done
+
+  warn "The panel did not answer through Traefik (last HTTP status: ${code:-none})."
+  return 1
+}
+
 run_deploy_migrations() {
   local migrations_dir="$APP_SOURCE_DIR/deploy/migrations"
   local applied_file="$DATA_DIR/deploy-migrations.applied"

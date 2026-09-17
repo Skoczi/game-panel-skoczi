@@ -169,3 +169,51 @@ test('custom node menu handles Local-only inventory without prompting or navigat
   await expect(page.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
   expect(dialogs).toBe(0);
 });
+
+test('narrow node list has no host icons and keeps location separate from status', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/nodes', (r) =>
+    r.fulfill({
+      json: {
+        nodes: [
+          { ...node, name: 'Example A', location: 'London, UK', status: 'pending' },
+          {
+            ...node,
+            id: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+            name: 'Example B',
+            location: 'Amsterdam, NL',
+            status: 'pending',
+          },
+          {
+            ...node,
+            id: 'cccccccc-cccc-4ccc-bccc-cccccccccccc',
+            name: 'Example C',
+            location: 'Frankfurt, DE',
+            status: 'pending',
+          },
+        ],
+      },
+    })
+  );
+  await page.goto('/test/nodes.fixture.html');
+  await page.locator('.gp-node-selector').evaluate((element) => {
+    element.style.width = '220px';
+  });
+  await page.getByRole('combobox').click();
+  await expect(page.getByRole('option')).toHaveCount(4);
+  await expect(page.locator('[role="option"] .lucide-server')).toHaveCount(0);
+  await expect(page.locator('.gp-node-trigger .lucide-server')).toHaveCount(1);
+  for (const row of await page.getByRole('option').all()) {
+    const location = await row.locator('.gp-node-location').boundingBox();
+    const status = await row.locator('.gp-node-caption').boundingBox();
+    expect(location!.y + location!.height).toBeLessThanOrEqual(status!.y);
+    expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
+  await page
+    .locator('.gp-node-selector')
+    .screenshot({ path: 'test-results/node-selector-compact-trigger.png' });
+  await page.screenshot({ path: 'test-results/node-selector-compact.png', fullPage: true });
+});

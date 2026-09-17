@@ -26,7 +26,9 @@
 .gp-node-option { display: flex; align-items: center; gap: 9px; min-height: 54px; padding: 9px 8px; border: 1px solid transparent; border-radius: 9px; cursor: pointer; }
 .gp-node-option[aria-selected="true"] { background: #789eff16; }
 .gp-node-option[data-highlighted="true"] { background: #789eff29; border-color: #99b7ff45; }
-.gp-node-option-icon { display: grid; place-items: center; color: #9fb6e8; flex: 0 0 23px; }
+.gp-node-option .gp-node-copy { gap: 3px; }
+.gp-node-location { color: #b2c0e2; font-size: 10px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gp-node-option .gp-node-caption { white-space: nowrap; }
 .gp-node-check { color: #a9c5ff; flex-shrink: 0; }
 .gp-node-menu-note { margin-top: 6px; padding: 9px 7px 4px; border-top: 1px solid #ffffff12; color: #a5b4d2; font-size: 10px; line-height: 1.5; }
 @keyframes gp-node-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }

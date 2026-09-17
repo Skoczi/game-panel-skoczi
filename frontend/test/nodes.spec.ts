@@ -35,3 +35,11 @@ test('disabled node has no server or allocation action; mobile layout stays with
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:'test-results/nodes-mobile.png',fullPage:true});
 });
+test('desktop dark theme keeps node controls readable',async({page})=>{
+    await page.addInitScript(()=>localStorage.setItem('theme','dark'));
+    await page.setViewportSize({width:1440,height:900});
+    await page.goto('/test/nodes.fixture.html');
+    await expect(page.getByRole('heading',{name:'Warsaw test'})).toBeVisible();
+    await expect(page.locator('#active-node')).toHaveCSS('color','rgb(255, 255, 255)');
+    await page.screenshot({path:'test-results/nodes-desktop-dark.png',fullPage:true});
+});

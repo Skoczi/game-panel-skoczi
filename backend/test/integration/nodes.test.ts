@@ -22,7 +22,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
     const docker=(...args:string[])=>execFileSync('docker',args,{encoding:'utf8',timeout:120000});
     const request=async(url:string,method='GET',body?:unknown,key=randomUUID())=>{
         const response=await fetch(url,{method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,'Idempotency-Key':key},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
-        const value=await response.json().catch(()=>null);return {status:response.status,value};
+        const text=await response.text();let value:any;try{value=JSON.parse(text);}catch{value=text;}return {status:response.status,value};
     };
     const ok=async(url:string,method='GET',body?:unknown,key?:string)=>{
         const result=await request(url,method,body,key);assert.ok(result.status<300,`${method} ${url}: ${result.status} ${JSON.stringify(result.value)}`);return result.value;

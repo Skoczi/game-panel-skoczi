@@ -42,7 +42,7 @@ export function mountNodeControl(app: express.Application) {
             for (const [id, item] of downloads) if (item.expires < Date.now()) downloads.delete(id);
             if (downloads.size >= 10000) throw new Error('Download capacity reached');
             const token = secret(); downloads.set(token, { nodeId: node.id, path: value.path, actor: req.user!.username, expires: Date.now() + 60000, credential: node.key_encrypted! });
-            return { ...value, path: `/api/node-download/${token}` };
+            return { ...value, token, path: `/api/node-download/${token}` };
         } : undefined;
         proxyRuntime(req, res, { origin: node.origin, nodeId: node.id, key: store.key(node), path: req.url, actor: req.user!.username, transformJson });
     }));

@@ -1,6 +1,6 @@
 # OVH Game Panel by Skoczi
 
-Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.4 (preview)**. Nie jest to oficjalne wydanie OVHcloud.
+Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.5 (preview)**, w stopce **skoczi.0.05**. Nie jest to oficjalne wydanie OVHcloud.
 
 ## Co zmieniłem?
 

@@ -47,7 +47,11 @@ createRoot(document.getElementById('root')!).render(
             <button onClick={openFleet}>All servers</button>
           </>
         ) : (
-          <FleetWorkspace administrator={admin} onNodes={() => {}} />
+          <FleetWorkspace
+            userId={Number(sessionStorage.getItem('test-user') || 2)}
+            administrator={admin}
+            onNodes={() => {}}
+          />
         )}
       </main>
     </BrandingProvider>

@@ -275,9 +275,12 @@ export function AppShell({
           </AppPageLayout>
         )}
 
-        {activeTab === 'game-servers' && !ACTIVE_SERVER && !ADMIN_RUNTIME && (
+        {activeTab === 'game-servers' && currentUser && !ACTIVE_SERVER && !ADMIN_RUNTIME && (
           <AppPageLayout className={pageShellClassName}>
             <FleetWorkspace
+              key={currentUser?.id}
+              userId={currentUser.id}
+              gameNames={gameNamesByKey}
               administrator={Boolean(currentUser?.isRoot)}
               onNodes={() => setActiveTab('nodes')}
             />

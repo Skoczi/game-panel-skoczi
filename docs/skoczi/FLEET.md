@@ -4,6 +4,16 @@ Users work with **servers**, not execution hosts. Game Servers lists all servers
 
 Administrators see the complete inventory. **Manage nodes** opens infrastructure administration; **Nodes → Open servers** opens the runtime workspace used for provisioning. The node selector exists only in that administrative workspace. Returning to Game Servers closes that context.
 
+## Personal layout
+
+Choose **My order** and drag a card by its handle. Touch is supported; keyboard users focus the handle, press Space, move with arrow keys, then press Space to drop or Escape to cancel. New servers appear after previously ordered cards. Reordering filtered results keeps the relative order of hidden cards. With grouping enabled, cards move only within their game/type group.
+
+You can also sort by name, game/type, location or status; filter by game/type and status; and group cards by game/type. Switching to an automatic sort preserves your manual order. **Reset view** clears ordering, filters, grouping and search. These controls change presentation only, never node placement, game files or access.
+
+Order, filters and grouping are stored separately for each account in this browser. They do not sync between devices; clearing browser storage resets them. Search text is temporary. If storage is blocked, the view still works and displays a persistence warning.
+
+Game/type comes from the runtime catalogue ID and available catalogue labels, not guesses based on the server name. Custom images without a catalogue ID display **Custom image**. Older snapshots remain supported; metadata appears after the next successful inventory refresh. No game configuration or environment variables are collected for grouping.
+
 ## Assign a server
 
 1. Create the account in User Administration without global installation or user-management permissions.

@@ -13,6 +13,7 @@ export type FleetRow = {
     missing: number;
     placement_revision: number;
     runtime_key: string;
+    catalog_id: string | null;
 };
 export type InventoryItem = {
     id: number;
@@ -20,6 +21,7 @@ export type InventoryItem = {
     name: string;
     provider: string;
     status: string;
+    catalogId?: string | null;
 };
 
 export class FleetStore {
@@ -38,6 +40,9 @@ export class FleetStore {
             id INTEGER PRIMARY KEY AUTOINCREMENT, server_id TEXT NOT NULL,
             actor_id INTEGER NOT NULL, action TEXT NOT NULL, created_at INTEGER NOT NULL
         )`);
+        const columns = await this.db.all<{ name: string }[]>('PRAGMA table_info(fleet_servers)');
+        if (!columns.some(column => column.name === 'catalog_id'))
+            await this.db.exec('ALTER TABLE fleet_servers ADD COLUMN catalog_id TEXT');
     }
     async observe(node: string, inventory: InventoryItem[]) {
         // Validate the complete snapshot before changing any state; a failed/partial read never marks servers missing.
@@ -54,6 +59,7 @@ export class FleetStore {
                     !/^[a-f0-9]{32}$/.test(s.runtimeKey) ||
                     typeof s.provider !== 'string' ||
                     s.provider.length > 100 ||
+                    (s.catalogId != null && (typeof s.catalogId !== 'string' || s.catalogId.length > 256)) ||
                     typeof s.status !== 'string' ||
                     s.status.length > 100,
             ) ||
@@ -65,9 +71,9 @@ export class FleetStore {
         for (const s of inventory)
             await this.db.run(
                 `INSERT INTO fleet_servers
-            (id,node_id,runtime_id,runtime_key,name,provider,status,observed_at) VALUES(?,?,?,?,?,?,?,?)
+            (id,node_id,runtime_id,runtime_key,name,provider,status,observed_at,catalog_id) VALUES(?,?,?,?,?,?,?,?,?)
             ON CONFLICT(node_id,runtime_key) DO UPDATE SET runtime_id=excluded.runtime_id,name=excluded.name,provider=excluded.provider,
-            status=excluded.status,observed_at=excluded.observed_at,missing=0`,
+            status=excluded.status,observed_at=excluded.observed_at,missing=0,catalog_id=excluded.catalog_id`,
                 randomUUID(),
                 node,
                 s.id,
@@ -76,6 +82,7 @@ export class FleetStore {
                 s.provider,
                 s.status,
                 now,
+                s.catalogId || null,
             );
         const ids = new Set(inventory.map((s) => s.runtimeKey));
         for (const row of await this.list())

@@ -81,6 +81,7 @@ async function readInventory(id: string): Promise<InventoryItem[]> {
                                 runtimeKey: s.runtimeKey,
                                 name: s.name,
                                 provider: s.provider,
+                                catalogId: s.catalogId,
                                 status: s.status,
                             })),
                         );
@@ -109,6 +110,7 @@ export function refreshFleet(): Promise<void> {
                 runtimeKey: s.runtime_uuid!,
                 name: s.name,
                 provider: s.provider,
+                catalogId: s.catalog_id,
                 status: s.status,
             })),
         );
@@ -249,6 +251,7 @@ export function mountFleet(app: express.Application) {
                     id: row.id,
                     name: row.name,
                     provider: row.provider,
+                    catalogId: row.catalog_id,
                     node: {
                         name: node?.name || 'Local',
                         location: node?.location || 'Panel host',

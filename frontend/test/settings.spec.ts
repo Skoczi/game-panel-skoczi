@@ -3,10 +3,10 @@ import { DEFAULT_APPEARANCE } from '../types/globalSettings';
 import { formatDisplayVersion } from '../utils/appInfo';
 
 test('display revisions remain separate from technical package versions', () => {
-  expect(formatDisplayVersion('1.5.0-skoczi.4')).toBe('skoczi.0.04');
-  expect(formatDisplayVersion('1.5.0-skoczi.5')).toBe('skoczi.0.05');
-  expect(formatDisplayVersion('1.5.0-skoczi.12')).toBe('skoczi.0.12');
-  expect(formatDisplayVersion('1.5.0-skoczi.4.1')).toBe('skoczi.0.04.1');
+  expect(formatDisplayVersion('1.5.0-skoczi.6')).toBe('v1.5.0 · Revision 6');
+  expect(formatDisplayVersion('1.5.0-skoczi.12')).toBe('v1.5.0 · Revision 12');
+  expect(formatDisplayVersion('1.6.0-skoczi.7')).toBe('v1.6.0 · Revision 7');
+  expect(formatDisplayVersion('1.5.0-skoczi.4.1')).toBe('v1.5.0 · Revision 4.1');
   expect(formatDisplayVersion('0.0.0-dev')).toBe('0.0.0-dev');
 });
 
@@ -64,7 +64,7 @@ test('footer hides, text is escaped and broken logo keeps login usable', async (
   await page.route('https://example.com/missing.png', (route) => route.fulfill({ status: 404 }));
   await page.goto('/test/settings.fixture.html?login');
   await expect(page.getByRole('heading', { name: '<script>bad()</script>' })).toBeVisible();
-  await expect(page.getByText('Game Panel by Skoczi', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(DEFAULT_APPEARANCE.loginFooter, { exact: true })).toHaveCount(0);
   await expect(page.getByRole('img', { name: '<script>bad()</script> logo', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -90,12 +90,20 @@ test('root edits allocations, saves appearance and sees changes in the sidebar',
   await expect(page.getByText('Follow Us', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'Trustpilot', exact: true })).toHaveCount(0);
   expect(state().network.allocations[1].tcp).toBe('28015-28020');
-  const footerName = page.locator('aside').getByText('Game Panel by Skoczi', { exact: true });
+  const footerName = page.locator('aside').getByText('Game Panel · Skoczi Edition', { exact: true });
   const revision = page.getByTestId('panel-revision');
   await expect(footerName).toBeVisible();
-  await expect(revision).toHaveText('skoczi.0.05');
+  await expect(revision).toHaveText('v1.5.0 · Revision 6');
+  const upstream = page.getByRole('link', { name: 'Based on OVHcloud Game Panel' });
+  await expect(upstream).toHaveAttribute('href', 'https://github.com/ovh/game-panel');
+  await expect(upstream).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.6/);
+  await expect(page.getByRole('link', { name: 'Bug or feature?' })).toHaveAttribute('href', 'https://github.com/Skoczi/game-panel-skoczi/issues');
   const nameBox = await footerName.boundingBox(); const revisionBox = await revision.boundingBox();
   expect(revisionBox!.y).toBeGreaterThanOrEqual(nameBox!.y + nameBox!.height);
+  const creditBox = await upstream.boundingBox();
+  expect(creditBox!.y).toBeGreaterThanOrEqual(revisionBox!.y + revisionBox!.height);
+  expect(await footerName.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.reload(); await expect(page.getByText('Second node', { exact: true })).toBeVisible();
 });
 
@@ -111,7 +119,8 @@ test('conflicting save preserves edits and offers reload', async ({ page }) => {
 test('non-root menu has no global Settings entry', async ({ page }) => {
   await mock(page); await page.goto('/test/settings.fixture.html?nonroot');
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
-  await expect(page.getByTestId('panel-revision')).toHaveText('skoczi.0.05');
+  await expect(page.getByTestId('panel-revision')).toHaveText('v1.5.0 · Revision 6');
+  await expect(page.getByRole('link', { name: 'Based on OVHcloud Game Panel' })).toBeVisible();
 });
 
 test('settings stays within a narrow viewport', async ({ page }) => {

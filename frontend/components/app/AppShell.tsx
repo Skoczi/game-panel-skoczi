@@ -212,7 +212,7 @@ export function AppShell({
             <Menu className={`w-6 h-6 ${isDark ? 'text-white' : 'text-white'}`} />
           </AppButton>
           {/* Modified by Skoczi: independent fork identity on mobile. */}
-          <span className="text-white text-center text-sm font-semibold">OVH Game Panel<br />by Skoczi</span>
+          <span className="text-white text-center text-sm font-semibold">Game Panel<br />Skoczi Edition</span>
           <div className="w-10"></div>
         </div>
       </div>

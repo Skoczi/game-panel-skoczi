@@ -1,6 +1,8 @@
 # Documentation
 
-**OVH Game Panel by Skoczi · 1.5.0-skoczi.3 preview**
+**Game Panel · Skoczi Edition — v1.5.0 · Revision 6 (preview)**
+
+Based on [OVHcloud Game Panel](https://github.com/ovh/game-panel). Technical release: `1.5.0-skoczi.6`.
 
 | I want to… | Read |
 |---|---|

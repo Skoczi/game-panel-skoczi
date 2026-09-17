@@ -2,6 +2,13 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.6 — preview — 2026-09-17
+
+- Renamed the fork to **Game Panel · Skoczi Edition**, with a visible **Based on OVHcloud Game Panel** link below the sidebar revision.
+- Display versions as **v1.5.0 · Revision 6**; package metadata, tags and update checks retain `1.5.0-skoczi.6`.
+- Updated mobile branding and fresh-install defaults. Saved site names, logos, subtitles, login footers and network settings are not overwritten.
+- Directed fork issue reports to this repository. Original authorship and license notices remain intact.
+
 ## 1.5.0-skoczi.5 — preview — 2026-09-17
 
 - Split the sidebar footer into two lines: **Game Panel by Skoczi**, then **skoczi.0.05**.

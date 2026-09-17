@@ -1,13 +1,13 @@
-# OVH Game Panel by Skoczi
+# Game Panel · Skoczi Edition
 
-Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.5 (preview)**, w stopce **skoczi.0.05**. Nie jest to oficjalne wydanie OVHcloud.
+Fork [OVHcloud Game Panel](https://github.com/ovh/game-panel) 1.5.0. Aktualne wydanie: **1.5.0-skoczi.6 (preview)**, w stopce **v1.5.0 · Revision 6**. Nie jest to oficjalne wydanie OVHcloud. Skoczi jest autorem zmian forka, nie projektu bazowego.
 
 ## Co zmieniłem?
 
 - Wybór IPv4 hosta przy każdym mapowaniu TCP/UDP.
 - Osobne zakresy dozwolonych portów TCP i UDP dla każdego IP.
 - Zakładka **Settings** dla głównego administratora: IP, aliasy, zakresy portów i podgląd przypisanych serwerów.
-- Przełączniki Follow Us i Trustpilot oraz stopka Game Panel by Skoczi z numerem wersji.
+- Przełączniki Follow Us i Trustpilot oraz stopka Game Panel · Skoczi Edition z wersją, rewizją i odnośnikiem do projektu OVHcloud.
 - Ten sam port może działać na różnych IP. Nakładające się przypisania są odrzucane.
 - Kilka mapowań jednego portu kontenera nie nadpisuje się nawzajem.
 - Lista serwerów i kopiowanie adresu pokazują wybrane IP gry.

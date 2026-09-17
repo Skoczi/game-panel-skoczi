@@ -188,7 +188,7 @@ export function Sidebar({
   const currentUserInitial = currentUserLabel.trim().charAt(0).toUpperCase() || '?';
   const appVersion = getAppVersion();
   const versionLabel = <>
-    <span className="block whitespace-nowrap">Game Panel by Skoczi</span>
+    <span className="block text-[11px] leading-4">Game Panel · Skoczi Edition</span>
     <span className="mt-1 block whitespace-nowrap text-[11px] tracking-wide tabular-nums" data-testid="panel-revision">{formatDisplayVersion(appVersion)}</span>
   </>;
   const { appearance, loaded } = useBranding();
@@ -350,6 +350,14 @@ export function Sidebar({
           ) : (
             <span className="w-full text-xs text-gray-400" title={`Version ${appVersion}`}>{versionLabel}</span>
           )}
+          <a
+            href="https://github.com/ovh/game-panel"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full rounded-sm text-[9px] text-gray-400 transition-colors hover:text-gray-200"
+          >
+            Based on OVHcloud Game Panel <span aria-hidden="true">↗</span>
+          </a>
           <button
             type="button"
             onClick={() => setIsLegalModalOpen(true)}
@@ -358,7 +366,7 @@ export function Sidebar({
             Legal
           </button>
           <a
-            href="https://github.com/ovh/game-panel/issues"
+            href="https://github.com/Skoczi/game-panel-skoczi/issues"
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-sm px-1 text-[10px] transition-colors text-gray-500 hover:text-gray-300"

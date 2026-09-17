@@ -43,6 +43,23 @@ test('upgrading .3 adds branding once without changing policies or prior switche
         assert.equal(again.snapshot().appearance.showNews, false);
     } finally { native.close(); }
 });
+test('edition defaults do not overwrite existing branding or allocations', async () => {
+    assert.equal(DEFAULT_APPEARANCE.siteSubtitle, 'Skoczi Edition');
+    assert.match(DEFAULT_APPEARANCE.loginFooter, /Based on OVHcloud Game Panel/);
+    const { native, db } = database();
+    try {
+        native.exec('CREATE TABLE panel_settings(id INTEGER PRIMARY KEY, revision INTEGER, settings_json TEXT)');
+        const old = seed();
+        old.appearance.siteName = 'Community';
+        old.appearance.siteSubtitle = 'by Skoczi';
+        old.appearance.loginFooter = 'Game Panel by Skoczi';
+        old.appearance.logo = 'https://example.com/logo.png';
+        native.prepare('INSERT INTO panel_settings VALUES(1, 9, ?)').run(JSON.stringify(old));
+        const store = new GlobalSettingsStore(db, () => {}); await store.initialize(seed());
+        assert.deepEqual(store.snapshot(), { ...old, revision: 9 });
+    } finally { native.close(); }
+});
+
 function database() {
     const native = new DatabaseSync(':memory:');
     native.exec('CREATE TABLE game_servers (id INTEGER PRIMARY KEY, name TEXT, ports_json TEXT)');

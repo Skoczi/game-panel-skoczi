@@ -1,9 +1,9 @@
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
 export const DEFAULT_APPEARANCE = {
   showFollowUs: true, showTrustpilot: true, showNews: true,
-  siteName: 'Game Panel', siteSubtitle: 'by Skoczi', logo: '',
+  siteName: 'Game Panel', siteSubtitle: 'Skoczi Edition', logo: '',
   loginDescription: 'Sign in to manage your game servers',
-  showLoginFooter: true, loginFooter: 'Game Panel by Skoczi',
+  showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Skoczi Edition',
 };
 export type Appearance = typeof DEFAULT_APPEARANCE;
 export type GlobalSettings = {

@@ -21,7 +21,9 @@ This is allocation management, not IP provisioning: configure interfaces, provid
 - **Show Follow Us** controls the sidebar social links.
 - **Show Trustpilot** controls the sidebar review badge.
 - **Show announcements** controls the news carousel. Disabled means no browser news request, not just a hidden banner.
-- Footer: **Game Panel by Skoczi**, with the compact revision on a separate line below (e.g. **skoczi.0.05**). It is derived from the package version; the full technical version remains in the tooltip and update dialog.
+- Footer: **Game Panel · Skoczi Edition**, then **v1.5.0 · Revision 6**, followed by a **Based on OVHcloud Game Panel** link to the original repository. The version line separates the upstream base from the fork revision. The technical version (`1.5.0-skoczi.6`) remains in package metadata, tags, update checks and tooltips.
+
+Fresh installations use **Skoczi Edition** as the subtitle and credit OVHcloud in the login footer. Upgrades preserve saved branding, including custom names, subtitles and footers; edit those in Settings if desired.
 
 Visibility updates after saving, on page reload or when another browser tab regains focus. Legal notices remain available. Both sections default to visible on upgrade.
 

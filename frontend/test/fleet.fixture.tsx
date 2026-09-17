@@ -6,6 +6,7 @@ import { ThemeProvider } from '../contexts/ThemeContext';
 import { BrandingProvider } from '../contexts/BrandingContext';
 import { ACTIVE_SERVER, openFleet } from '../utils/nodeContext';
 import { apiClient } from '../utils/api';
+import { useAuthSession } from '../components/app/useAuthSession';
 import '@ovhcloud/ods-react/normalize-css';
 import '@ovhcloud/ods-themes/default/css';
 import '@ovhcloud/ods-themes/default/fonts';
@@ -13,6 +14,14 @@ import '../src/ui/theme/ods-dark.css';
 import '../src/ui/theme/ods-light.css';
 import '../styles/globals.css';
 const admin = sessionStorage.getItem('test-admin') === '1';
+function SessionProbe() {
+  const session = useAuthSession();
+  return (
+    <output data-testid="session-permissions">
+      {session.authReady ? JSON.stringify(session.serverPermissionsById) : 'loading'}
+    </output>
+  );
+}
 createRoot(document.getElementById('root')!).render(
   <ThemeProvider>
     <BrandingProvider>
@@ -27,6 +36,7 @@ createRoot(document.getElementById('root')!).render(
       <main className="min-h-screen bg-slate-50 p-6 md:ml-52 dark:bg-slate-950">
         {ACTIVE_SERVER ? (
           <>
+            {sessionStorage.getItem('test-session') === '1' && <SessionProbe />}
             <h1>{ACTIVE_SERVER.name}</h1>
             <p>{ACTIVE_SERVER.location}</p>
             <button

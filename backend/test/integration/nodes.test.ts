@@ -727,6 +727,18 @@ test(
             );
             token = adminToken;
             serverHeader = '';
+            const localSocket = new WebSocket(panel.replace('http:', 'ws:') + `/api?server=${localFleet.id}`);
+            const localFrames: any[] = [];
+            localSocket.on('message', data => localFrames.push(JSON.parse(data.toString())));
+            localSocket.on('open', () => localSocket.send(JSON.stringify({ type: 'auth', token: bobToken })));
+            try {
+                await waitFor(async () => localFrames.some(f => f.type === 'auth:success'), 'local scoped websocket');
+                localSocket.send(JSON.stringify({ type: 'subscribe:servers' }));
+                await waitFor(async () => localFrames.some(f => f.type === 'servers:snapshot'), 'local scoped snapshot');
+                assert.deepEqual(localFrames.find(f => f.type === 'servers:snapshot').servers.map((s: any) => s.id), [localId]);
+                await ok(panel + `/api/fleet/${localFleet.id}/members/${bob.id}`, 'DELETE');
+                await waitFor(async () => localSocket.readyState === WebSocket.CLOSED, 'local revocation closes console');
+            } finally { localSocket.terminate(); }
             await ok(panel + `/api/servers/${localId}`, 'DELETE');
             docker('restart', agentName);
             await waitFor(

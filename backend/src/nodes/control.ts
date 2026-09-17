@@ -279,7 +279,8 @@ export function createNodeWebSocketRouter(
                 bridgeNodeSocket(client, match[1], match[2]),
             );
         } else if (
-            (req.url === '/api' || req.url === '/') &&
+            (req.url === '/api' || req.url === '/' ||
+                (!agentUpgrade && /^\/api\?server=[0-9a-f-]{36}$/.test(req.url || ''))) &&
             (!agentUpgrade || agentUpgrade(req))
         ) {
             local.handleUpgrade(req, socket, head, (ws) => local.emit('connection', ws, req));

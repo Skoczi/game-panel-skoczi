@@ -25,6 +25,7 @@ import { logError } from '../utils/logger.js';
 import { PERMISSIONS } from '../permissions.js';
 import { serverPermissions } from '../middleware/auth.js';
 import { isAgent } from '../agent/identity.js';
+import { serverDelegation } from '../fleet/control.js';
 
 const WS_AUTH_TIMEOUT_MS = 3_000;
 const WS_ACCOUNT_VALIDATION_TTL_MS = 5_000;
@@ -78,6 +79,26 @@ async function ensureWsUserEnabled(ws: AuthenticatedWebSocket): Promise<boolean>
   }
 
   ws.isRoot = Boolean(user.is_root);
+  if (ws.selectedServer) {
+    try {
+      const scope = await serverDelegation(ws.selectedServer, 'local', {
+        userId: ws.userId,
+        isRoot: ws.isRoot,
+      });
+      const fingerprint = JSON.stringify([ws.isRoot, scope]);
+      if (ws.accessFingerprint && ws.accessFingerprint !== fingerprint)
+        throw new Error('Access changed');
+      ws.accessFingerprint = fingerprint;
+      ws.runtimeScope = scope.serverId;
+      ws.visibleServers = new Set([scope.serverId]);
+      ws.permissionsByServer = { [scope.serverId]: scope.permissions };
+      ws.accountValidatedAt = now;
+      return true;
+    } catch {
+      ws.close(1008, 'Server context changed; reopen server');
+      return false;
+    }
+  }
   const memberships = await serverMemberRepository.listByUser(ws.userId);
   const fingerprint = JSON.stringify([
     ws.isRoot,
@@ -142,6 +163,9 @@ export function setupWebSocket(wss: WebSocketServer): void {
 
   wss.on('connection', (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
     ws.isAlive = true;
+    if (!isAgent())
+      ws.selectedServer =
+        new URL(req.url || '/', 'http://localhost').searchParams.get('server') ?? undefined;
 
     if (!authenticateFromRequest(ws, req)) return;
     ensureSubs(ws);
@@ -222,7 +246,7 @@ async function routeMessage(ws: AuthenticatedWebSocket, message: WSMessage): Pro
 
   // Validate account state once per socket to reject disabled/deleted users.
   if (!(await ensureWsUserEnabled(ws))) return;
-  if (!ws.isRoot) {
+  if (!ws.isRoot || ws.runtimeScope !== undefined) {
     if (
       message.type === 'subscribe:system-metrics' ||
       ('serverId' in message &&

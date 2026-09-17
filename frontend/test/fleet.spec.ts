@@ -129,6 +129,66 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
   await page.getByRole('button', { name: 'Revoke access' }).click();
   await expect(page.getByText('No assigned users. Administrators retain access.')).toBeVisible();
 });
+
+test('an open server refreshes grants, retains context on outage and exits after revocation', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('auth_token', 'fixture-token');
+    sessionStorage.setItem('test-session', '1');
+  });
+  await page.route('**/api/auth/me', (r) =>
+    r.fulfill({
+      json: {
+        user: { id: 2, username: 'Player', isRoot: false, isEnabled: true },
+        permissions: { global: [], servers: [] },
+      },
+    })
+  );
+  let permissions = ['server.power'];
+  let status = 200;
+  let requests = 0;
+  await page.route(`**/api/fleet/${serverId}/context`, (r) => {
+    requests++;
+    return r.fulfill({
+      status,
+      json:
+        status === 200
+          ? {
+              id: serverId,
+              nodeId,
+              runtimeId: 1,
+              name: 'Community Arena',
+              nodeName: 'West-01',
+              location: 'Amsterdam, NL',
+              permissions,
+              placementRevision: 1,
+            }
+          : { error: 'Unavailable' },
+    });
+  });
+  await page.goto('/test/fleet.fixture.html');
+  await page
+    .getByRole('article')
+    .filter({ hasText: 'Community Arena' })
+    .getByRole('button', { name: 'Open server' })
+    .click();
+  await expect(page.getByTestId('session-permissions')).toContainText('server.power');
+  permissions = ['fs.read'];
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByTestId('session-permissions')).toContainText('fs.read');
+  await expect(page.getByTestId('session-permissions')).not.toContainText('server.power');
+  status = 503;
+  const previous = requests;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect.poll(() => requests).toBeGreaterThan(previous);
+  await expect(page).toHaveURL(new RegExp(`server=${serverId}`));
+  await expect(page.getByTestId('session-permissions')).toContainText('fs.read');
+  status = 404;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.getByRole('heading', { name: 'Game Servers', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_server'))).toBeNull();
+});
 test('fleet workspace fits mobile and dark desktop', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/test/fleet.fixture.html');

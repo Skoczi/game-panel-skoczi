@@ -22,6 +22,7 @@ Terminal access permits commands inside the game container; file access can expo
 - Runtime rows have a random 128-bit identity assigned by a SQLite migration/insert trigger. Inventory uses node ID plus that identity, not a recyclable numeric ID.
 - Existing game IDs, containers, files and memberships stay in place. Reusing an ID after rebuilding a database cannot inherit old remote memberships. Unknown runtime identity is rejected.
 - Opening a link resolves its node and runtime ID before activating the workspace. A per-tab reload closes old sockets and discards runtime caches. Use separate tabs for simultaneous server workspaces.
+- The selected local workspace is also identity-bound for HTTP and WebSocket traffic. A stale tab cannot silently operate on a replacement server with the same numeric ID.
 - The browser never receives agent credentials. Its requested UUID is checked against the authenticated account and node on every remote HTTP request.
 - The panel signs a short-lived **protocol 2** single-server capability. The agent checks signature, exact method/path, node audience, nonce and runtime identity, then applies operation-specific runtime permissions. Global operations and member management are not delegated.
 - WebSocket snapshots/events/metrics are filtered. Host metrics and foreign-server subscriptions are rejected. Console sessions also check their owner's identity.
@@ -29,6 +30,8 @@ Terminal access permits commands inside the game container; file access can expo
 ## Revocation and failures
 
 New HTTP requests check membership immediately. Remote sockets recheck the account, node credential and grants about every five seconds and close on change. Local sockets refresh membership/account checks on the same bound. Already admitted commands and transfers can finish; revocation is not rollback. Download links are single-use, expire after 60 seconds, and recheck access and runtime identity on redemption.
+
+Open workspaces refresh effective permissions every 15 seconds and on window focus. Removed membership returns the user to Game Servers. A transient failure preserves the selected context rather than silently choosing another host; backend checks remain authoritative.
 
 Inventory refreshes roughly every 30 seconds, at most four remote reads in parallel, with a 10-second deadline. Only display metadata is retained centrally—no environment variables or host paths. Failed/malformed inventory never deletes known records or declares games stopped. Disabled, unreachable or stale nodes display **unknown**, their last observation and a disabled Open action. A successful complete snapshot can mark missing servers absent. Requests never fall back to Local.
 
@@ -56,3 +59,5 @@ The global ID, membership and placement revision are a foundation, **not an impl
 | `DELETE /api/fleet/:uuid/members/:userId` | Root; revoke membership |
 
 Remote HTTP uses bearer authentication plus `X-GamePanel-Server: UUID`. Node ID, UUID and runtime path must agree. WebSockets use `/api/nodes/:nodeId/ws?server=UUID` with the existing first-frame bearer exchange. Resolve context rather than guessing numeric IDs. Changes are recorded in `fleet_audit`, without credentials.
+
+Local selected workspaces use the same HTTP header and `/api?server=UUID` WebSocket endpoint. Administrative provisioning without a selected server keeps the existing runtime-wide API.

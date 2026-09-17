@@ -174,6 +174,9 @@ test('delegated HTTP permissions never fall back to an agent-local user with the
     assert.equal(visible(2), false);
     assert.equal((await auth.buildServerEnvVisibility(user))(1), false);
     assert.equal(localReads, 0);
+    const localRoot = await auth.buildServerVisibility({ userId: 1, isRoot: true, runtimeScope: 1 });
+    assert.equal(localRoot(1), true);
+    assert.equal(localRoot(2), false);
 });
 test('WebSocket snapshots, events and metrics exclude other servers and redact environment', () => {
     const { sendSafe } = loadWithMocks('../src/websocket/auth.ts', {
@@ -209,4 +212,7 @@ test('WebSocket snapshots, events and metrics exclude other servers and redact e
     ws.accountValidatedAt = Date.now() - 7000;
     sendSafe(ws, { type: 'logs:new', serverId: 1, lines: ['stale'] });
     assert.equal(sent.length, 2);
+    Object.assign(ws, { isRoot: true, runtimeScope: 1, accountValidatedAt: Date.now() });
+    sendSafe(ws, { type: 'servers:updated', server: { id: 2, env: {} } });
+    assert.equal(sent.length, 2, 'selected root workspace must not receive another server');
 });

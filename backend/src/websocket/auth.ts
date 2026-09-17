@@ -47,7 +47,7 @@ export function authenticateFromMessage(ws: AuthenticatedWebSocket, message: WSM
 export function sendSafe(ws: WebSocket, payload: OutgoingWebSocketMessage): void {
     if (ws.readyState !== WebSocket.OPEN) return;
     const client = ws as AuthenticatedWebSocket;
-    if (!client.isRoot) {
+    if (!client.isRoot || client.runtimeScope !== undefined) {
         if (['error', 'auth:success', 'pong', 'terminal:error'].includes(payload.type)) {
             // Authentication/control messages contain no runtime data.
         } else {

@@ -37,6 +37,8 @@ export interface AuthenticatedWebSocket extends WebSocket {
     isRoot?: boolean;
     tokenVersion?: number;
     delegation?: Delegation;
+    selectedServer?: string;
+    runtimeScope?: number;
     visibleServers?: Set<number>;
     accessFingerprint?: string;
     permissionsByServer?: Record<number, string[]>;

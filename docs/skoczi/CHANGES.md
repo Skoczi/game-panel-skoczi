@@ -40,7 +40,7 @@ Connection display and copy actions use the allocation IP
 Fresh-install telemetry is opt-in. Release metadata points to the fork; automatic updates and upstream updater image pulls are disabled in the preview. UI branding distinguishes the fork. Apache attribution and original changelog remain. Tests and documentation accompany the change.
 
 ## Intentionally unchanged
-Game-specific runtime adapters, local user authentication, Docker socket access, catalogue/providers and general backup implementation remain upstream-derived. Revision 7 adds the agent boundary described below; local user permissions are not rewritten.
+Game-specific runtime adapters, local user authentication, Docker socket access, catalogue/providers and general backup implementation remain upstream-derived. Revision 7 adds the agent boundary described below; Revision 8 adds server-centric access while retaining existing local memberships.
 No per-user IP ownership or quotas.
 
 ## Server workspace in Revision 8
@@ -54,7 +54,7 @@ No per-user IP ownership or quotas.
 
 ## Review the diff
 ```bash
-git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.7 -- backend frontend deploy
+git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.8 -- backend frontend deploy
 ```
 
 See [limitations](LIMITATIONS.md) and the [release history](../../CHANGELOG-SKOCZI.md).

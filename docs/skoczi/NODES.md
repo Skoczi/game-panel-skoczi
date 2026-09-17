@@ -64,7 +64,8 @@ The Docker socket gives the agent host-level authority. Labels prevent accidenta
        ssl_certificate_key /etc/letsencrypt/live/node.example.com/privkey.pem;
        # Restrict management to the panel address/VPN at the firewall if possible.
        client_max_body_size 64m;
-       location /api/ {
+       # Match /api itself too: the agent WebSocket endpoint has no trailing slash.
+       location ~ ^/api(?:/|$) {
            proxy_pass http://127.0.0.1:18082;
            proxy_http_version 1.1;
            proxy_set_header Host $host;

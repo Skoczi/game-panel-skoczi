@@ -2,6 +2,11 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## Revision 9 follow-up — remote realtime and IP dropdown
+
+- Corrected the agent nginx example to proxy both `/api` (WebSocket) and `/api/…` (HTTP). A trailing-slash-only proxy redirects the WebSocket handshake and prevents realtime progress updates.
+- Replaced the host IPv4 native select with the shared themed dropdown, including keyboard controls, portal positioning, restricted-default handling and preservation of unavailable saved addresses.
+
 ## 1.5.0-skoczi.9 — node settings and login theme (preview) — 2026-09-17
 
 - Reordered navigation to Game Servers, User Administration, Nodes, Panel Settings, Host Status and Resources. Renamed the global settings page to Panel Settings; permission-based visibility is unchanged.

@@ -17,6 +17,7 @@ import { AppPageLayout } from '../../src/ui/layout';
 
 const HostStatus = lazy(() => import('../HostStatus').then((m) => ({ default: m.HostStatus })));
 const GlobalSettings = lazy(() => import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings })));
+const Nodes = lazy(() => import('../Nodes').then((m) => ({ default: m.Nodes })));
 import type { CLIMessage } from '../../types/cli';
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
 import type { AuthUser } from '../../utils/permissions';
@@ -324,6 +325,9 @@ export function AppShell({
           </AppPageLayout>
         )}
 
+        {activeTab === 'nodes' && currentUser?.isRoot && (
+          <AppPageLayout className={pageShellClassName}><Suspense fallback={<p>Loading nodes…</p>}><Nodes /></Suspense></AppPageLayout>
+        )}
         {activeTab === 'settings' && currentUser?.isRoot && (
           <AppPageLayout className={pageShellClassName}><Suspense fallback={<p>Loading settings…</p>}><GlobalSettings /></Suspense></AppPageLayout>
         )}

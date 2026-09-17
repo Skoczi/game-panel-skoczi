@@ -1,4 +1,5 @@
 // Modified by Skoczi: preserve explicit HostIp and multiple bindings per container port.
+import { ownsContainer, runtimeNodeId } from './ownership.js';
 import { buildPortMaps } from './portBindings.js';
 import { assertPortPolicy, configuredPortPolicy } from '../portPolicy.js';
 import { docker } from './client.js';
@@ -72,7 +73,7 @@ function sanitizeContainerName(name: string): string {
 
 export function buildManagedContainerName(serverId: number, name: string): string {
     const slug = sanitizeContainerName(name) || 'server';
-    return `${slug}-${serverId}`;
+    return `${runtimeNodeId() ? `gp-${runtimeNodeId()}-` : ''}${slug}-${serverId}`;
 }
 
 function escapeRegexLiteral(s: string): string {
@@ -387,7 +388,7 @@ export async function removeManagedContainersForServer(serverId: number): Promis
     });
 
     await Promise.all(
-        containers.map(async (container) => {
+        containers.filter(container => ownsContainer(container.Labels)).map(async (container) => {
             try {
                 await removeContainer(container.Id);
             } catch {
@@ -418,7 +419,7 @@ export async function listPublishedHostPorts(params?: {
             }
 
             const labels = (info?.Config?.Labels ?? {}) as Record<string, string>;
-            if (excludedServerIds.has(String(labels['gamepanel.serverId'] ?? ''))) return;
+            if (ownsContainer(labels) && excludedServerIds.has(String(labels['gamepanel.serverId'] ?? ''))) return;
 
             const bindings = info?.HostConfig?.PortBindings;
             if (!bindings || typeof bindings !== 'object') return;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../utils/api';
+import { ACTIVE_NODE, selectNode } from '../../utils/nodeContext';
 import {
   type AuthPermissions,
   type AuthUser,
@@ -23,6 +24,7 @@ export function useAuthSession() {
 
   const applyProfile = useCallback((profile: any) => {
     const user = profile?.user ?? null;
+    if (user && !user.isRoot && ACTIVE_NODE !== 'local') { selectNode('local'); return; }
     setCurrentUser(user);
     setCurrentPermissions(normalizeAuthPermissions(profile?.permissions));
     setCurrentUserId(typeof user?.id === 'number' ? user.id : null);

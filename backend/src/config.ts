@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { gamePanelImage } from './utils/images.js';
+import { agentIdentity, isAgent } from './agent/identity.js';
 
 function mustEnv(name: string): string {
     const v = process.env[name];
@@ -100,6 +101,7 @@ export function requireAdminBootstrapPassword(): string {
 
 export function getConfig(): AppConfig {
     if (cached) return cached;
+    const nodeId = isAgent() ? agentIdentity().nodeId : null;
 
     const domain = mustEnv('DOMAIN').trim();
     if (!domain) throw new Error('Missing env var: DOMAIN');
@@ -117,8 +119,8 @@ export function getConfig(): AppConfig {
         gamepanelDataDir: CONTAINER_DATA_DIR,
         gamepanelAppRoot,
         dockerSocket: envOrDefault('DOCKER_SOCKET', '/var/run/docker.sock'),
-        composeProjectName: envOrDefault('COMPOSE_PROJECT_NAME', 'gamepanel'),
-        gamesNetwork: envOrDefault('GAMEPANEL_GAMES_NETWORK', 'gamepanel-games'),
+        composeProjectName: nodeId ? `gp-${nodeId}` : envOrDefault('COMPOSE_PROJECT_NAME', 'gamepanel'),
+        gamesNetwork: nodeId ? `gp-${nodeId}-games` : envOrDefault('GAMEPANEL_GAMES_NETWORK', 'gamepanel-games'),
         updaterImage: envOrDefault('GAMEPANEL_UPDATER_IMAGE', gamePanelImage('gamepanel-updater')),
         // Skoczi fork: never fall back to upstream for fork updates.
         repositoryUrl: envOrDefault('GAMEPANEL_REPOSITORY_URL', 'https://github.com/Skoczi/game-panel-skoczi.git'),

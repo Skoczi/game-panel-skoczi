@@ -12,6 +12,7 @@ test('display revisions remain separate from technical package versions', () => 
 
 const initial = () => ({ revision: 1, appearance: { ...DEFAULT_APPEARANCE }, network: { restrictPorts: true, allocations: [{ ip: '192.0.2.10', alias: 'Game node', tcp: '27015-27030', udp: '27015-27030' }] }, assignments: [{ serverId: 1, serverName: 'Test game', ip: '192.0.2.10', port: 27015, protocol: 'udp' }] });
 async function mock(page: Page, conflict = false) {
+  await page.route('**/api/nodes', route => route.fulfill({ json: { nodes: [] } }));
   let state = initial();
   await page.route('**/api/system/update/check', (route) => route.fulfill({ json: { updateAvailable: false } }));
   await page.route('**/api/system/appearance', (route) => route.fulfill({ json: state.appearance }));

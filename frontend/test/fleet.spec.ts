@@ -118,6 +118,23 @@ test('touch handle reorders cards on mobile without a desktop pointer', async ({
   await expect(page.locator('.gp-fleet-card h3')).toHaveText(['Survival World', 'Community Arena']);
   await cdp.detach();
 });
+
+test('long catalogue identifiers and empty filters fit narrow grouped layouts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.route('**/api/fleet', (r) =>
+    r.fulfill({ json: { servers: [{ ...servers[0], catalogId: 'a'.repeat(256) }] } })
+  );
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('combobox', { name: 'Group servers' }).selectOption('type');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole('textbox', { name: 'Search servers and locations' }).fill('no such game');
+  await expect(page.getByRole('heading', { name: 'No matching servers' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(page.getByRole('article')).toHaveCount(1);
+});
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/branding', (r) =>
     r.fulfill({ json: { siteName: 'Arena', showFollowUs: false, showTrustpilot: false } })

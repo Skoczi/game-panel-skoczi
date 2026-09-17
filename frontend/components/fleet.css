@@ -40,6 +40,8 @@
   margin-top: 24px;
 }
 .gp-fleet-group-title {
+  overflow-wrap: anywhere;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -236,6 +238,8 @@
   color: #c08a29;
 }
 .gp-fleet-provider {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 11px;
   color: var(--fleet-muted);
   border: 1px solid var(--fleet-border);

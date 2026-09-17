@@ -50,7 +50,11 @@ test('native maintenance and regular mutations are mutually exclusive, with expl
     request();
     assert.throws(() => enterServerMutation(41), /native install/);
     assert.throws(() => acquireNativeOperation(41), /native install/);
-    native(); enterServerMutation(41)();
+    native();
+    const nextRequest = enterServerMutation(41);
+    request(); // A completed response cannot release a subsequent request's lock.
+    assert.throws(() => enterServerMutation(41), /progress/);
+    nextRequest();
 });
 
 function runtimeHarness(mode: 'success' | 'failure' | 'timeout' | 'cleanup' = 'success') {
@@ -106,4 +110,33 @@ test('boot recovery stops only owned maintenance, preserves data and blocks auto
     assert.deepEqual(calls, ['remove:owned-step', 'stop:owned-game', 'failed', 'audit']);
     assert.equal(stored.desired_state, 'stopped');
     assert.deepEqual(JSON.parse(stored.runtime_config_json), { volumeUid: 1000, nativeInterrupted: true });
+});
+test('explicit update uses the installed image, locks power/data mutations and leaves the game stopped', async () => {
+    const template = recipe();
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    let stepInput: any;
+    let server: any = { id: 42, status: 'stopped', desired_state: 'stopped', docker_container_id: 'owned-game', runtime_config_json: '{}', provider_metadata_json: JSON.stringify({ template: { document: template, hash: templateHash(template) } }) };
+    const module = loadWithMocks('../src/services/nativeUpdate.ts', {
+        '../database/index.js': { serverRepository: { findById: async () => server, update: async (_id: number, patch: any) => { server = { ...server, ...patch }; }, markFailed: async () => { throw new Error('unexpected failure'); } }, actionsRepository: { create: async () => {} } },
+        '../utils/docker/client.js': { docker: { getContainer: () => ({ inspect: async () => ({ State: { Status: 'exited' }, Image: 'sha256:installed-image' }) }) } },
+        '../providers/runtimeConfig.js': { parseStoredEnv: () => ['MAP=de_dust2', 'MAX_PLAYERS=16', 'SERVER_PORT=27015'], parseStoredMounts: () => template.mounts, parseStoredPorts: () => ({ tcp: [], udp: [{ container: 27015, host: 27020 }] }) },
+        '../utils/storage.js': { ensureServerMountDirs: async () => [{ hostPath: '/owned/data', containerPath: '/data' }] },
+        '../templates/nativeContract.js': { nativeTemplate, nativeEnvironment: (await import('../src/templates/nativeContract.js')).nativeEnvironment },
+        './nativeOperationLock.js': { acquireNativeOperation },
+        './nativeRuntime.js': { runNativeSteps: async (input: any) => { stepInput = input; await pending; }, NativeCleanupError: class extends Error {} },
+        '../utils/logger.js': { logError: () => { throw new Error('unexpected logging'); } },
+    });
+    await module.startNativeUpdate(42, 'admin');
+    assert.equal(stepInput.image, 'sha256:installed-image');
+    assert.equal(stepInput.phase, 'update');
+    assert.equal(JSON.parse(server.runtime_config_json).nativeOperation, 'update');
+    assert.throws(() => enterServerMutation(42), /native install/);
+    await assert.rejects(module.startNativeUpdate(42, 'admin'), /native install/);
+    finish();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(server.status, 'stopped');
+    assert.equal(JSON.parse(server.runtime_config_json).nativeInterrupted, false);
+    assert.equal(JSON.parse(server.runtime_config_json).nativeOperation, undefined);
+    enterServerMutation(42)();
 });

@@ -7,12 +7,14 @@ export function acquireNativeOperation(id: number, fromRequest = false): () => v
     assertNativeIdle(id);
     if (!fromRequest && mutations.has(id)) throw Object.assign(new Error('Another server change is in progress'), { statusCode: 409 });
     operations.add(id);
-    return () => { operations.delete(id); };
+    let released = false;
+    return () => { if (!released) { released = true; operations.delete(id); } };
 }
 export function enterServerMutation(id: number): () => void {
     assertNativeIdle(id);
     if (mutations.has(id)) throw Object.assign(new Error('Another server change is in progress'), { statusCode: 409 });
     mutations.add(id);
-    return () => { mutations.delete(id); };
+    let released = false;
+    return () => { if (!released) { released = true; mutations.delete(id); } };
 }
 export const nativeOperationRunning = (id: number) => operations.has(id);

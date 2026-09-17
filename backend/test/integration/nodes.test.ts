@@ -344,6 +344,15 @@ test(
             await ok(runtime + `/api/servers/${id}/stop`, 'POST');
             await ok(runtime + `/api/servers/${id}/start`, 'POST');
             // User workspace: same numeric ID on two runtimes, central UUIDs and single-server capabilities.
+            const localSettings = await ok(panel + '/api/system/settings');
+            await ok(panel + '/api/system/settings', 'PUT', {
+                revision: localSettings.revision,
+                appearance: localSettings.appearance,
+                network: {
+                    restrictPorts: true,
+                    allocations: [{ ip: '127.0.0.1', alias: 'CI local', tcp: '32281', udp: '' }],
+                },
+            });
             const localInstalled = await ok(panel + '/api/servers/install', 'POST', {
                 ...spec,
                 name: 'CI local private',

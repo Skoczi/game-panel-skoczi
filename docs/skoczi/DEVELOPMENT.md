@@ -25,7 +25,7 @@ The tests isolate database/daemon dependencies; ignored install scripts are adeq
 - Stored JSON compatibility with old records.
 - Database/Docker conflict service behavior with explicit test doubles.
 
-## Real Docker test
+## Browser component tests
 Browser selector tests use intercepted API responses, with no live panel or credentials:
 ```bash
 cd frontend
@@ -36,7 +36,7 @@ npm run test:ui
 These exercise allowed IP selection, retained stale addresses and failed discovery. They are component-level tests, not a full authenticated UI end-to-end run.
 
 ## Real Docker integration
-**Disposable Linux host only.** It pulls Alpine and creates a uniquely named container, publishes TCP and UDP 28080 on 127.0.0.2 and 127.0.0.3, inspects both bindings and requests HTTP on both IPs. It removes only its own test container in a finally block. UDP payload transport is not exercised.
+**Disposable Linux host only.** It pulls Node.js Alpine and creates a uniquely named container, publishes TCP and UDP 28080 on 127.0.0.2 and 127.0.0.3, inspects both bindings and tests HTTP plus UDP echo on both IPs. It removes only its own test container in a finally block. This is a transport check, not a game-protocol test.
 
 ```bash
 cd backend

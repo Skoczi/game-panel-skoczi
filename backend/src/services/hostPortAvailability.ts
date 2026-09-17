@@ -46,7 +46,7 @@ export async function assertHostPortsAvailableForServer(input: HostPortCheckInpu
             if (!matchesRequestedPort(requested, port.protocol, port.hostPort, port.hostIp)) continue;
 
             throw conflictError(
-                `${port.protocol.toUpperCase()} port ${port.hostPort} is already assigned to server "${server.name}"`
+                `${port.protocol.toUpperCase()} binding ${port.hostIp || '*'}:${port.hostPort} overlaps server "${server.name}"`
             );
         }
     }
@@ -60,7 +60,7 @@ export async function assertHostPortsAvailableForServer(input: HostPortCheckInpu
         if (!matchesRequestedPort(requested, port.protocol, port.hostPort, port.hostIp)) continue;
 
         throw conflictError(
-            `${port.protocol.toUpperCase()} port ${port.hostPort} is already published by Docker container "${port.containerName}"`
+            `${port.protocol.toUpperCase()} binding ${port.hostIp || '*'}:${port.hostPort} overlaps Docker container "${port.containerName}"`
         );
     }
 }

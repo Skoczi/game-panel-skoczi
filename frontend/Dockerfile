@@ -6,6 +6,8 @@ WORKDIR /app
 COPY frontend/package*.json frontend/
 RUN cd frontend && npm ci
 COPY frontend frontend
+# Data-only contract imported by the template editor during type checking.
+COPY backend/src/templates/types.ts backend/src/templates/types.ts
 ARG VITE_DB_API_BASE_URL
 ENV VITE_DB_API_BASE_URL=${VITE_DB_API_BASE_URL}
 RUN cd frontend && npm run build

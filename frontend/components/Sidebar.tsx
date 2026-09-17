@@ -225,6 +225,7 @@ export function Sidebar({
     menuItems.push({ id: 'admin-users', label: 'User Administration', iconName: 'user' });
   if (currentUser?.isRoot) {
     menuItems.push({ id: 'nodes', label: 'Nodes', iconName: 'book' });
+    menuItems.push({ id: 'game-templates', label: 'Game Templates', iconName: 'book' });
     menuItems.push({ id: 'settings', label: 'Panel Settings', iconName: 'book' });
     menuItems.push({ id: 'host-status', label: 'Host Status', iconName: 'analysis' });
   }

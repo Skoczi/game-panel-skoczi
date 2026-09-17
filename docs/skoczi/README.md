@@ -11,6 +11,7 @@ Based on [OVHcloud Game Panel](https://github.com/ovh/game-panel). Technical rel
 | Manage allocations and sidebar visibility | [Global Settings](SETTINGS.md) |
 | Bind game ports to additional IPs | [Additional IPv4 addresses](ADDITIONAL-IPS.md) |
 | Add a remote execution node | [Agent installation and operation](NODES.md) |
+| Manage versioned game installation definitions | [Game Templates](GAME-TEMPLATES.md) |
 | Assign servers to users across locations | [Server workspace and access](FLEET.md) |
 | Understand unsupported scenarios | [Limitations](LIMITATIONS.md) |
 | Develop or verify a change | [Development and tests](DEVELOPMENT.md) |

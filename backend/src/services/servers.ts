@@ -1,5 +1,6 @@
 import { installProgressRepository, actionsRepository, installInteractionRepository } from '../database/index.js';
 import * as dockerUtils from '../utils/docker.js';
+import { applyLinuxGsmConfigPatches } from '../providers/linuxgsm/adapters/linuxGsmConfig.js';
 import { serverRepository } from '../database/index.js';
 import { getGameAdapter } from '../providers/linuxgsm/adapters/registry.js';
 import { bus } from '../realtime/bus.js';
@@ -100,6 +101,12 @@ export async function installServerAsync(
                 dataDir: storage.dataDir,
                 steamCredentials: spec.steamCredentials,
             });
+            const templatePorts = spec.providerMetadata.templateLinuxgsmConfig;
+            if (templatePorts && typeof templatePorts === 'object') {
+                await applyLinuxGsmConfigPatches({ dataDir: storage.dataDir, gameServerName }, [
+                    { fileName: 'common.cfg', values: templatePorts as Record<string, string> },
+                ]);
+            }
         }
 
         await assertServerExistsDuringInstall(serverId);

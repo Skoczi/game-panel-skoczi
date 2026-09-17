@@ -6,10 +6,12 @@ import { loadWithMocks } from './loadWithMocks.js';
 import { buildPortMaps } from '../src/utils/docker/portBindings.js';
 import * as portPolicy from '../src/utils/portPolicy.js';
 import * as ownership from '../src/utils/docker/ownership.js';
+import * as hostname from '../src/utils/docker/hostname.js';
 
 test('Docker inspection retains HostIp and respects edited-container exclusions', async () => {
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
         './ownership.js': ownership,
+        './hostname.js': hostname,
         './portBindings.js': { buildPortMaps },
         '../portPolicy.js': portPolicy,
         './client.js': { docker: {
@@ -38,6 +40,7 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
     let binding: any = { NetworkMode: 'bridge', PortBindings: { '8080/tcp': [{ HostIp: '192.0.2.10', HostPort: '8080' }] } };
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
         './ownership.js': ownership,
+        './hostname.js': hostname,
         './portBindings.js': { buildPortMaps },
         '../portPolicy.js': { ...portPolicy, configuredPortPolicy: () => portPolicy.configuredPortPolicy('{"192.0.2.10":{"tcp":"27015"}}') },
         './client.js': { docker: { getContainer: () => ({

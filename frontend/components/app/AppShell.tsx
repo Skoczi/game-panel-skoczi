@@ -20,6 +20,7 @@ const GlobalSettings = lazy(() =>
   import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings }))
 );
 const Nodes = lazy(() => import('../Nodes').then((m) => ({ default: m.Nodes })));
+const GameTemplates = lazy(() => import('../GameTemplates').then((m) => ({ default: m.GameTemplates })));
 import type { CLIMessage } from '../../types/cli';
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
 import type { AuthUser } from '../../utils/permissions';
@@ -366,6 +367,13 @@ export function AppShell({
           </AppPageLayout>
         )}
 
+        {activeTab === 'game-templates' && currentUser?.isRoot && (
+          <AppPageLayout className={pageShellClassName}>
+            <Suspense fallback={<p>Loading templates…</p>}>
+              <GameTemplates />
+            </Suspense>
+          </AppPageLayout>
+        )}
         {activeTab === 'nodes' && currentUser?.isRoot && (
           <AppPageLayout className={pageShellClassName}>
             <Suspense fallback={<p>Loading nodes…</p>}>

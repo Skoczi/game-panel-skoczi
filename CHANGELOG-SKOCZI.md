@@ -2,6 +2,15 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.10 — Game Templates (schema v1 preview) — 2026-09-18
+
+- Added a central root-only **Game Templates** catalog with structured runtime/network/variable/storage editors, immutable draft versions, publish/disable, comparison, duplication and validated JSON import/export. Existing provider installers and legacy server records are preserved.
+- Added node-bound, short-lived signed template authorization. Local and remote runtimes resolve the same saved definition, validate architecture and port policy, and retain a template snapshot with each newly created server. Old agents are rejected by the install UI before submission.
+- Added a review-before-publication CS 1.6 template using one UDP game/query/RCON port and an explicit LinuxGSM container-port setting; no public client port or TCP query binding.
+- Fixed remote container startup with long names: kernel hostnames are generated independently of full Docker names. Existing failed containers are not automatically recreated.
+- Decoupled upstream OVH image tags from fork package suffixes. Fork revisions are not upstream image releases.
+- Added regression and browser tests. This is not direct egg compatibility; lifecycle scripts, fleet-wide usage counts and automatic template migrations are not part of schema v1. See [Game Templates](docs/skoczi/GAME-TEMPLATES.md) for the rollout and test contract.
+
 ## Revision 9 follow-up — remote realtime and IP dropdown
 
 - Corrected the agent nginx example to proxy both `/api` (WebSocket) and `/api/…` (HTTP). A trailing-slash-only proxy redirects the WebSocket handshake and prevents realtime progress updates.

@@ -12,7 +12,8 @@ test('custom IP popup fits dark mobile and Escape preserves the binding', async 
   await page.keyboard.press('ArrowDown');
   const menu = page.getByRole('listbox');
   await expect(menu).toBeVisible();
-  await expect(page.locator('.gp-app-select-content[data-ods="select-content"]')).toHaveCSS('border-radius', '12px');
+  const expectedRadius = await page.evaluate(() => `${parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75}px`);
+  await expect(menu).toHaveCSS('border-radius', expectedRadius);
   const bounds = (await menu.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);

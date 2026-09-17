@@ -23,7 +23,14 @@ export async function resolveLinuxGsmInstallSpec(
         throw Object.assign(new Error('Missing LinuxGSM shortname'), { statusCode: 400 });
     }
 
-    const game = await getLinuxGsmGameForInstall(shortname);
+    // Only the install route can produce templateSnapshot, after verifying a node-bound ticket.
+    const template = ctx.body.templateSnapshot as import('../../templates/tickets.js').TemplateSnapshot | undefined;
+    const game = template ? {
+        shortname: template.document.runtime.catalogId,
+        gameservername: template.document.runtime.gameServerName,
+        gamename: template.document.name,
+        os: 'linux', docker_image: template.document.runtime.image,
+    } : await getLinuxGsmGameForInstall(shortname);
     const mounts = normalizeMountsPayload(ctx.body.mounts) ?? [];
     const runtimeIdentity = getProviderRuntimeIdentity('linuxgsm');
 

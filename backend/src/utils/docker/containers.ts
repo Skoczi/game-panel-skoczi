@@ -43,6 +43,7 @@ export type ContainerRuntimeSpec = {
     resourceLimits?: NormalizedResourceLimits;
     restartPolicy?: 'no' | 'unless-stopped';
     start?: boolean;
+    native?: { command: string[]; user: string; workdir: string; stopSignal: string; stopTimeoutSeconds: number };
 };
 
 export type OneShotContainerSpec = {
@@ -209,6 +210,7 @@ export async function createContainer(
         Image: spec.image,
         name: safeName,
         Hostname: containerHostname(safeName),
+        ...(spec.native ? { Entrypoint: [], Cmd: spec.native.command, User: spec.native.user, WorkingDir: spec.native.workdir, StopSignal: spec.native.stopSignal, StopTimeout: spec.native.stopTimeoutSeconds, OpenStdin: true, StdinOnce: false } : {}),
         Env: [
             `GAMEPANEL_PROVIDER=${spec.provider}`,
             ...(spec.catalogId ? [`GAMEPANEL_CATALOG_ID=${spec.catalogId}`] : []),
@@ -233,6 +235,7 @@ export async function createContainer(
             PortBindings: portBindings,
             RestartPolicy: { Name: spec.restartPolicy ?? 'unless-stopped' },
             Binds: buildBinds(spec.mounts),
+            ...(spec.native ? { CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges:true'], PidsLimit: 512 } : {}),
             ...resourceLimitsToDockerHostConfig(spec.resourceLimits ?? null),
         },
     });

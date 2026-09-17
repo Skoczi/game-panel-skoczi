@@ -83,6 +83,25 @@ test('editor changes create a new draft and block publishing unsaved changes', a
   expect(body.baseVersion).toBe(1);
   expect(body.document.ports).toHaveLength(1);
 });
+test('native lifecycle editor upgrades only the draft and preserves literal startup arguments', async ({ page }) => {
+  await mock(page);
+  await page.goto('/test/templates.fixture.html');
+  await page.getByRole('button', { name: 'Manage', exact: true }).click();
+  await page.getByRole('tab', { name: 'Lifecycle', exact: true }).click();
+  await page.getByRole('button', { name: 'Use Native Runtime in this draft' }).click();
+  await page.getByLabel('Startup arguments', { exact: true }).fill('/data/server\n--name\n{{SERVER_NAME}}');
+  await page.getByRole('button', { name: 'Add install step', exact: true }).click();
+  await expect(page.getByLabel('Step name', { exact: true })).toHaveValue('New step');
+  await page.getByRole('tab', { name: 'Json', exact: true }).click();
+  const document = JSON.parse(await page.getByLabel('Template JSON').inputValue());
+  expect(document.schemaVersion).toBe(2);
+  expect(document.runtime.provider).toBe('external');
+  expect(document.runtime.image).toBe('');
+  expect(document.lifecycle.startup).toEqual(['/data/server', '--name', '{{SERVER_NAME}}']);
+  expect(document.lifecycle.install).toHaveLength(1);
+  expect(document.ports[0].linuxgsmKey).toBe('');
+  await expect(page.getByRole('button', { name: 'Publish v1', exact: true })).toBeDisabled();
+});
 test('remote installation sends a signed ticket and explicit bindings, never a client-supplied image', async ({
   page,
 }) => {

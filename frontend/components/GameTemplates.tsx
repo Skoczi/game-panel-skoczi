@@ -16,6 +16,7 @@ import { emptyTemplate, type GameTemplate, type TemplateVersion } from '../utils
 import { getLinuxGsmGames, type LinuxGsmGame } from '../utils/linuxGsmCatalog';
 import { OVHCLOUD_IMAGES } from '../utils/ovhcloudCatalog';
 import { selectNode } from '../utils/nodeContext';
+import { NativeLifecycleEditor } from './NativeLifecycleEditor';
 
 const card =
   'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-[#111827]';
@@ -293,7 +294,7 @@ export function GameTemplates() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Template sections">
-            {['general', 'runtime', 'network', 'variables', 'storage', 'versions', 'json'].map(
+            {['general', 'runtime', 'lifecycle', 'network', 'variables', 'storage', 'versions', 'json'].map(
               (t) => (
                 <button
                   key={t}
@@ -357,9 +358,9 @@ export function GameTemplates() {
                 <Choice
                   label="Provider"
                   value={draft.runtime.provider}
-                  options={['linuxgsm', 'ovhcloud', 'external'].map((value) => ({
+                  options={(draft.schemaVersion === 2 ? ['external'] : ['linuxgsm', 'ovhcloud', 'external']).map((value) => ({
                     value,
-                    label: value,
+                    label: draft.schemaVersion === 2 ? 'Native Runtime (local image)' : value,
                   }))}
                   onChange={(provider) =>
                     change({
@@ -549,11 +550,11 @@ export function GameTemplates() {
                   ))}
                 </div>
                 <p className="text-sm text-slate-500">
-                  Installation, start and stop use the selected provider/image. Custom shell scripts
-                  are not accepted in schema v1. Use a digest for repeatable image selection.
+                  {draft.schemaVersion === 2 ? 'Installation and startup use the commands in Lifecycle. The node must have the reviewed image loaded locally; its exact image ID is pinned at installation.' : 'Installation, start and stop use the selected provider/image. Use the Lifecycle tab to create a native recipe instead.'}
                 </p>
               </>
             )}
+            {tab === 'lifecycle' && <NativeLifecycleEditor draft={draft} change={change} />}
             {tab === 'network' && (
               <>
                 <p className="text-sm text-slate-500">
@@ -856,7 +857,7 @@ export function GameTemplates() {
             {tab === 'json' && (
               <>
                 <p className="text-sm text-slate-500">
-                  Game Templates schema v1. Imported documents are validated and saved as drafts. Do
+                  Game Templates schema v1/v2. Imported documents are validated and saved as drafts. Do
                   not put infrastructure addresses or credentials in descriptions/default values.
                 </p>
                 <textarea
@@ -1009,11 +1010,13 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
     let dispatched = false;
     try {
       const base = nodeId === 'local' ? '' : `/api/nodes/${nodeId}/runtime`;
-      const health = await nodesRequest<{ templatesProtocol?: number }>(`${base}/api/health`);
+      const health = await nodesRequest<{ templatesProtocol?: number; nativeRuntimeProtocol?: number }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
           'Update this node agent before using Game Templates. No installation was sent.'
         );
+      if (row.document.schemaVersion === 2 && health.nativeRuntimeProtocol !== 1)
+        throw new Error('This node does not support Native Runtime. Update its agent first. No installation was sent.');
       const { ticket } = await nodesRequest<{ ticket: string }>(
         `/api/game-templates/${row.id}/${row.version}/prepare`,
         { nodeId }

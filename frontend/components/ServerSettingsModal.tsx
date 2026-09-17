@@ -1048,6 +1048,7 @@ export function ServerSettingsModal({
             textSecondary={textSecondary}
             hoverBg={hoverBg}
             canEdit={canEditContainerConfig}
+            isRoot={Boolean(currentUser?.isRoot)}
             canManageEnv={canManageEnv}
             pickerManagedKeys={mcServerTypeChecked ? getPickerManagedKeys(mcServerTypeChecked) : []}
             onSaved={() => setContainerConfigSaveCount(c => c + 1)}
@@ -1108,4 +1109,3 @@ export function ServerSettingsModal({
     </>
   );
 }
-

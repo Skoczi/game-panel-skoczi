@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import * as nativeContract from '../src/templates/nativeContract.js';
 import { test } from 'node:test';
 import express from 'express';
 import { createServer } from 'node:http';
@@ -19,6 +20,7 @@ test('actual install route verifies target authorization before persistence and 
     let remote = false; let created: any; let installed: any; let checkedPorts: any;
     const key = 'test-runtime-ticket-key';
     const module = loadWithMocks('../src/routes/servers/install.ts', {
+        '../../templates/nativeContract.js': nativeContract,
         express,
         '../../agent/identity.js': { isAgent: () => remote, agentIdentity: () => ({ key, nodeId: 'node-test' }) },
         '../../config.js': { getConfig: () => ({ jwtSecret: key }) }, '../../templates/tickets.js': tickets,

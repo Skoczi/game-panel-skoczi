@@ -1,6 +1,6 @@
 # Game Templates
 
-Game Templates is the fork's central, root-administrator-only installation catalog. It is shared by Local and remote nodes. It does not replace Docker images, LinuxGSM, or the existing game-specific OVH adapters.
+Game Templates is the fork's central, root-administrator-only installation catalog, shared by Local and remote nodes. Schema 1 uses existing provider/image lifecycle behavior. Schema 2 introduces [Native Runtime](NATIVE-RUNTIME.md): local install/update recipes and direct startup, without LinuxGSM orchestration. Both modes still require Docker images.
 
 ## First installation
 
@@ -53,13 +53,15 @@ The remote hostname fix separates the kernel hostname (at most 63 ASCII characte
 
 ## Import/export and security
 
-Import accepts **Game Templates schema v1 JSON**, at most 32 KiB. Imports are always drafts. Unknown fields, duplicate bindings, invalid paths and secret defaults are rejected. Export contains only the template document: no node credentials, selected IPs, instance port assignments, generated host paths or installation-time variable values.
+Import accepts **Game Templates schema v1/v2 JSON**, at most 32 KiB. Imports are always drafts. Unknown fields, duplicate bindings, invalid paths and secret defaults are rejected. Export contains only the template document: no node credentials, selected IPs, instance port assignments, generated host paths or installation-time variable values.
 
 Descriptions, author/source and non-secret defaults are public exported text. Review them before sharing: the panel cannot determine that a value disguised as an ordinary string is a password or private infrastructure detail. Do not place deployment data in these fields. Variables named like credentials must be marked secret and secret defaults must be empty.
 
 No remote URL fetching is performed when importing a document. Import does not execute scripts or pull images. The runtime image itself is executable, trusted administrator-selected code; Docker access is a high-privilege boundary, not a sandbox for untrusted third-party templates.
 
 ## Scope of schema v1
+
+**Schema 2 adds Native Runtime:** locally packaged install/update steps and explicit startup arguments, edited in the Lifecycle tab. See [Native Runtime](NATIVE-RUNTIME.md) for its trust boundary, image preparation, update controls and preview limitations. The scope below describes legacy schema 1 only.
 
 Included: central catalog, structured editor, draft/publish/disable, immutable versions and comparisons, duplication, JSON import/export, explicit per-node allocations, typed environment variables, resource limits at installation, signed runtime resolution and a CS 1.6 profile.
 

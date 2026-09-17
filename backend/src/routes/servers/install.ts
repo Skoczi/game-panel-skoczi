@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { agentIdentity, isAgent } from '../../agent/identity.js';
 import { getConfig } from '../../config.js';
 import { materializeTemplate, readTemplateTicket } from '../../templates/tickets.js';
+import { nativeContainerOptions, nativeTemplate } from '../../templates/nativeContract.js';
 import {
     type AuthenticatedRequest,
     requireGlobalPermission,
@@ -166,6 +167,11 @@ export function createServerInstallRoutes(): Router {
                     if (body.templateSnapshot) {
                         installSpec.providerMetadata.template = body.templateSnapshot;
                         installSpec.providerMetadata.templateLinuxgsmConfig = body.templateLinuxgsmConfig;
+                        const native = nativeTemplate(installSpec.providerMetadata);
+                        if (native) {
+                            const options = nativeContainerOptions(native, installSpec.env, installSpec.ports);
+                            installSpec.runtimeConfig = { ...installSpec.runtimeConfig, terminalUser: options.user, execUser: options.user, terminalWorkdir: options.workdir, execWorkdir: options.workdir, nativeOperation: 'install' };
+                        }
                     }
                 } catch (e: any) {
                     const statusCode = getErrorStatusCode(e, 400);

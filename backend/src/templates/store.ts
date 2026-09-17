@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from 'sqlite';
 import { CS16_TEMPLATE, TemplateError, validateTemplate, templateHash } from './schema.js';
+import { NATIVE_CS16_TEMPLATE } from './nativeCs16.js';
 
 export class TemplateStore {
     constructor(private db: Database) {}
@@ -15,6 +16,8 @@ export class TemplateStore {
         // INSERT OR IGNORE never overwrites administrator changes, including disabling a bundled template.
         const t = validateTemplate(CS16_TEMPLATE);
         await this.db.run(`INSERT OR IGNORE INTO game_template_versions VALUES(?,1,'draft',?,?,?,?)`, 'builtin-cs16', JSON.stringify(t), templateHash(t), 'bundled', new Date().toISOString());
+        const native = validateTemplate(NATIVE_CS16_TEMPLATE);
+        await this.db.run(`INSERT OR IGNORE INTO game_template_versions VALUES(?,1,'draft',?,?,?,?)`, 'builtin-cs16-native', JSON.stringify(native), templateHash(native), 'bundled', new Date().toISOString());
     }
     async list() {
         const rows = await this.db.all(`SELECT * FROM game_template_versions ORDER BY created_at DESC, version DESC`);

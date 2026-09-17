@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -250,12 +250,18 @@ test(
                 },
             };
             assert.equal((await ok(runtime + '/api/health')).templatesProtocol, 1);
+            assert.equal((await ok(runtime + '/api/health')).nativeRuntimeProtocol, 1);
+            // Operator preloads the reviewed image; Native Runtime never pulls during install.
+            docker('pull', 'nginxinc/nginx-unprivileged:stable-alpine');
             const template = await ok(panel + '/api/game-templates', 'POST', { document: {
-                schemaVersion: 1, name: 'CI HTTP runtime', description: '', author: 'CI', source: '',
+                schemaVersion: 2, name: 'CI HTTP runtime', description: '', author: 'CI', source: '',
                 runtime: { provider: 'external', image: 'nginxinc/nginx-unprivileged:stable-alpine',
                     catalogId: '', gameServerName: '', architectures: ['x64'], identity: { user: '101', uid: 101, gid: 101 } },
                 ports: [{ key: 'http', label: 'HTTP', protocol: 'tcp', container: 8080, suggested: 32280, env: '', linuxgsmKey: '' }],
                 variables: [], mounts: [{ key: 'data', containerPath: '/test-data' }],
+                lifecycle: { startup: ['/usr/sbin/nginx', '-g', 'daemon off;'], workdir: '/test-data', stopSignal: 'SIGTERM', stopTimeoutSeconds: 10,
+                    install: [{ name: 'Create install marker', argv: ['/bin/sh', '-c', 'printf installed > /test-data/native-marker'], timeoutSeconds: 30 }],
+                    update: [{ name: 'Update marker', argv: ['/bin/sh', '-c', 'printf updated > /test-data/native-marker'], timeoutSeconds: 30 }] },
             } });
             const templatePath = panel + `/api/game-templates/${template.id}/${template.version}`;
             await ok(templatePath + '/status', 'POST', { status: 'published' });
@@ -326,6 +332,9 @@ test(
             assert.ok(gameContainer);
             const inspected = JSON.parse(docker('inspect', gameContainer))[0];
             assert.ok(inspected.Config.Hostname.length <= 63);
+            assert.equal(inspected.Config.User, '101:101');
+            assert.deepEqual(inspected.Config.Cmd, ['/usr/sbin/nginx', '-g', 'daemon off;']);
+            assert.equal(docker('exec', gameContainer, 'cat', '/test-data/native-marker'), 'installed');
             const savedTemplate = (await ok(runtime + `/api/servers/${id}`)).server.providerMetadata.template;
             assert.equal(savedTemplate.id, template.id);
             assert.equal(savedTemplate.version, template.version);
@@ -334,6 +343,16 @@ test(
                 async () => (await fetch('http://127.0.0.1:32280')).ok,
                 'published game port',
             );
+            assert.equal((await request(runtime + `/api/servers/${id}/native-update`, 'POST', { confirm: true })).status, 409);
+            await ok(runtime + `/api/servers/${id}/stop`, 'POST', {});
+            await waitFor(async () => (await ok(runtime + `/api/servers/${id}`)).server.status === 'stopped', 'native stop');
+            await ok(runtime + `/api/servers/${id}/native-update`, 'POST', { confirm: true });
+            await waitFor(async () => {
+                const s = (await ok(runtime + `/api/servers/${id}`)).server;
+                return !s.runtimeConfig?.nativeOperation && readFileSync(`${root}/agent-app/servers/${id}/data/native-marker`, 'utf8') === 'updated';
+            }, 'native explicit update');
+            await waitFor(async () => (await request(runtime + `/api/servers/${id}/start`, 'POST', {})).status === 200, 'native restart after update');
+            assert.equal(docker('exec', gameContainer, 'cat', '/test-data/native-marker'), 'updated', 'restart must not replay installation');
             docker(
                 'run',
                 '-d',

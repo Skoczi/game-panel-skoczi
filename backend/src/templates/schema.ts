@@ -1,4 +1,4 @@
-// Data-only templates. Executable installation logic stays in reviewed providers/images.
+// Versioned templates. Native commands are reviewed and published by root administrators.
 import { createHash } from 'node:crypto';
 import type { GameTemplate } from './types.js';
 export type { GameTemplate } from './types.js';
@@ -7,7 +7,7 @@ export class TemplateError extends Error {
 }
 function object(value: unknown, keys: string[]): Record<string, any> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TemplateError('Expected an object');
-    if (Object.keys(value).some(k => !keys.includes(k))) throw new TemplateError('Unsupported template field. Only Game Templates schema v1 is accepted.');
+    if (Object.keys(value).some(k => !keys.includes(k))) throw new TemplateError('Unsupported template field');
     return value as Record<string, any>;
 }
 function text(value: unknown, max: number, empty = false): string {
@@ -37,8 +37,9 @@ function unique(values: string[]) {
 }
 export function validateTemplate(input: unknown): GameTemplate {
     if (JSON.stringify(input)?.length > 32768) throw new TemplateError('Template exceeds 32 KiB');
-    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts']);
-    if (v.schemaVersion !== 1) throw new TemplateError('Unsupported template schema (expected schemaVersion: 1; egg files require conversion)');
+    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle']);
+    if (v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new TemplateError('Unsupported template schema (expected 1 or 2; egg files require conversion)');
+    if (v.schemaVersion === 1 && v.lifecycle !== undefined) throw new TemplateError('Native lifecycle requires schemaVersion 2');
     const r = object(v.runtime, ['provider', 'image', 'catalogId', 'gameServerName', 'architectures', 'identity']);
     const provider = choice(r.provider, ['linuxgsm', 'ovhcloud', 'external']);
     const image = text(r.image, 255);
@@ -82,7 +83,37 @@ export function validateTemplate(input: unknown): GameTemplate {
         return { key: identifier(m.key), containerPath: containerPath.replace(/\/$/, '') };
     });
     unique(mounts.map(m => m.key)); unique(mounts.map(m => m.containerPath));
-    return { schemaVersion: 1, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts };
+    let lifecycle: GameTemplate['lifecycle'];
+    if (v.schemaVersion === 2) {
+        if (provider !== 'external') throw new TemplateError('Native lifecycle uses the external image provider, not a legacy adapter');
+        const l = object(v.lifecycle, ['startup', 'install', 'update', 'workdir', 'stopSignal', 'stopTimeoutSeconds']);
+        const keys = new Set([...variables.map(v => v.key), ...ports.filter(p => p.env).map(p => p.env)]);
+        const argv = (raw: unknown): string[] => {
+            const args = list(raw, 64).map(arg => text(arg, 2048, true));
+            if (!args.length || !/^\/[a-zA-Z0-9_./-]+$/.test(args[0]) || args[0].split('/').includes('..')) throw new TemplateError('Command must start with a fixed absolute executable path');
+            for (const arg of args) {
+                const remainder = arg.replace(/\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/g, (_, key) => {
+                    if (!keys.has(key)) throw new TemplateError(`Unknown command variable: ${key}`);
+                    if (variables.some(v => v.key === key && v.secret)) throw new TemplateError('Secret variables may be passed through the environment, not command arguments');
+                    return '';
+                });
+                if (/[{}]/.test(remainder)) throw new TemplateError('Use {{VARIABLE}} placeholders in command arguments');
+            }
+            return args;
+        };
+        const bounded = (n: unknown, max: number) => {
+            if (!Number.isInteger(n) || Number(n) < 1 || Number(n) > max) throw new TemplateError(`Timeout must be 1–${max} seconds`);
+            return Number(n);
+        };
+        const steps = (raw: unknown) => list(raw, 8).map(s => {
+            const step = object(s, ['name', 'argv', 'timeoutSeconds']);
+            return { name: text(step.name, 80), argv: argv(step.argv), timeoutSeconds: bounded(step.timeoutSeconds, 3600) };
+        });
+        const workdir = text(l.workdir, 160);
+        if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
+        lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120) };
+    }
+    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}) };
 }
 export function validateVariable(v: GameTemplate['variables'][number], value: unknown): string {
     const s = text(value, 2048, !v.required);

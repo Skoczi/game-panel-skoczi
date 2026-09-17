@@ -1,5 +1,6 @@
 import { docker } from '../utils/docker/client.js';
 import { ownsContainer } from '../utils/docker/ownership.js';
+import { nativeOperationRunning } from './nativeOperationLock.js';
 import { serverRepository } from '../database/index.js';
 import type { ServerStatus } from '../types/gameServer.js';
 import { inspectContainerRuntime } from '../utils/docker.js';
@@ -16,6 +17,7 @@ type HealthStatus = 'healthy' | 'unhealthy' | 'starting';
 async function applyDockerHealthStatus(serverId: number, containerId: string, health: HealthStatus): Promise<void> {
     const current = await serverRepository.findById(serverId);
     if (!current) return;
+    if (nativeOperationRunning(serverId) || JSON.parse(current.runtime_config_json || '{}').nativeInterrupted) return;
 
     const runtime = await inspectContainerRuntime(containerId).catch(() => ({
         containerStatus: 'running' as const,
@@ -41,6 +43,7 @@ async function applyDockerHealthStatus(serverId: number, containerId: string, he
 async function applyDockerContainerState(serverId: number, containerId: string): Promise<void> {
     const current = await serverRepository.findById(serverId);
     if (!current) return;
+    if (nativeOperationRunning(serverId) || JSON.parse(current.runtime_config_json || '{}').nativeInterrupted) return;
 
     const runtime = await inspectContainerRuntime(containerId);
     const state = runtime.containerStatus;

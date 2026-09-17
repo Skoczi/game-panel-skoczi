@@ -83,7 +83,8 @@ test('version store preserves published documents, rejects stale saves and keeps
         await store.status('builtin-cs16', 1, 'disabled', 'admin'); await store.initialize();
         assert.equal((await store.get('builtin-cs16', 1)).status, 'disabled');
         await assert.rejects(store.status('builtin-cs16', 1, 'published', 'admin'), /new draft/);
-        assert.equal((await store.list()).length, 2);
+        assert.equal((await store.list()).length, 3);
+        assert.equal((await store.get('builtin-cs16-native', 1)).status, 'draft');
     } finally { native.close(); }
 });
 test('long remote container names become deterministic <=63 byte hostnames without losing Docker identity', () => {

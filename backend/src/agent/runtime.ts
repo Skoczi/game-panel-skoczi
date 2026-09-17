@@ -74,7 +74,7 @@ export function authorizeAgent(req: IncomingMessage): boolean {
 export function agentGate(req: Request, res: Response, next: NextFunction) {
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'GET' && req.url === '/api/health') {
-        res.json({ status: 'healthy', role: 'agent', protocol: 1, templatesProtocol: 1 });
+        res.json({ status: 'healthy', role: 'agent', protocol: 1, templatesProtocol: 1, nativeRuntimeProtocol: 1 });
         return;
     }
     if (!runtimePath(req.url) || /\/members(?:\/|\?|$)/.test(req.url)) {

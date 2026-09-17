@@ -1,5 +1,6 @@
 import { getConfig } from './config.js';
 import { initializeTemplates, templateRoutes } from './templates/routes.js';
+import { recoverNativeOperations } from './services/nativeRuntime.js';
 import cors, { type CorsOptions } from 'cors';
 import express, {
   type Application,
@@ -151,7 +152,7 @@ app.use('/api/system', authMiddleware, systemRoutes);
 
 // GET /api/health
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ status: 'healthy', timestamp: nowIso(), templatesProtocol: 1 });
+  res.json({ status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1 });
 });
 
 // GET /api/version
@@ -193,6 +194,7 @@ async function startServer(): Promise<void> {
 
     // Sync current Docker health -> DB once at boot
     await reconcileDockerHealthToDb();
+    await recoverNativeOperations();
 
     // Make sure the games network exists and every game container sits on it
     await reconcileGamesNetwork().catch((error) => {

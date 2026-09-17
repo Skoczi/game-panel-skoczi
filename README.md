@@ -21,7 +21,7 @@ Game server panel built with React, Node.js, SQLite and Docker. Based on **OVHcl
 | Area | Upstream 1.5.0 | Skoczi preview |
 |---|---|---|
 | Execution hosts | Panel host | Local runtime + enrolled remote agents |
-| Game definitions | Mixed upstream catalogs and code defaults | Root-only Game Templates: versioned definitions, import/export and signed Local/remote installation (schema v1) |
+| Game definitions | Mixed upstream catalogs and code defaults | Root-only Game Templates: immutable versions, signed Local/remote installation; schema 2 Native Runtime preview adds local lifecycle recipes |
 | User workspace | Runtime-local server list | Assigned servers across locations, automatic routing, central access management |
 | Node operations | Local runtime | Per-node files, allocations and schedules; HTTP/WebSocket gateway; durable JSON operation journal |
 | Port allocation | Host port + container port | Optional **host IPv4** per TCP/UDP binding |

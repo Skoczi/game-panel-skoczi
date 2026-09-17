@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Save, AlertTriangle, Loader2, RefreshCw, X } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
+import { NativeRuntimeCard } from './NativeRuntimeCard';
+import type { GameTemplate } from '../../utils/gameTemplates';
 
 type PortEntry = { host: string; container: string; label: string; hostIp?: string };
 type EnvEntry = { key: string; value: string };
@@ -37,6 +39,7 @@ interface ContainerConfigTabProps {
   textSecondary: string;
   hoverBg: string;
   canEdit: boolean;
+  isRoot?: boolean;
   canManageEnv: boolean;
   pickerManagedKeys?: string[];
   onSaved?: () => void;
@@ -158,6 +161,7 @@ export function ContainerConfigTab({
   textPrimary,
   textSecondary,
   canEdit,
+  isRoot = false,
   canManageEnv,
   onSaved,
 }: ContainerConfigTabProps) {
@@ -168,6 +172,7 @@ export function ContainerConfigTab({
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
   const [dockerImage, setDockerImage] = useState('');
+  const [nativeSnapshot, setNativeSnapshot] = useState<{ document: GameTemplate; version: number } | null>(null);
   const [tcpPorts, setTcpPorts] = useState<PortEntry[]>([]);
   const [udpPorts, setUdpPorts] = useState<PortEntry[]>([]);
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>([]);
@@ -195,6 +200,8 @@ export function ContainerConfigTab({
   ), [tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
 
   const applyLoaded = (raw: any) => {
+    const snapshot = raw?.providerMetadata?.template;
+    setNativeSnapshot(snapshot?.document?.schemaVersion === 2 ? snapshot : null);
     setDockerImage(raw?.dockerImage ?? '');
     const ports = portsFromRaw(raw?.ports);
     const env = envToEntries(raw?.env);
@@ -318,6 +325,7 @@ export function ContainerConfigTab({
           </p>
         </div>
 
+        {nativeSnapshot && serverId && <NativeRuntimeCard template={nativeSnapshot.document} version={nativeSnapshot.version} serverId={serverId} status={serverStatus} isRoot={isRoot} />}
         {dockerImage && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
             <h4 className={`text-base font-semibold ${textPrimary} mb-3`}>Docker Image</h4>

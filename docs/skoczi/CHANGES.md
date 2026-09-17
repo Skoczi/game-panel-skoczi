@@ -6,7 +6,7 @@ Git ancestry is retained so changes can be reviewed.
 ## Additional IPs, end to end
 
 ```text
-Administrator: GAMEPANEL_IP_PORTS (IPv4 → TCP/UDP ranges)
+Administrator: Settings (database; environment seeded on first startup)
        ↓
 Authenticated API → Host IPv4 selector
        ↓
@@ -21,6 +21,8 @@ Connection display and copy actions use the allocation IP
 |---|---|
 | backend/src/utils/bindAddresses.ts | Allowlist and conservative overlap checks |
 | backend/src/utils/portPolicy.ts | Range parsing and backend policy checks |
+| backend/src/services/globalSettings*.ts | Persistent settings, allocation usage checks and revision protection |
+| frontend/components/GlobalSettings.tsx | Root-only allocation and appearance editor |
 | backend/src/utils/ports.ts | Optional IP, strict ports, address-aware duplicates |
 | backend/src/utils/docker/portBindings.ts | Pure binding builder; preserve multiple mappings |
 | backend/src/utils/docker/containers.ts | Pass HostIp; inspect other containers' HostIp |
@@ -41,7 +43,7 @@ No per-user IP ownership, quotas or authentication changes.
 
 ## Review the diff
 ```bash
-git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.2 -- backend frontend deploy
+git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.3 -- backend frontend deploy
 ```
 
 See [limitations](LIMITATIONS.md) and the [release history](../../CHANGELOG-SKOCZI.md).

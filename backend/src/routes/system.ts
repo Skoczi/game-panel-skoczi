@@ -1,6 +1,7 @@
 // Modified by Skoczi: expose the configured IPv4 allowlist to authenticated UI clients.
 import { configuredBindAddresses } from '../utils/bindAddresses.js';
 import { configuredPortPolicy } from '../utils/portPolicy.js';
+import { globalSettings } from '../services/globalSettings.js';
 import { Router } from 'express';
 import { rootOnly, type AuthenticatedRequest } from '../middleware/auth.js';
 import { checkPanelUpdate, getPanelUpdateStatus, startPanelUpdate } from '../services/panelUpdates.js';
@@ -9,6 +10,24 @@ import { sendRouteError } from '../utils/routeErrors.js';
 import { nowIso } from '../utils/time.js';
 
 const router = Router();
+
+// Appearance only: authenticated users do not receive global allocations or server names.
+router.get('/appearance', (_req, res) => res.json(globalSettings().snapshot().appearance));
+
+router.get('/settings', rootOnly, async (_req, res) => {
+  try { res.json({ ...globalSettings().snapshot(), assignments: await globalSettings().assignments() }); }
+  catch (error) { return sendRouteError(res, error, { route: 'SETTINGS:GET', fallbackMessage: 'Cannot load settings' }); }
+});
+
+router.put('/settings', rootOnly, async (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).some((key) => !['revision', 'network', 'appearance'].includes(key))) {
+      return res.status(400).json({ error: 'Invalid settings payload' });
+    }
+    const { revision, network, appearance } = req.body;
+    res.json(await globalSettings().save({ network, appearance }, revision));
+  } catch (error) { return sendRouteError(res, error, { route: 'SETTINGS:PUT', fallbackMessage: 'Cannot save settings' }); }
+});
 
 router.get('/bind-addresses', (_req, res) => {
   try {

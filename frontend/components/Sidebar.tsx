@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { KeyRound, Moon, MoreVertical, Power, Sun, X } from 'lucide-react';
+import { KeyRound, Moon, MoreVertical, Power, Sun, X, Settings } from 'lucide-react';
+import type { Appearance } from '../types/globalSettings';
 import { Icon, type IconName } from '@ovhcloud/ods-react';
 import { getAppVersion } from '../utils/appInfo';
 import type { AuthUser } from '../utils/permissions';
@@ -185,6 +186,15 @@ export function Sidebar({
   const currentUserLabel = currentUser?.username || 'Unknown user';
   const currentUserInitial = currentUserLabel.trim().charAt(0).toUpperCase() || '?';
   const appVersion = getAppVersion();
+  const [appearance, setAppearance] = useState<Appearance>({ showFollowUs: false, showTrustpilot: false });
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { void apiClient.getPanelAppearance().then((value) => { if (active) setAppearance(value); }).catch(() => {}); };
+    refresh();
+    window.addEventListener('panel-settings-changed', refresh);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.removeEventListener('panel-settings-changed', refresh); window.removeEventListener('focus', refresh); };
+  }, []);
 
   useEffect(() => {
     if (!currentUser?.isRoot) return;
@@ -199,6 +209,7 @@ export function Sidebar({
     { id: 'admin-users', label: 'User Administration', iconName: 'user', disabled: !canManageUsers },
     { id: 'resources', label: 'Resources', iconName: 'book' },
   ];
+  if (currentUser?.isRoot) menuItems.push({ id: 'settings', label: 'Settings', iconName: 'book' });
 
   return (
     <aside
@@ -251,7 +262,7 @@ export function Sidebar({
               }`}
             >
               <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
-                <Icon name={item.iconName} className="text-lg leading-none" />
+                {item.id === 'settings' ? <Settings size={20} /> : <Icon name={item.iconName} className="text-lg leading-none" />}
               </span>
               <span className="text-sm font-medium leading-none">{item.label}</span>
             </AppButton>
@@ -271,7 +282,7 @@ export function Sidebar({
         />
       </div>
 
-      <div className="px-3 py-3">
+      {appearance.showFollowUs && <div className="px-3 py-3">
         <div className="flex flex-col items-center">
           <h3 className="mb-4 text-xs font-medium text-gray-400">Follow Us</h3>
 
@@ -307,10 +318,10 @@ export function Sidebar({
             </a>
           </div>
         </div>
-      </div>
+      </div>}
 
       <div className="border-t px-3 py-3 border-white/10">
-        <div className="flex justify-center">
+        {appearance.showTrustpilot && <div className="flex justify-center">
           <a
             href="https://fr.trustpilot.com/review/ovhcloud.com"
             target="_blank"
@@ -324,23 +335,23 @@ export function Sidebar({
               draggable={false}
             />
           </a>
-        </div>
+        </div>}
 
-        <div className="mt-2.5 flex flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap text-[10px] text-gray-500">
+        <div className="mt-2.5 flex flex-wrap items-center justify-center gap-1.5 text-center text-[10px] text-gray-500">
           {currentUser?.isRoot ? (
             <button
               type="button"
               onClick={() => setIsPanelUpdateOpen(true)}
-              className="relative rounded-sm px-1 text-[10px] transition-colors text-gray-500 hover:text-gray-300"
+              className="relative w-full rounded-sm px-1 text-xs transition-colors text-gray-400 hover:text-gray-200"
               title={updateInfo?.updateAvailable ? `Update available: v${updateInfo.latestVersion}` : 'Panel update'}
             >
-              Game Panel v{appVersion}
+              Game Panel by Skoczi · v{appVersion}
               {updateInfo?.updateAvailable && (
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-400 ring-2 ring-[#000e9c] dark:ring-[#111827]" />
               )}
             </button>
           ) : (
-            <span>Game Panel v{appVersion}</span>
+            <span className="w-full text-xs text-gray-400">Game Panel by Skoczi · v{appVersion}</span>
           )}
           <button
             type="button"

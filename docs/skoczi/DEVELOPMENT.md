@@ -22,6 +22,7 @@ The tests isolate database/daemon dependencies; ignored install scripts are adeq
 - Strict port validation.
 - Per-IP TCP/UDP ranges, malformed policy and wildcard/missing-IP bypass attempts.
 - Policy checks before panel start/restart and before stopping a container for recreation.
+- SQLite settings persistence/reload, allocation safety, concurrent revisions and root-only settings routes.
 - Distinct-address reuse and conservative wildcard conflicts.
 - Multiple Docker bindings for one container port.
 - Stored JSON compatibility with old records.
@@ -35,7 +36,7 @@ npm ci --ignore-scripts
 npx playwright install chromium
 npm run test:ui
 ```
-These exercise IP selection, displayed port ranges, forbidden ports, retained stale addresses and failed discovery. They are component-level tests, not a full authenticated UI end-to-end run.
+These exercise IP selection, port ranges, forbidden ports, stale addresses, settings editing, sidebar visibility, authorization-dependent navigation, save conflicts and mobile layout. They are component-level tests, not a full authenticated UI end-to-end run.
 
 ## Real Docker integration
 **Disposable Linux host only.** It pulls Node.js Alpine and creates a uniquely named container, publishes TCP and UDP 28080 on 127.0.0.2 and 127.0.0.3, inspects both bindings and tests HTTP plus UDP echo on both IPs. It removes only its own test container in a finally block. This is a transport check, not a game-protocol test.

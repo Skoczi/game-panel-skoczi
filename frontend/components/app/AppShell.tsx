@@ -16,6 +16,7 @@ import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppPageLayout } from '../../src/ui/layout';
 
 const HostStatus = lazy(() => import('../HostStatus').then((m) => ({ default: m.HostStatus })));
+const GlobalSettings = lazy(() => import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings })));
 import type { CLIMessage } from '../../types/cli';
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
 import type { AuthUser } from '../../utils/permissions';
@@ -323,6 +324,10 @@ export function AppShell({
               />
             </div>
           </AppPageLayout>
+        )}
+
+        {activeTab === 'settings' && currentUser?.isRoot && (
+          <AppPageLayout className={pageShellClassName}><Suspense fallback={<p>Loading settings…</p>}><GlobalSettings /></Suspense></AppPageLayout>
         )}
 
         {activeTab === 'resources' && (

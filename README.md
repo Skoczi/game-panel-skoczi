@@ -24,7 +24,8 @@ Game server panel built with React, Node.js, SQLite and Docker. Based on **OVHcl
 | Same port on different IPs | Port-only conflict checks | Allowed on distinct configured addresses |
 | Multiple mappings to one container port | Last binding replaces previous binding | Every binding preserved |
 | Game connection address | Panel hostname | Selected allocation IP; legacy hostname fallback |
-| Operator control | No bind-IP allowlist | `GAMEPANEL_IP_PORTS`: allowed IPs and TCP/UDP ranges, enforced by the backend |
+| Operator control | No bind-IP allowlist | Allowed IPs and TCP/UDP ranges in Settings, enforced by the backend |
+| Global settings | No allocation editor | Root-only Settings: IPs, aliases, ranges, server assignments and sidebar visibility |
 | Telemetry | On by default | **Opt-in** on fresh installs |
 | Updates | Upstream one-click updater | Fork release notes; **manual reviewed updates** |
 | Validation | Build checks | Regression tests + Linux Docker publishing CI |
@@ -35,7 +36,7 @@ Read the [changelog](CHANGELOG-SKOCZI.md), [change map](docs/skoczi/CHANGES.md) 
 
 1. Read the [installation guide](docs/skoczi/INSTALLATION.md). Use a fresh, disposable Linux VM.
 2. Install the tagged preview; the standard installer provisions Docker and Traefik on **80/443**.
-3. Configure allowed port ranges for addresses already assigned to the host.
+3. Open **Settings** and add IPs/port ranges for addresses already assigned to the host.
 4. Select **Host IPv4** during installation or in container configuration.
 5. Test a disposable game before moving real workloads.
 
@@ -43,7 +44,9 @@ Read the [changelog](CHANGELOG-SKOCZI.md), [change map](docs/skoczi/CHANGES.md) 
 
 ### Additional IPs in one example
 
-In the installed panel's `/opt/gamepanel/deploy/.env`:
+Open **Settings → IP allocations**, add an IPv4 and its TCP/UDP ranges, enable restrictions and save. No backend restart is needed. [Settings guide](docs/skoczi/SETTINGS.md).
+
+For first-start environment seeding, `/opt/gamepanel/deploy/.env` can contain:
 
 ```dotenv
 # Documentation addresses only — replace with your assigned host IPs.

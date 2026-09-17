@@ -7,6 +7,7 @@ import { WebSocketServer } from 'ws';
 import { reconcileDockerHealthToDb, startDockerHealthEventListener, startPeriodicHealthReconcile } from './services/dockerEvents.js';
 import { closeDatabase, initializeDatabase } from './database/init.js';
 import { ensureRootUserExists } from './database/bootstrap.js';
+import { initializeGlobalSettings } from './services/globalSettings.js';
 import { authMiddleware, errorHandler } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
@@ -128,6 +129,7 @@ async function startServer(): Promise<void> {
   try {
     logInfo('APP', 'Initializing database...');
     await initializeDatabase();
+    await initializeGlobalSettings();
     await ensureRootUserExists();
     logInfo('APP', 'Database initialized');
 

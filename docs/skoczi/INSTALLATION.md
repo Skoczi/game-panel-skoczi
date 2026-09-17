@@ -17,7 +17,7 @@ Review the script first. On the **fresh test host**:
 ```bash
 sudo apt update
 sudo apt install git
-git clone --branch v1.5.0-skoczi.2 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v1.5.0-skoczi.3 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh --telemetry-disabled
 ```
@@ -47,6 +47,8 @@ For a future reviewed release:
 The inherited updater creates an update backup, rebuilds and regenerates Compose. **Do not use it blindly for a custom reverse proxy or side-by-side deployment.** Those require a reviewed deployment-specific procedure.
 
 Preserve `GAMEPANEL_BIND_IPS` and `GAMEPANEL_IP_PORTS`. Do not repoint `GAMEPANEL_REPOSITORY_URL` to upstream while depending on fork features. Explicit existing telemetry settings are preserved; review them.
+
+Version 1.5.0-skoczi.3 seeds allocation rules from these environment values once, then stores them in the database. Further edits use **Settings**. Back up the database and review [Settings storage/downgrade notes](SETTINGS.md).
 
 ## Rollback
 

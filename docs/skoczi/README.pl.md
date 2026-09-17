@@ -1,11 +1,13 @@
 # OVH Game Panel by Skoczi
 
-Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.2 (preview)**. Nie jest to oficjalne wydanie OVHcloud.
+Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.3 (preview)**. Nie jest to oficjalne wydanie OVHcloud.
 
 ## Co zmieniłem?
 
 - Wybór IPv4 hosta przy każdym mapowaniu TCP/UDP.
 - Osobne zakresy dozwolonych portów TCP i UDP dla każdego IP.
+- Zakładka **Settings** dla głównego administratora: IP, aliasy, zakresy portów i podgląd przypisanych serwerów.
+- Przełączniki Follow Us i Trustpilot oraz stopka Game Panel by Skoczi z numerem wersji.
 - Ten sam port może działać na różnych IP. Nakładające się przypisania są odrzucane.
 - Kilka mapowań jednego portu kontenera nie nadpisuje się nawzajem.
 - Lista serwerów i kopiowanie adresu pokazują wybrane IP gry.
@@ -16,7 +18,9 @@ Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.2 (preview)**. 
 
 ## IP i porty
 
-Administrator ustawia reguły w `/opt/gamepanel/deploy/.env`. Przykład używa adresów dokumentacyjnych — zastąp je własnymi:
+Główny administrator ustawia reguły w **Settings → IP allocations**. Dodaj IP, alias i osobne zakresy TCP/UDP, włącz ograniczenie publikowanych portów i zapisz. Zajętego IP lub portu nie można usunąć z puli bez wcześniejszej zmiany przypisania serwera. Zapis działa od razu, bez restartu backendu.
+
+Przy pierwszym uruchomieniu nowej wersji reguły są importowane z `/opt/gamepanel/deploy/.env`. Później źródłem ustawień jest baza panelu — zmiana `.env` nie nadpisze zapisanych reguł. Przykład importu używa adresów dokumentacyjnych:
 
 ```dotenv
 GAMEPANEL_IP_PORTS='{"192.0.2.10":{"tcp":"27015-27030,28015","udp":"27015-27030"},"192.0.2.11":{"udp":"28015-28020"}}'
@@ -26,7 +30,9 @@ Ta konfiguracja pozwala wystawić TCP `27015–27030` i `28015` oraz UDP `27015�
 
 Po ustawieniu reguł wybór konkretnego IP jest obowiązkowy. Backend odrzuca niedozwolone mapowania również przy bezpośrednich żądaniach API oraz przy tworzeniu, starcie, restarcie i odtwarzaniu kontenera przez panel. Brak protokołu w regule oznacza zakaz jego użycia. Błędna konfiguracja nie przełącza panelu na nieograniczony dostęp.
 
-`GAMEPANEL_IP_PORTS` zastępuje listę `GAMEPANEL_BIND_IPS`. Bez nowej zmiennej zachowane jest stare działanie: lista IP i opcjonalne mapowanie na wszystkie interfejsy. Aby ograniczać porty, trzeba więc **ustawić nową zmienną** i odtworzyć kontener backendu.
+`GAMEPANEL_IP_PORTS` przy imporcie zastępuje listę `GAMEPANEL_BIND_IPS`. Bez niego zachowany jest tryb starszej wersji. Aby wymuszać zakresy, włącz **Restrict published ports to these allocations** w Settings.
+
+W sekcji **Appearance** można ukryć Follow Us oraz Trustpilot. Numer wersji w stopce pochodzi z pakietu aplikacji. Ustawienia przetrwają restart; zapis drugiej sesji administratora nie nadpisze po cichu nowszych zmian. [Opis Settings i API](SETTINGS.md).
 
 Instrukcja wdrożenia, odpowiedź API i przykłady: [IP i zakresy portów](ADDITIONAL-IPS.md).
 

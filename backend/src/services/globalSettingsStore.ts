@@ -3,10 +3,12 @@ import type { Database } from 'sqlite';
 import { assertPortPolicy, configuredPortPolicy, isUnicastIPv4 } from '../utils/portPolicy.js';
 
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
+export type LoginTheme = 'light' | 'dark' | 'system';
 export const DEFAULT_APPEARANCE = {
     showFollowUs: true, showTrustpilot: true, showNews: true,
     siteName: 'Game Panel', siteSubtitle: 'Skoczi Edition', logo: '',
     loginDescription: 'Sign in to manage your game servers',
+    loginTheme: 'light' as LoginTheme,
     showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Skoczi Edition',
 };
 export type GlobalSettings = {
@@ -61,11 +63,13 @@ export function validateGlobalSettings(input: unknown): GlobalSettings {
         return { ip, alias: text(row.alias, 80), tcp: text(row.tcp, 1024), udp: text(row.udp, 1024) };
     });
     const siteName = text(appearance.siteName, 80);
+    if (!['light', 'dark', 'system'].includes(appearance.loginTheme as string)) invalid('Invalid login theme');
     if (!siteName) invalid('Site name cannot be empty');
     const result = { appearance: { showFollowUs: appearance.showFollowUs, showTrustpilot: appearance.showTrustpilot,
         showNews: appearance.showNews, showLoginFooter: appearance.showLoginFooter, siteName,
         siteSubtitle: text(appearance.siteSubtitle, 120), logo: logo(appearance.logo),
         loginDescription: text(appearance.loginDescription, 240), loginFooter: text(appearance.loginFooter, 240),
+        loginTheme: appearance.loginTheme as LoginTheme,
     }, network: { restrictPorts: network.restrictPorts, allocations } };
     try { allocationPolicy(result.network); } catch (error) { invalid(error instanceof Error ? error.message : 'Invalid port ranges'); }
     return result;

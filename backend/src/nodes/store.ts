@@ -1,6 +1,10 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Database } from 'sqlite';
-import { digest, nodeOrigin, seal, secret, unseal } from './protocol.js';
+import { digest, nodeOrigin, seal, secret, unseal, NODE_ID } from './protocol.js';
+
+export class NodeRemovalError extends Error {
+    constructor(message: string, public status = 409) { super(message); }
+}
 
 export type NodeRow = {
     id: string;
@@ -165,5 +169,40 @@ export class NodeStore {
             version.slice(0, 80),
             id,
         );
+    }
+    async remove(
+        id: string,
+        confirmationName: unknown,
+        actor: string,
+        verifyEmpty: (node: NodeRow) => Promise<void>,
+    ) {
+        if (!NODE_ID.test(id))
+            throw new NodeRemovalError('Local is built in and cannot be deleted.', 400);
+        const row = await this.get(id);
+        if (!row) throw new NodeRemovalError('Node not found.', 404);
+        if (confirmationName !== row.name)
+            throw new NodeRemovalError('Type the exact node name to confirm deletion.', 400);
+        if (await this.db.get('SELECT 1 FROM fleet_servers WHERE node_id=? LIMIT 1', id))
+            throw new NodeRemovalError('This node has tracked servers, including missing servers. Resolve their placement before deleting the node.');
+        const enrolled = row.key_encrypted || row.agent_version || await this.db.get(
+            "SELECT 1 FROM node_audit WHERE node_id=? AND action='enrolled' LIMIT 1", id,
+        );
+        if (enrolled) {
+            if (row.enabled) throw new NodeRemovalError('Disable the node before deleting it.');
+            if (!row.key_encrypted)
+                throw new NodeRemovalError('Reconnect the agent before deletion so its inventory can be verified.');
+            await verifyEmpty(row);
+        }
+        // Recheck state and server ownership in the same statement as deletion.
+        const result = await this.db.run(
+            `DELETE FROM execution_nodes WHERE id=? AND enabled=? AND name=?
+             AND key_encrypted IS ? AND enrollment_hash IS ?
+             AND NOT EXISTS (SELECT 1 FROM fleet_servers WHERE node_id=?)`,
+            id, row.enabled, row.name, row.key_encrypted, row.enrollment_hash, id,
+        );
+        if (result.changes !== 1)
+            throw new NodeRemovalError('Node state changed. Refresh and try again.');
+        // Keep the audit history; no request to delete games or host files is sent.
+        await this.audit(id, actor, 'deleted');
     }
 }

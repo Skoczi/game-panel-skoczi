@@ -32,7 +32,9 @@ test('custom dropdown supports keyboard, typeahead, cancellation and focus', asy
   await sort.focus();
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('listbox')).toBeVisible();
+  await expect(page.getByRole('listbox')).toBeFocused();
   await page.keyboard.press('End');
+  await expect(page.getByRole('option', { name: 'Status', exact: true })).toHaveAttribute('data-highlighted', '');
   await page.keyboard.press('Enter');
   await expect(sort).toContainText('Status');
   await expect(sort).toBeFocused();
@@ -42,8 +44,8 @@ test('custom dropdown supports keyboard, typeahead, cancellation and focus', asy
   await page.keyboard.press('Escape');
   await expect(sort).toContainText('Status');
   await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(sort).toBeFocused();
   await sort.press('n');
-  await page.keyboard.press('Enter');
   await expect(sort).toContainText('Name A–Z');
   await sort.click();
   await page.getByRole('heading', { name: 'Game Servers', exact: true }).click();

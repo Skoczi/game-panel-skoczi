@@ -14,6 +14,7 @@ import {
 } from '../middleware/auth.js';
 import type { JWTPayload } from '../utils/auth.js';
 import { nodes } from '../nodes/control.js';
+import { NodeRemovalError, type NodeRow } from '../nodes/store.js';
 import { nodeTls } from '../nodes/transport.js';
 import { signNodeRequest, NODE_ID } from '../nodes/protocol.js';
 import { delegatedPath, type Delegation } from '../nodes/delegation.js';
@@ -32,9 +33,9 @@ export async function initializeFleet() {
     timer.unref();
 }
 
-async function readInventory(id: string): Promise<InventoryItem[]> {
-    const node = await nodes().get(id);
-    if (!node?.enabled || !node.key_encrypted)
+async function readInventory(id: string, deletionSnapshot?: NodeRow): Promise<InventoryItem[]> {
+    const node = deletionSnapshot || await nodes().get(id);
+    if (!node || (!deletionSnapshot && !node.enabled) || !node.key_encrypted)
         throw new Error('Node unavailable');
     const url = new URL('/api/servers', node.origin);
     return new Promise((resolve, reject) => {
@@ -44,7 +45,8 @@ async function readInventory(id: string): Promise<InventoryItem[]> {
                 ...nodeTls(),
                 headers: {
                     'x-gamepanel-node-auth': signNodeRequest(
-                        nodes().key(node),
+                        // Only this read-only inventory check may use a disabled node's credential.
+                        nodes().key(deletionSnapshot ? { ...node, enabled: 1 } : node),
                         id,
                         'GET',
                         '/api/servers',
@@ -100,6 +102,16 @@ async function readInventory(id: string): Promise<InventoryItem[]> {
         req.end();
     });
 }
+export async function verifyNodeEmpty(node: NodeRow): Promise<void> {
+    let inventory: InventoryItem[];
+    try {
+        inventory = await readInventory(node.id, node);
+    } catch {
+        throw new NodeRemovalError('Cannot verify the agent inventory. Restore connectivity before deleting this node.');
+    }
+    if (inventory.length)
+        throw new NodeRemovalError('The agent still has servers. Move or remove them before deleting this node.');
+}
 export function refreshFleet(): Promise<void> {
     refreshing ??= (async () => {
         const local = await serverRepository.listAll();
@@ -128,6 +140,7 @@ export function refreshFleet(): Promise<void> {
                         await store.observe(
                             node.id,
                             await readInventory(node.id),
+                            true,
                         );
                         reachable.set(node.id, Date.now());
                     } catch {

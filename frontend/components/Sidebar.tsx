@@ -220,14 +220,15 @@ export function Sidebar({
 
   const menuItems: Array<{ id: string; label: string; iconName: IconName; disabled?: boolean }> = [
     { id: 'game-servers', label: 'Game Servers', iconName: 'game-controller-alt' },
-    { id: 'resources', label: 'Resources', iconName: 'book' },
   ];
-  if (currentUser?.isRoot)
-    menuItems.push({ id: 'host-status', label: 'Host Status', iconName: 'analysis' });
   if (canManageUsers)
     menuItems.push({ id: 'admin-users', label: 'User Administration', iconName: 'user' });
-  if (currentUser?.isRoot) menuItems.push({ id: 'settings', label: 'Settings', iconName: 'book' });
-  if (currentUser?.isRoot) menuItems.push({ id: 'nodes', label: 'Nodes', iconName: 'book' });
+  if (currentUser?.isRoot) {
+    menuItems.push({ id: 'nodes', label: 'Nodes', iconName: 'book' });
+    menuItems.push({ id: 'settings', label: 'Panel Settings', iconName: 'book' });
+    menuItems.push({ id: 'host-status', label: 'Host Status', iconName: 'analysis' });
+  }
+  menuItems.push({ id: 'resources', label: 'Resources', iconName: 'book' });
 
   return (
     <aside

@@ -44,7 +44,7 @@ export class FleetStore {
         if (!columns.some(column => column.name === 'catalog_id'))
             await this.db.exec('ALTER TABLE fleet_servers ADD COLUMN catalog_id TEXT');
     }
-    async observe(node: string, inventory: InventoryItem[]) {
+    async observe(node: string, inventory: InventoryItem[], requireEnabledNode = false) {
         // Validate the complete snapshot before changing any state; a failed/partial read never marks servers missing.
         if (
             !Array.isArray(inventory) ||
@@ -71,7 +71,8 @@ export class FleetStore {
         for (const s of inventory)
             await this.db.run(
                 `INSERT INTO fleet_servers
-            (id,node_id,runtime_id,runtime_key,name,provider,status,observed_at,catalog_id) VALUES(?,?,?,?,?,?,?,?,?)
+            (id,node_id,runtime_id,runtime_key,name,provider,status,observed_at,catalog_id)
+            SELECT ?,?,?,?,?,?,?,?,? WHERE ${requireEnabledNode ? 'EXISTS (SELECT 1 FROM execution_nodes WHERE id=? AND enabled=1)' : '1'}
             ON CONFLICT(node_id,runtime_key) DO UPDATE SET runtime_id=excluded.runtime_id,name=excluded.name,provider=excluded.provider,
             status=excluded.status,observed_at=excluded.observed_at,missing=0,catalog_id=excluded.catalog_id`,
                 randomUUID(),
@@ -83,6 +84,7 @@ export class FleetStore {
                 s.status,
                 now,
                 s.catalogId || null,
+                ...(requireEnabledNode ? [node] : []),
             );
         const ids = new Set(inventory.map((s) => s.runtimeKey));
         for (const row of await this.list())

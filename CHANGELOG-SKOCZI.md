@@ -2,7 +2,17 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
-## Unreleased
+## 1.5.0-skoczi.9 — node settings and login theme (preview) — 2026-09-17
+
+- Reordered navigation to Game Servers, User Administration, Nodes, Panel Settings, Host Status and Resources. Renamed the global settings page to Panel Settings; permission-based visibility is unchanged.
+
+- Moved IP/port allocation editing out of global Settings into **Nodes → Node settings → IP allocations**, including Local. Added a per-node overview and a direct link to its server workspace; appearance remains central.
+- Added a panel-wide IP ownership registry, serialized allocation updates, durable reservations and explicit retry of unconfirmed agent writes. Existing allocations are discovered before saving; the same address cannot be newly assigned to another node through the panel. Direct settings writes cannot bypass the coordinator.
+
+- Fixed **Nodes → Local → Open local servers**, including reopening the currently selected administrator runtime. Local needs no additional agent.
+- Added root-only node deletion with an exact-name confirmation. Never-enrolled nodes can be removed directly; previously connected nodes must be disabled, reachable and empty. Tracked servers (including missing records) block removal. Tokens are invalidated, audit history retained, and host files/containers are untouched.
+
+- Added a separate login-page theme (Light, Dark or System preference) in Branding & login page, with live preview and no changes to signed-in users' theme preferences. Existing installations retain the light login page.
 
 - Replaced the four workspace filter/sort/group native selects with the shared Resources dropdown, including its selected-state styling, keyboard/typeahead navigation, and light/dark mobile layouts.
 

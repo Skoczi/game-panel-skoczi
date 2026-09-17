@@ -6,6 +6,29 @@ import { assertPortPolicy, configuredPortPolicy, setManagedPortPolicy } from '..
 
 const seed = (): GlobalSettings => ({ appearance: { ...DEFAULT_APPEARANCE }, network: { restrictPorts: true, allocations: [{ ip: '192.0.2.10', alias: 'Game node', tcp: '27015-27030', udp: '27015-27030' }] } });
 
+test('login theme migrates once and persists without changing branding or allocations', async () => {
+    const { native, db } = database();
+    try {
+        native.exec('CREATE TABLE panel_settings(id INTEGER PRIMARY KEY, revision INTEGER, settings_json TEXT)');
+        const { loginTheme: _theme, ...appearance } = seed().appearance;
+        const old = { ...seed(), appearance: { ...appearance, siteName: 'Community' } };
+        native.prepare('INSERT INTO panel_settings VALUES(1, 12, ?)').run(JSON.stringify(old));
+        const store = new GlobalSettingsStore(db, () => {}); await store.initialize(seed());
+        assert.deepEqual(store.snapshot(), { ...old, appearance: { ...old.appearance, loginTheme: 'light' }, revision: 13 });
+        const next = { ...store.snapshot(), appearance: { ...store.snapshot().appearance, loginTheme: 'dark' as const } };
+        const { revision, ...value } = next;
+        await store.save(value, revision);
+        const reloaded = new GlobalSettingsStore(db, () => {}); await reloaded.initialize(seed());
+        assert.equal(reloaded.snapshot().appearance.loginTheme, 'dark');
+        assert.equal(reloaded.snapshot().revision, 14);
+        assert.deepEqual(reloaded.snapshot().network, old.network);
+        for (const loginTheme of ['system', 'light', 'dark'] as const)
+            assert.equal(validateGlobalSettings({ ...seed(), appearance: { ...appearance, loginTheme } }).appearance.loginTheme, loginTheme);
+        for (const loginTheme of [undefined, null, true, 'auto', 'DARK', {}])
+            assert.throws(() => validateGlobalSettings({ ...seed(), appearance: { ...appearance, loginTheme } }), /login theme/);
+    } finally { native.close(); }
+});
+
 test('branding validates lengths, image protocols, content signatures and size', () => {
     for (const logo of ['javascript:alert(1)', 'http://example.com/logo.png', '//example.com/logo.png', 'https://', 'https://user:password@example.com/logo.png',
         'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,PHN2Zz4=',

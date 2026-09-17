@@ -369,8 +369,8 @@ function AppContent() {
 
   const normalizeRealtimeServer = useCallback((server: any, existing?: GameServer): GameServer => {
     let portsData: {
-      tcp: Array<{ host: number; container: number; label: string }>;
-      udp: Array<{ host: number; container: number; label: string }>;
+      tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
+      udp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
     } | null = null;
     try {
       const raw = server?.ports;
@@ -378,6 +378,9 @@ function AppContent() {
     } catch {}
 
     let primary: number | null = null;
+    // Skoczi fork: preserve allocation addresses across realtime partial updates.
+    let portBindings = existing?.portBindings;
+    let connectionHost = existing?.connectionHost;
     let portMappings: { tcp: number[]; udp: number[] } = existing?.portMappings ?? { tcp: [], udp: [] };
     let portLabels: { tcp: Record<string, string>; udp: Record<string, string> } =
       existing?.portLabels ?? { tcp: {}, udp: {} };
@@ -385,6 +388,7 @@ function AppContent() {
     if (portsData) {
       const tcpEntries = Array.isArray(portsData.tcp) ? portsData.tcp : [];
       const udpEntries = Array.isArray(portsData.udp) ? portsData.udp : [];
+      portBindings = { tcp: tcpEntries, udp: udpEntries };
       portMappings = {
         tcp: tcpEntries.map((e) => e.host).filter((h) => Number.isFinite(h) && h > 0),
         udp: udpEntries.map((e) => e.host).filter((h) => Number.isFinite(h) && h > 0),
@@ -404,6 +408,10 @@ function AppContent() {
         portMappings.tcp[0] ??
         portMappings.udp[0] ??
         null;
+      const entries = [...tcpEntries, ...udpEntries];
+      const primaryBinding = entries.find((entry) => entry.host === primary && isGame(entry.label ?? ''))
+        ?? entries.find((entry) => entry.host === primary);
+      connectionHost = primaryBinding?.hostIp;
     } else {
       primary = existing?.port ?? null;
     }
@@ -417,6 +425,8 @@ function AppContent() {
       port: primary ?? undefined,
       portMappings,
       portLabels,
+      portBindings,
+      connectionHost,
       status: mapBackendStatusToUi(server.status),
       dockerContainerId: server.dockerContainerId ?? null,
       installStatus: server.installProgress?.status ?? null,

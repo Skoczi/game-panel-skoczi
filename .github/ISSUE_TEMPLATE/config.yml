@@ -1,9 +1,9 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 
 contact_links:
-  - name: 🎮 Join our Discord Community
-    url: https://discord.gg/ovhcloud
-    about: Ask questions and discuss with the community on Discord.
+  - name: Skoczi fork documentation
+    url: https://github.com/Skoczi/game-panel-skoczi/tree/main/docs/skoczi
+    about: Fork installation, additional IPs, differences and limitations. Never post secrets.
 
   - name: 📖 Official Game Panel Guides
     url: https://docs.ovhcloud.com/en/guides/bare-metal-cloud/virtual-private-servers/landing-page-game-panel

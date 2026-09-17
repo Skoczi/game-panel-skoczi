@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Modified by Skoczi: fork repository, IPv4 allowlist and opt-in telemetry.
 set -eEuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -451,7 +452,8 @@ JWT_SECRET=$(escape_env_value "$jwt_secret")
 ADMIN_USERNAME=$(escape_env_value "$ADMIN_USERNAME")
 ADMIN_PASSWORD=$(escape_env_value "$ADMIN_PASSWORD")
 GAMEPANEL_APP_ROOT=$(escape_env_value "$APP_ROOT")
-GAMEPANEL_REPOSITORY_URL=https://github.com/ovh/game-panel.git
+GAMEPANEL_REPOSITORY_URL=https://github.com/Skoczi/game-panel-skoczi.git
+GAMEPANEL_BIND_IPS=
 DOCKER_SOCKET=/var/run/docker.sock
 TRUST_PROXY=$(escape_env_value "1")
 APP_INSTANCE_ID=$(escape_env_value "$instance_id")
@@ -478,7 +480,7 @@ send_installed_instance() {
   local response_file=""
   local status_code=""
 
-  if ! is_true "${TELEMETRY_ENABLED:-1}"; then
+  if ! is_true "${TELEMETRY_ENABLED:-0}"; then
     warn "Telemetry disabled; skipping panel.installed telemetry."
     return
   fi
@@ -629,7 +631,7 @@ main() {
   JWT_SECRET="${GP_JWT_SECRET:-$(generate_secret)}"
   APP_INSTANCE_ID="${GP_APP_INSTANCE_ID:-$(generate_uuid)}"
   APP_INSTANCE_SECRET="${GP_APP_INSTANCE_SECRET:-$(generate_secret)}"
-  if is_true "${GP_TELEMETRY_ENABLED:-1}"; then
+  if is_true "${GP_TELEMETRY_ENABLED:-0}"; then
     TELEMETRY_ENABLED="true"
   else
     TELEMETRY_ENABLED="false"
@@ -637,13 +639,7 @@ main() {
   write_env_file "$JWT_SECRET" "$APP_INSTANCE_ID" "$APP_INSTANCE_SECRET" "$TELEMETRY_ENABLED"
   write_compose_file
 
-  log "Pulling updater image..."
-  updater_image="ovhcom/gamepanel-updater:${APP_VERSION}"
-  if docker pull "$updater_image"; then
-    log "Updater image is available: $updater_image"
-  else
-    warn "Unable to pull updater image now: $updater_image"
-  fi
+  log "Skoczi preview: built-in automatic updater is disabled; use reviewed manual releases."
 
   log "Starting GamePanel stack..."
   compose_cmd up -d --build

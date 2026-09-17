@@ -46,6 +46,7 @@ interface GameServersTableProps {
 }
 
 interface ConnectionPortRow {
+  hostIp?: string;
   protocol: 'TCP' | 'UDP';
   hostPort: number;
   name: string;
@@ -229,6 +230,13 @@ export function GameServersTable({
   };
 
   const getConnectionPortRows = (server: GameServer): ConnectionPortRow[] => {
+    // Skoczi fork: same port on different IPs represents distinct allocations.
+    if (server.portBindings) {
+      return (['tcp', 'udp'] as const).flatMap((protocol) => server.portBindings![protocol].map((binding) => ({
+        protocol: protocol.toUpperCase() as 'TCP' | 'UDP', hostPort: binding.host,
+        hostIp: binding.hostIp, name: binding.label,
+      })));
+    }
     const rows: ConnectionPortRow[] = [];
     const seen = new Set<string>();
     const tcpLabels = server.portLabels?.tcp ?? {};
@@ -280,21 +288,21 @@ export function GameServersTable({
     setConnectionModalServerId(null);
   };
 
-  const getConnectionAddress = (port: number) => {
+  const getConnectionAddress = (port: number, hostIp?: string) => {
     const normalizedPort = Number(port);
     if (!Number.isInteger(normalizedPort) || normalizedPort <= 0) return null;
-    return `${PUBLIC_CONNECTION_HOST}:${normalizedPort}`;
+    return `${hostIp || PUBLIC_CONNECTION_HOST}:${normalizedPort}`;
   };
 
-  const getConnectionCopyState = (port: number): 'idle' | 'success' | 'error' => {
-    const address = getConnectionAddress(port);
+  const getConnectionCopyState = (port: number, hostIp?: string): 'idle' | 'success' | 'error' => {
+    const address = getConnectionAddress(port, hostIp);
     if (!address) return 'idle';
     if (connectionCopyFeedback?.address !== address) return 'idle';
     return connectionCopyFeedback.status;
   };
 
-  const copyConnectionAddress = async (port: number) => {
-    const address = getConnectionAddress(port);
+  const copyConnectionAddress = async (port: number, hostIp?: string) => {
+    const address = getConnectionAddress(port, hostIp);
     if (!address) return;
 
     try {
@@ -773,4 +781,3 @@ export function GameServersTable({
     </div>
   );
 }
-

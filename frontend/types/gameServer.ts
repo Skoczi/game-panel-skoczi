@@ -1,3 +1,5 @@
+// Modified by Skoczi: retain complete host bindings alongside legacy port summaries.
+export interface PortBinding { host: number; container: number; label: string; hostIp?: string }
 export interface InstallStep {
   key: string;
   optional: boolean;
@@ -32,6 +34,8 @@ export interface GameServer {
   provider?: string;
   catalogId?: string;
   port?: number;
+  connectionHost?: string;
+  portBindings?: { tcp: PortBinding[]; udp: PortBinding[] };
   portMappings?: {
     tcp: number[];
     udp: number[];

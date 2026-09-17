@@ -120,10 +120,11 @@ export function getConfig(): AppConfig {
         composeProjectName: envOrDefault('COMPOSE_PROJECT_NAME', 'gamepanel'),
         gamesNetwork: envOrDefault('GAMEPANEL_GAMES_NETWORK', 'gamepanel-games'),
         updaterImage: envOrDefault('GAMEPANEL_UPDATER_IMAGE', gamePanelImage('gamepanel-updater')),
-        repositoryUrl: envOrDefault('GAMEPANEL_REPOSITORY_URL', 'https://github.com/ovh/game-panel.git'),
+        // Skoczi fork: never fall back to upstream for fork updates.
+        repositoryUrl: envOrDefault('GAMEPANEL_REPOSITORY_URL', 'https://github.com/Skoczi/game-panel-skoczi.git'),
         instanceId: process.env.APP_INSTANCE_ID?.trim() || null,
         instanceSecret: process.env.APP_INSTANCE_SECRET?.trim() || null,
-        telemetryEnabled: boolEnv('TELEMETRY_ENABLED', true),
+        telemetryEnabled: boolEnv('TELEMETRY_ENABLED', false),
         databaseApiBaseUrl: urlEnv('TELEMETRY_API_BASE_URL'),
     };
 

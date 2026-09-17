@@ -70,8 +70,8 @@ interface GameServersDesktopTableProps {
   openMetricModal: (server: GameServer, metric: MetricType) => void;
   visibleMetrics: MetricType[];
   onToggleMetric: (metric: MetricType) => void;
-  copyConnectionAddress: (port: number) => void;
-  getConnectionCopyState: (port: number) => 'idle' | 'success' | 'error';
+  copyConnectionAddress: (port: number, hostIp?: string) => void;
+  getConnectionCopyState: (port: number, hostIp?: string) => 'idle' | 'success' | 'error';
   setConfirmAction: (state: ConfirmActionState) => void;
   handleOpenSettings: (server: GameServer) => void;
   onAction: (serverId: string, serverName: string, action: string) => void;
@@ -309,7 +309,8 @@ export function GameServersDesktopTable({
           {filteredAndSortedServers.map((server) => {
             const { normalizedStatus, label: statusLabel, className: statusClassName } =
               getServerStatusPresentation(server.status);
-            const connectionCopyState = server.port ? getConnectionCopyState(server.port) : 'idle';
+            // Skoczi fork: retain the selected host IP in copy feedback and display.
+            const connectionCopyState = server.port ? getConnectionCopyState(server.port, server.connectionHost) : 'idle';
             const isUpLike = isServerUpLike(server.status);
             const isDownLike = isServerDownLike(server.status);
             const isCreating = isServerCreatingStatus(server.status);
@@ -399,13 +400,13 @@ export function GameServersDesktopTable({
                         className="rounded border-none bg-transparent px-2 py-1 text-xs font-mono text-cyan-400 transition-colors hover:bg-gray-700/60 hover:text-[var(--color-cyan-400)]"
                         title="Open ports list"
                       >
-                        {publicConnectionHost}:{server.port}
+                        {server.connectionHost || publicConnectionHost}:{server.port}
                       </AppButton>
                       <AppButton
                         tone="ghost"
                         onClick={() => {
                           if (!server.port) return;
-                          copyConnectionAddress(server.port);
+                          copyConnectionAddress(server.port, server.connectionHost);
                         }}
                         className={`rounded border-none p-1.5 transition-all ${
                           connectionCopyState === 'success'
@@ -732,4 +733,3 @@ export function GameServersDesktopTable({
     </div>
   );
 }
-

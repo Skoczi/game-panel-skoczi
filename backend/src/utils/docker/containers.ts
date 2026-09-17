@@ -1,3 +1,5 @@
+// Modified by Skoczi: preserve explicit HostIp and multiple bindings per container port.
+import { buildPortMaps } from './portBindings.js';
 import { docker } from './client.js';
 import { buildServerNetworkAlias } from './networks.js';
 import { getConfig } from '../../config.js';
@@ -54,6 +56,7 @@ export type OneShotContainerSpec = {
 export type PublishedHostPort = {
     protocol: 'tcp' | 'udp';
     hostPort: number;
+    hostIp?: string;
     containerId: string;
     containerName: string;
     labels: Record<string, string>;
@@ -69,28 +72,6 @@ function sanitizeContainerName(name: string): string {
 export function buildManagedContainerName(serverId: number, name: string): string {
     const slug = sanitizeContainerName(name) || 'server';
     return `${slug}-${serverId}`;
-}
-
-function buildPortMaps(ports: NormalizedPorts): {
-    exposedPorts: Record<string, {}>;
-    portBindings: Record<string, Array<{ HostPort: string }>>;
-} {
-    const exposedPorts: Record<string, {}> = {};
-    const portBindings: Record<string, Array<{ HostPort: string }>> = {};
-
-    for (const m of ports.tcp) {
-        const key = `${m.container}/tcp`;
-        exposedPorts[key] = {};
-        portBindings[key] = [{ HostPort: String(m.host) }];
-    }
-
-    for (const m of ports.udp) {
-        const key = `${m.container}/udp`;
-        exposedPorts[key] = {};
-        portBindings[key] = [{ HostPort: String(m.host) }];
-    }
-
-    return { exposedPorts, portBindings };
 }
 
 function escapeRegexLiteral(s: string): string {
@@ -437,6 +418,7 @@ export async function listPublishedHostPorts(params?: {
                     published.push({
                         protocol: rawProtocol,
                         hostPort,
+                        hostIp: String(binding.HostIp ?? ''),
                         containerId: containerSummary.Id,
                         containerName,
                         labels,

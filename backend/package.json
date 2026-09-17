@@ -1,6 +1,6 @@
 {
   "name": "game-panel-backend",
-  "version": "1.5.0",
+  "version": "1.5.0-skoczi.1",
   "description": "Game Panel Backend",
   "type": "module",
   "main": "dist/index.js",
@@ -8,6 +8,8 @@
     "node": ">=20.17.0"
   },
   "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "test:docker": "tsx --test test/integration/*.test.ts",
     "dev": "tsx watch -r dotenv/config src/index.ts",
     "build": "tsc",
     "start": "node --import dotenv/config dist/index.js"

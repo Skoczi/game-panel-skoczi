@@ -1,3 +1,4 @@
+// Modified by Skoczi: host IP allowlist API and per-port IPv4 payloads.
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import type {
   ReleaseConfigFileDefinition,
@@ -330,8 +331,8 @@ class ApiClient {
     imageOptions?: { patchline?: string; profileUuid?: string | null };
     runtimeIdentity?: { user: string; uid: number; gid: number };
     ports: {
-      tcp: { host: number; container: number; label: string }[];
-      udp: { host: number; container: number; label: string }[];
+      tcp: { host: number; container: number; label: string; hostIp?: string }[];
+      udp: { host: number; container: number; label: string; hostIp?: string }[];
     };
     healthcheck: null | { mode: 'disabled' } | { mode: 'override'; type: string; port?: number; interval?: number; timeout?: number; retries?: number; startPeriod?: number };
     mounts?: { key: string; containerPath: string }[];
@@ -388,8 +389,8 @@ class ApiClient {
   async updateServer(serverId: number, payload: {
     name?: string;
     ports?: {
-      tcp: Array<{ host: number; container: number; label: string }>;
-      udp: Array<{ host: number; container: number; label: string }>;
+      tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
+      udp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
     };
     mounts?: Array<{ key: string; containerPath: string }>;
     env?: Record<string, string>;
@@ -908,6 +909,11 @@ class ApiClient {
 
   subscribeServers() {
     this.realtime.subscribeServers();
+  }
+
+  async getBindAddresses(): Promise<{ addresses: string[] }> {
+    const response = await this.client.get('/api/system/bind-addresses');
+    return response.data;
   }
 
   async checkPanelUpdate(): Promise<PanelUpdateCheck> {

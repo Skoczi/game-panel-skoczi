@@ -1,104 +1,86 @@
 <div align="center">
 
-# 🎮 OVHcloud Game Panel
+# OVH Game Panel by Skoczi
 
-### Deploy and manage your game servers in minutes — from one clean, modern web interface.
+**Independent community fork · Explicit IP allocations · Documented changes**
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/Platform-Linux-1793D1)
-[![Made by OVHcloud](https://img.shields.io/badge/Made%20by-OVHcloud-000e9c)](https://www.ovhcloud.com/)
+[![Skoczi CI](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml/badge.svg)](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE-2.0.txt)
+![Stage](https://img.shields.io/badge/stage-preview-orange)
 
-<img src="docs/assets/game-panel.png" alt="OVHcloud Game Panel" width="900">
+[Documentation](docs/skoczi/README.md) · [Po polsku 🇵🇱](docs/skoczi/README.pl.md) · [Releases](https://github.com/Skoczi/game-panel-skoczi/releases) · [Upstream](https://github.com/ovh/game-panel)
 
 </div>
 
-<br>
+Manage game servers through a React dashboard backed by Node.js, SQLite and Docker. Based on **OVHcloud Game Panel 1.5.0**, this fork adds operator-managed IPv4 allocations while keeping its differences easy to review.
 
-OVHcloud Game Panel is an **open-source, self-hosted** control panel to deploy, run, and monitor your game servers — **without ever touching the command line**. Spin up a Minecraft, Counter-Strike 2, Hytale, Palworld, Project Zomboid, Rust, or Valheim server in a few clicks, then manage its files, backups, player access, and performance from a single modern dashboard. 🚀
+**Maintained by Skoczi. Not an official OVHcloud product, release or support channel.** Original authorship and Apache 2.0 notices are preserved. OVHcloud names and marks belong to their respective owners.
 
-## ✨ Features
+## What's different?
 
-- 🎛️ Complete server lifecycle management (create, start, stop, restart…).
-- 📊 Live status, logs, metrics, and installation tracking.
-- 🕹️ Interactive in-browser game console.
-- 📁 Powerful built-in file manager.
-- 💾 One-click backups and restores.
-- 🧩 In-panel mods installation.
-- ⏰ Flexible task scheduling.
-- 🐳 Advanced container configuration.
-- 🔐 Fine-grained user permissions.
-- 📈 Real-time host monitoring.
-- 💻 Integrated container terminal.
-- 🔄 Built-in one-click panel updater.
+| Area | Upstream 1.5.0 | Skoczi preview |
+|---|---|---|
+| Port allocation | Host port + container port | Optional **host IPv4** per TCP/UDP binding |
+| Same port on different IPs | Port-only conflict checks | Allowed on distinct configured addresses |
+| Multiple mappings to one container port | Last binding replaces previous binding | Every binding preserved |
+| Game connection address | Panel hostname | Selected allocation IP; legacy hostname fallback |
+| Operator control | No bind-IP allowlist | Backend-validated `GAMEPANEL_BIND_IPS` |
+| Telemetry | On by default | **Opt-in** on fresh installs |
+| Updates | Upstream one-click updater | Fork release notes; **manual reviewed updates** |
+| Validation | Build checks | Regression tests + Linux Docker publishing CI |
 
-## 🕹️ Supported games
+Read the [changelog](CHANGELOG-SKOCZI.md), [change map](docs/skoczi/CHANGES.md) and [limitations](docs/skoczi/LIMITATIONS.md). Nothing automatically migrates existing Pterodactyl servers.
 
-**Natively supported**, ready to deploy with OVHcloud-maintained images:
+## Start here
 
-- **Minecraft** — Java Edition, Paper, Fabric, NeoForge, Forge, and Bedrock Edition
-- **Counter-Strike 2**
-- **Hytale**
-- **Palworld**
-- **Project Zomboid**
-- **Rust**
-- **Valheim**
+1. Read the [installation guide](docs/skoczi/INSTALLATION.md). Use a fresh, disposable Linux VM.
+2. Install the tagged preview; the standard installer provisions Docker and Traefik on **80/443**.
+3. Add already-configured host addresses to the allowlist.
+4. Select **Host IPv4** during installation or in container configuration.
+5. Test a disposable game before moving real workloads.
 
-**And many more.** Game Panel integrates the full [LinuxGSM](https://linuxgsm.com/servers/) library, giving you a huge catalogue of additional dedicated game servers out of the box.
+> **Do not run the standard installer on an existing Pterodactyl/Nginx/production host.** It is not an isolated side-by-side installer. Backend Docker socket access is effectively host administrative access.
 
-Your game isn't listed? You can also **add any external Docker image** and run it straight from the panel. 🐳
+### Additional IPs in one example
 
-## 🚀 Installation
+In the installed panel's `/opt/gamepanel/deploy/.env`:
 
-### ⚡ Automatic — OVHcloud VPS or Dedicated Server (recommended)
-
-Game Panel can be installed **automatically, in one click**, when you deploy an OVHcloud **VPS** or **Dedicated Server**. See the [installation guide](https://docs.ovhcloud.com/en/guides/bare-metal-cloud/virtual-private-servers/game-panel-install-on-vps).
-
-### 🛠️ Manual installation
-
-**Prerequisites:**
-
-- a Linux machine running Debian 12/13 or Ubuntu 22.04 / 24.04 / 25.10 / 26.04;
-- a domain name pointing to the machine's public IP address;
-- shell access with administrative privileges.
-
-Don't have the infrastructure yet? 🌐 [Domain name](https://www.ovhcloud.com/en-ie/domains/) · 🖥️ [VPS](https://www.ovhcloud.com/en-ie/vps/) · 🗄️ [Dedicated server](https://www.ovhcloud.com/en-ie/bare-metal/)
-
-**Command to run:**
-
-```bash
-sudo apt install git
-git clone https://github.com/ovh/game-panel.git
-cd game-panel
-sudo bash ./deploy/install.sh
+```dotenv
+# Documentation addresses only — replace with your assigned host IPs.
+GAMEPANEL_BIND_IPS=192.0.2.10,192.0.2.11
+TELEMETRY_ENABLED=false
 ```
 
-During installation, you'll be prompted for:
+Allocate **192.0.2.10:27015/UDP** and **192.0.2.11:27015/UDP** independently. A wildcard binding on that UDP port overlaps both.
 
-- Domain name
-- Admin password
-- Admin username (optional, default: `admin`)
-- Let's Encrypt email
+This publishes Docker ports; it does **not** provision provider IPs, MACVLANs, routing, virtual MACs, firewall rules or outbound source IPs. See the [complete IP guide](docs/skoczi/ADDITIONAL-IPS.md).
 
-Once installed, your panel is live at **`https://<your-domain>`** 🎉
+## Development
 
-> 📡 OVHcloud Game Panel sends usage telemetry by default. You can disable it at install with `--telemetry-disabled`. See [docs/TELEMETRY.md](docs/TELEMETRY.md).
+Node.js 22 LTS and npm; Linux Docker only for the opt-in integration test.
 
-## 🏗️ Architecture
+```bash
+git clone https://github.com/Skoczi/game-panel-skoczi.git
+cd game-panel-skoczi/backend
+npm ci --ignore-scripts
+npm test
+npm run build
+cd ../frontend
+npm ci --ignore-scripts
+npm run build
+```
 
-Under the hood, a **React + Vite** frontend talks to a **Node.js** backend (Express, WebSocket, SQLite) that orchestrates the full server lifecycle — files, backups, permissions, metrics, and container configuration — through the **Docker** engine.
+These build/test commands do not run the backend's native SQLite/bcrypt modules. A full runtime needs their normal installation steps; read [Development](docs/skoczi/DEVELOPMENT.md).
 
-- `frontend/` — React and Vite user interface.
-- `backend/` — Node.js, Express, WebSocket, and SQLite backend.
-- `docker-images/` — OVHcloud game server images and operational images.
-- `deploy/` — self-hosted installation and update scripts.
+## Scope and privacy
 
-## 📚 Documentation & support
+Generic source and documentation only: no server configuration, deployment databases, certificates, SSH keys or game data. Never post credential-bearing logs or screenshots. Examples use reserved documentation addresses.
 
-- 📋 [Changelog](CHANGELOG.md)
-- 📡 [Telemetry](docs/TELEMETRY.md)
-- 💬 [Contact OVHcloud support](https://www.ovhcloud.com/en/contact/)
-- 🎮 [OVHcloud Discord](https://discord.gg/ovhcloud)
+Catalogue/images still depend on upstream/external services. Telemetry off does not mean offline. Backups and game consoles depend on the selected provider: not every feature supports every external image.
 
-## 📄 License
+## Contributing and attribution
 
-Licensed under the **Apache License 2.0** — see [LICENSE](LICENSE).
+- [Contribution guide](CONTRIBUTING-SKOCZI.md); report fork-specific issues here, not to OVHcloud support.
+- Original project: [ovh/game-panel](https://github.com/ovh/game-panel), copyright OVH 2026.
+- Modifications: Skoczi, documented in [CHANGELOG-SKOCZI.md](CHANGELOG-SKOCZI.md).
+- [Original license notice](LICENSE) · [Full Apache 2.0 terms](LICENSE-2.0.txt) · [NOTICE](NOTICE)

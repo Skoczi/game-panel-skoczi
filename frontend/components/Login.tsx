@@ -62,12 +62,8 @@ export function Login({ onLogin }: LoginProps) {
     >
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <img
-            src="/OVHcloud_Game_Panel_Logo.png"
-            alt="OVHcloud Game Panel"
-            className="h-14 w-auto object-contain"
-            style={{ filter: 'brightness(0) invert(1)' }}
-          />
+          {/* Modified by Skoczi: distinguish this independent fork from upstream. */}
+          <h1 className="text-2xl font-semibold text-white text-center">OVH Game Panel <span className="block text-base font-normal">by Skoczi · Community fork</span></h1>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
             Sign in to manage your game servers
           </p>

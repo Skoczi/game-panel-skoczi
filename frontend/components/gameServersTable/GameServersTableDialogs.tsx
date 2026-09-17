@@ -24,6 +24,7 @@ import { AppButton } from '../../src/ui/components';
 import { ODS_CHART_THEME } from '../charts/theme';
 
 interface ConnectionPortRow {
+  hostIp?: string;
   protocol: 'TCP' | 'UDP';
   hostPort: number;
   name: string;
@@ -51,8 +52,8 @@ interface GameServersTableDialogsProps {
   selectedConnectionServer: GameServer | null;
   connectionModalRows: ConnectionPortRow[];
   closeConnectionModal: () => void;
-  copyConnectionAddress: (port: number) => void;
-  getConnectionCopyState: (port: number) => 'idle' | 'success' | 'error';
+  copyConnectionAddress: (port: number, hostIp?: string) => void;
+  getConnectionCopyState: (port: number, hostIp?: string) => 'idle' | 'success' | 'error';
   metricModalOpen: boolean;
   selectedMetricServer: GameServer | null;
   metricType: MetricType;
@@ -162,10 +163,11 @@ export function GameServersTableDialogs({
                     </thead>
                     <tbody>
                       {connectionModalRows.map((row, idx) => {
-                        const connectionCopyState = getConnectionCopyState(row.hostPort);
+                        // Skoczi fork: copy the allocation IP, not the web-panel hostname.
+                        const connectionCopyState = getConnectionCopyState(row.hostPort, row.hostIp);
                         return (
                           <tr
-                            key={`${row.protocol}-${row.hostPort}`}
+                            key={`${row.protocol}-${row.hostIp ?? ''}-${row.hostPort}`}
                             className={`bg-[#111827] ${idx < connectionModalRows.length - 1 ? 'border-b border-gray-700/40' : ''}`}
                           >
                             <td className={`px-3 py-2.5 ${textPrimary}`}>{row.protocol}</td>
@@ -186,11 +188,11 @@ export function GameServersTableDialogs({
                             <td className="px-3 py-2.5 whitespace-nowrap w-full">
                               <div className="flex items-center justify-between gap-2">
                                 <code className="text-xs font-mono px-2 py-1 rounded bg-gray-800 text-cyan-400">
-                                  {PUBLIC_CONNECTION_HOST}:{row.hostPort}
+                                  {row.hostIp || PUBLIC_CONNECTION_HOST}:{row.hostPort}
                                 </code>
                                 <AppButton
                                   type="button"
-                                  onClick={() => copyConnectionAddress(row.hostPort)}
+                                  onClick={() => copyConnectionAddress(row.hostPort, row.hostIp)}
                                   className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-all ${
                                     connectionCopyState === 'success'
                                       ? 'bg-green-500/20 text-green-400'
@@ -566,4 +568,3 @@ export function GameServersTableDialogs({
     </>
   );
 }
-

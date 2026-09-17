@@ -4,6 +4,8 @@ This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records 
 
 ## Unreleased
 
+- Replaced the four workspace filter/sort/group native selects with the shared Resources dropdown, including its selected-state styling, keyboard/typeahead navigation, and light/dark mobile layouts.
+
 - Added personal drag-and-drop server ordering, including keyboard and touch handles.
 - Added game/type and status filters, game/type groups, name/type/location/status sorting and reset controls.
 - Remembered layout per account in the current browser without changing node placement or other users' views.

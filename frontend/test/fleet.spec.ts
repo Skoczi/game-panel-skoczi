@@ -1,4 +1,8 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+async function select(page: Page, name: string, option: string) {
+  await page.getByRole('combobox', { name, exact: true }).click();
+  await page.getByRole('option', { name: option, exact: true }).click();
+}
 const nodeId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 const serverId = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 const servers = [
@@ -22,26 +26,77 @@ const servers = [
     node: { name: 'North-02', location: 'Helsinki, FI' },
   },
 ];
+test('custom dropdown supports keyboard, typeahead, cancellation and focus', async ({ page }) => {
+  await page.goto('/test/fleet.fixture.html');
+  const sort = page.getByRole('combobox', { name: 'Sort servers' });
+  await sort.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(sort).toContainText('Status');
+  await expect(sort).toBeFocused();
+  await sort.press('Space');
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Escape');
+  await expect(sort).toContainText('Status');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await sort.press('n');
+  await page.keyboard.press('Enter');
+  await expect(sort).toContainText('Name A–Z');
+  await sort.click();
+  await page.getByRole('heading', { name: 'Game Servers', exact: true }).click();
+  await expect(sort).toHaveAttribute('aria-expanded', 'false');
+  await sort.click();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Group servers' })).toBeFocused();
+});
+
+test('open custom menus fit mobile and dark desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('combobox', { name: 'Sort servers' }).click();
+  const menu = page.getByRole('listbox');
+  await expect(menu).toBeVisible();
+  const bounds = (await menu.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: 'test-results/fleet-select-mobile.png', fullPage: true });
+  await page.getByRole('option', { name: 'Location', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Sort servers' })).toContainText('Location');
+  await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.reload();
+  await page.getByRole('combobox', { name: 'Sort servers' }).click();
+  await expect(page.getByRole('option', { name: 'Location', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  );
+  await page.screenshot({ path: 'test-results/fleet-select-dark.png', fullPage: true });
+});
+
 test('view filters, grouping and sort persist per account and can be reset', async ({ page }) => {
   await page.goto('/test/fleet.fixture.html');
-  await page.getByRole('combobox', { name: 'Group servers' }).selectOption('type');
+  await select(page, 'Group servers', 'Game / type');
   await expect(page.getByRole('heading', { name: 'Custom image', exact: false })).toBeVisible();
-  await page
-    .getByRole('combobox', { name: 'Filter by game type' })
-    .selectOption('linuxgsm:mcserver');
+  await select(page, 'Filter by game type', 'mcserver');
   await expect(page.getByRole('heading', { name: 'Community Arena', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Survival World', exact: true })).toBeVisible();
-  await page.getByRole('combobox', { name: 'Sort servers' }).selectOption('name');
+  await select(page, 'Sort servers', 'Name A–Z');
   await expect(page.getByRole('button', { name: 'Reorder Survival World' })).toBeDisabled();
   await page.reload();
-  await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toHaveValue(
-    'linuxgsm:mcserver'
+  await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toContainText(
+    'mcserver'
   );
-  await expect(page.getByRole('combobox', { name: 'Group servers' })).toHaveValue('type');
+  await expect(page.getByRole('combobox', { name: 'Group servers' })).toContainText('Game / type');
   await page.evaluate(() => sessionStorage.setItem('test-user', '3'));
   await page.reload();
   await expect(page.getByRole('article')).toHaveCount(2);
-  await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toHaveValue('');
+  await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toContainText(
+    'All types'
+  );
   await page.evaluate(() => sessionStorage.setItem('test-user', '2'));
   await page.reload();
   await expect(page.getByRole('article')).toHaveCount(1);
@@ -84,7 +139,7 @@ test('damaged preferences and unavailable stored filters remain recoverable', as
   await page.addInitScript(() => localStorage.setItem('gamepanel_fleet_layout_v1:2', '{broken'));
   await page.goto('/test/fleet.fixture.html');
   await expect(page.getByRole('article')).toHaveCount(2);
-  await page.getByRole('combobox', { name: 'Filter by status' }).selectOption('running');
+  await select(page, 'Filter by status', 'running');
   await expect(page.getByRole('article')).toHaveCount(1);
   await page.evaluate(() => {
     Storage.prototype.setItem = () => {
@@ -127,7 +182,7 @@ test('long catalogue identifiers and empty filters fit narrow grouped layouts', 
     r.fulfill({ json: { servers: [{ ...servers[0], catalogId: 'a'.repeat(256) }] } })
   );
   await page.goto('/test/fleet.fixture.html');
-  await page.getByRole('combobox', { name: 'Group servers' }).selectOption('type');
+  await select(page, 'Group servers', 'Game / type');
   await expect(page.getByRole('article')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.getByRole('textbox', { name: 'Search servers and locations' }).fill('no such game');

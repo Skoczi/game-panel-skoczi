@@ -44,6 +44,7 @@ import {
   AppModalBody,
 } from '../src/ui/components';
 import './fleet.css';
+import { FleetSelect } from './FleetSelect';
 
 type FleetServer = {
   id: string;
@@ -210,73 +211,59 @@ export function FleetWorkspace({
         </span>
       </div>
       <div className="gp-fleet-view-controls">
-        <label>
-          Game / type
-          <select
-            aria-label="Filter by game type"
-            value={layout.type}
-            onChange={(e) => changeLayout({ ...layout, type: e.target.value })}
-          >
-            <option value="">All types</option>
-            {layout.type && !types.some(([key]) => key === layout.type) && (
-              <option value={layout.type}>Unavailable type</option>
-            )}
-            {types.map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Status
-          <select
-            aria-label="Filter by status"
-            value={layout.status}
-            onChange={(e) => changeLayout({ ...layout, status: e.target.value })}
-          >
-            <option value="">All statuses</option>
-            {[
+        <FleetSelect
+          label="Game / type"
+          ariaLabel="Filter by game type"
+          value={layout.type}
+          onChange={(type) => changeLayout({ ...layout, type })}
+          options={[
+            { value: '', label: 'All types' },
+            ...(layout.type && !types.some(([key]) => key === layout.type)
+              ? [{ value: layout.type, label: 'Unavailable type' }]
+              : []),
+            ...types.map(([value, label]) => ({ value, label })),
+          ]}
+        />
+        <FleetSelect
+          label="Status"
+          ariaLabel="Filter by status"
+          value={layout.status}
+          onChange={(status) => changeLayout({ ...layout, status })}
+          options={[
+            { value: '', label: 'All statuses' },
+            ...[
               ...new Set([
                 ...servers.map((s) => s.status),
                 ...(layout.status ? [layout.status] : []),
               ]),
             ]
               .sort()
-              .map((status) => (
-                <option key={status}>{status}</option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Sort
-          <select
-            aria-label="Sort servers"
-            value={layout.sort}
-            onChange={(e) =>
-              changeLayout({ ...layout, sort: e.target.value as FleetLayout['sort'] })
-            }
-          >
-            <option value="custom">My order</option>
-            <option value="name">Name A–Z</option>
-            <option value="type">Game / type</option>
-            <option value="location">Location</option>
-            <option value="status">Status</option>
-          </select>
-        </label>
-        <label>
-          Group
-          <select
-            aria-label="Group servers"
-            value={layout.group}
-            onChange={(e) =>
-              changeLayout({ ...layout, group: e.target.value as FleetLayout['group'] })
-            }
-          >
-            <option value="none">No grouping</option>
-            <option value="type">Game / type</option>
-          </select>
-        </label>
+              .map((status) => ({ value: status, label: status })),
+          ]}
+        />
+        <FleetSelect
+          label="Sort"
+          ariaLabel="Sort servers"
+          value={layout.sort}
+          onChange={(sort) => changeLayout({ ...layout, sort: sort as FleetLayout['sort'] })}
+          options={[
+            { value: 'custom', label: 'My order' },
+            { value: 'name', label: 'Name A–Z' },
+            { value: 'type', label: 'Game / type' },
+            { value: 'location', label: 'Location' },
+            { value: 'status', label: 'Status' },
+          ]}
+        />
+        <FleetSelect
+          label="Group"
+          ariaLabel="Group servers"
+          value={layout.group}
+          onChange={(group) => changeLayout({ ...layout, group: group as FleetLayout['group'] })}
+          options={[
+            { value: 'none', label: 'No grouping' },
+            { value: 'type', label: 'Game / type' },
+          ]}
+        />
         <button
           className={button}
           onClick={() => {

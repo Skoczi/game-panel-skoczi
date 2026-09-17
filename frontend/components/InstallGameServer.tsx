@@ -1,3 +1,5 @@
+// Modified by Skoczi: explicit host IPv4 selection for every port binding.
+import { HostIpSelect } from './HostIpSelect';
 import React, { useEffect, useState } from 'react';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Eye, EyeOff, Package, Plus, Search, Settings2, Trash2, X } from 'lucide-react';
@@ -15,7 +17,7 @@ import { MinecraftVersionPicker, type JavaImageOption } from './MinecraftVersion
 import { getMcServerType, getPickerManagedKeys, type McServerType } from '../utils/minecraftCatalog';
 import { fetchProjectZomboidBranches, type ProjectZomboidBranch } from '../utils/projectZomboidBranches';
 
-interface PortRow { host: string; container: string; label: string }
+interface PortRow { host: string; container: string; label: string; hostIp?: string }
 interface EnvRow { key: string; value: string }
 interface MountRow { key: string; containerPath: string }
 
@@ -73,10 +75,10 @@ function envFromImage(image: OvhcloudImage): EnvRow[] {
   return Object.entries(image.defaultEnv).map(([key, value]) => ({ key, value }));
 }
 
-function parsePortRows(rows: PortRow[]): { host: number; container: number; label: string }[] {
+function parsePortRows(rows: PortRow[]): { host: number; container: number; label: string; hostIp?: string }[] {
   return rows
     .filter((r) => r.host.trim() && r.container.trim())
-    .map((r) => ({ host: Number(r.host), container: Number(r.container), label: r.label.trim() }))
+    .map((r) => ({ host: Number(r.host), container: Number(r.container), label: r.label.trim(), hostIp: r.hostIp || undefined }))
     .filter((r) => r.host > 0 && r.container > 0);
 }
 
@@ -152,7 +154,8 @@ function PortSection({ label, rows, setRows }: { label: string; rows: PortRow[];
         </div>
       )}
       {rows.map((row, i) => (
-        <div key={i} className="flex gap-2 mb-2 items-center">
+        <div key={i} className="flex flex-wrap gap-2 mb-3 items-center">
+          <div className="w-full"><HostIpSelect value={row.hostIp} onChange={(value) => update(i, 'hostIp', value)} /></div>
           <input type="number" placeholder="Host" value={row.host} onChange={(e) => update(i, 'host', e.target.value)}
             className="w-20 rounded-lg bg-gray-50 dark:bg-[#0f1723]/60 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white text-xs px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--gp-ods-accent-primary)] dark:focus:ring-white/20" />
           <span className="text-gray-400 text-xs">→</span>

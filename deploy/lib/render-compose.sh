@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Renders the Game Panel compose file and guarantees its prerequisites.
+# Modified by Skoczi: pass the host IPv4 allowlist to the backend.
 #
 # The compose file holds no installation-specific value - everything variable
 # lives in the .env file next to it - so it is regenerated rather than patched in
@@ -91,6 +92,7 @@ services:
       ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
       GAMEPANEL_APP_ROOT: "${GAMEPANEL_APP_ROOT}"
       GAMEPANEL_REPOSITORY_URL: "${GAMEPANEL_REPOSITORY_URL}"
+      GAMEPANEL_BIND_IPS: "${GAMEPANEL_BIND_IPS:-}"
       DOCKER_SOCKET: "${DOCKER_SOCKET}"
       GAMEPANEL_GAMES_NETWORK: "__GAMES_NETWORK__"
       TRUST_PROXY: "${TRUST_PROXY}"

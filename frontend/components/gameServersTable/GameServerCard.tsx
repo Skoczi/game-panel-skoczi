@@ -97,7 +97,8 @@ export function GameServerCard({
   const [copied, setCopied] = useState(false);
   const copyConnection = async () => {
     try {
-      await navigator.clipboard.writeText(`${PUBLIC_CONNECTION_HOST}:${server.port}`);
+      // Skoczi fork: use the selected game address independently of the panel domain.
+      await navigator.clipboard.writeText(`${server.connectionHost || PUBLIC_CONNECTION_HOST}:${server.port}`);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch { /* clipboard unavailable */ }
@@ -201,7 +202,7 @@ export function GameServerCard({
                   className="rounded px-2 py-1 text-xs font-mono text-cyan-600 dark:text-cyan-400 transition-colors hover:bg-gray-100 dark:hover:bg-white/5 hover:text-[var(--color-cyan-400)]"
                   title="Open ports list"
                 >
-                  {PUBLIC_CONNECTION_HOST}:{server.port}
+                  {server.connectionHost || PUBLIC_CONNECTION_HOST}:{server.port}
                 </button>
                 <button
                   type="button"

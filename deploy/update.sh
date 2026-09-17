@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Modified by Skoczi: default updates to this fork, not upstream.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -75,10 +76,10 @@ ensure_runtime_env_defaults() {
   append_env_if_missing 'APP_INSTANCE_ID' "$(generate_uuid)"
   append_env_if_missing 'APP_INSTANCE_SECRET' "$(generate_secret)"
   append_env_if_missing 'TRUST_PROXY' "1"
-  append_env_if_missing 'TELEMETRY_ENABLED' "true"
+  append_env_if_missing 'TELEMETRY_ENABLED' "false"
   append_env_if_missing 'TELEMETRY_API_BASE_URL' "$current_db_api_base_url"
   append_env_if_missing 'GAMEPANEL_APP_ROOT' "$APP_ROOT"
-  append_env_if_missing 'GAMEPANEL_REPOSITORY_URL' "https://github.com/ovh/game-panel.git"
+  append_env_if_missing 'GAMEPANEL_REPOSITORY_URL' "https://github.com/Skoczi/game-panel-skoczi.git"
 }
 
 wait_for_stack() {
@@ -165,8 +166,7 @@ main() {
   log "Running deploy migrations..."
   run_deploy_migrations
 
-  log "Pulling updater image..."
-  pull_updater_image_best_effort "ovhcom/gamepanel-updater:$(read_app_version "$APP_SOURCE_DIR")"
+  log "Skoczi preview: no upstream updater image will be pulled."
 
   log "Rebuilding and starting updated GamePanel stack..."
   compose_cmd build --pull

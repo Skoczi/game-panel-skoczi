@@ -40,3 +40,19 @@ Thumbs.db
 
 # ---- Dev ----
 /dev
+# Skoczi fork: deployment state and credentials must never be published.
+*.sqlite
+*.sqlite3
+*.db-*
+*.p12
+*.pfx
+*.tar
+*.tar.gz
+*.tar.zst
+/data/
+/servers/
+/backups/
+/deploy/compose.yml
+/deploy/compose.yaml
+test-results/
+playwright-report/

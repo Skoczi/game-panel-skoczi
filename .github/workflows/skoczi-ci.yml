@@ -1,0 +1,36 @@
+name: Skoczi CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: backend
+      - run: npm test && npm run build
+        working-directory: backend
+      - run: npm run test:docker
+        working-directory: backend
+        env:
+          GAMEPANEL_DOCKER_TEST: '1'
+      - run: npm ci --ignore-scripts && npm run build
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:ui
+        working-directory: frontend
+      - name: Validate deployment shell syntax
+        run: find deploy -name '*.sh' -exec bash -n {} \;

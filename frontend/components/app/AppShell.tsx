@@ -210,12 +210,8 @@ export function AppShell({
           >
             <Menu className={`w-6 h-6 ${isDark ? 'text-white' : 'text-white'}`} />
           </AppButton>
-          <img
-            src="/OVHcloud_Game_Panel_Logo.png"
-            alt="OVHcloud Game Panel"
-            draggable={false}
-            className="h-8 w-auto max-w-[70%] object-contain brightness-0 invert select-none"
-          />
+          {/* Modified by Skoczi: independent fork identity on mobile. */}
+          <span className="text-white text-center text-sm font-semibold">OVH Game Panel<br />by Skoczi · Community fork</span>
           <div className="w-10"></div>
         </div>
       </div>
@@ -367,4 +363,3 @@ export function AppShell({
     </div>
   );
 }
-

@@ -1,15 +1,17 @@
+// Modified by Skoczi: IPv4 allocations, address-aware conflicts and strict port parsing.
+import { normalizeBindAddress, bindAddressesOverlap } from './bindAddresses.js';
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
 
 export type PortsPayload = {
-    tcp?: Array<{ host?: unknown; container?: unknown; label?: unknown }>;
-    udp?: Array<{ host?: unknown; container?: unknown; label?: unknown }>;
+    tcp?: Array<{ host?: unknown; container?: unknown; label?: unknown; hostIp?: unknown }>;
+    udp?: Array<{ host?: unknown; container?: unknown; label?: unknown; hostIp?: unknown }>;
 };
 
 export type NormalizedPorts = {
-    tcp: Array<{ host: number; container: number; label: string }>;
-    udp: Array<{ host: number; container: number; label: string }>;
+    tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
+    udp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
 };
 
 /* ------------------------------------------------------------------ */
@@ -17,17 +19,18 @@ export type NormalizedPorts = {
 /* ------------------------------------------------------------------ */
 
 function toInt(v: unknown): number | null {
-    const n = Number.parseInt(String(v), 10);
-    return Number.isFinite(n) ? n : null;
+    if (typeof v !== 'number' && (typeof v !== 'string' || !/^\d+$/.test(v))) return null;
+    const n = Number(v);
+    return Number.isSafeInteger(n) ? n : null;
 }
 
 function normalizeEntries(
-    entries: Array<{ host?: unknown; container?: unknown; label?: unknown }> | undefined
-): Array<{ host: number; container: number; label: string }> {
+    entries: PortsPayload['tcp']
+): NormalizedPorts['tcp'] {
     if (!entries) return [];
     if (!Array.isArray(entries)) throw new Error('Invalid ports payload (protocol values must be arrays)');
 
-    const out: Array<{ host: number; container: number; label: string }> = [];
+    const out: NormalizedPorts['tcp'] = [];
 
     for (const entry of entries) {
         if (!entry || typeof entry !== 'object') {
@@ -45,6 +48,7 @@ function normalizeEntries(
             host,
             container,
             label: String(entry.label ?? ''),
+            hostIp: normalizeBindAddress(entry.hostIp),
         });
     }
 
@@ -58,10 +62,11 @@ function validatePortRangePairs(ports: Array<{ container: number; host: number }
     }
 }
 
-function assertNoDuplicateHostPorts(ports: Array<{ container: number; host: number }>, label: string) {
-    const hostPorts = ports.map((m) => m.host);
-    if (new Set(hostPorts).size !== hostPorts.length) {
-        throw new Error(`Duplicate ${label} host ports in mapping`);
+function assertNoDuplicateHostPorts(ports: NormalizedPorts['tcp'], label: string) {
+    for (let index = 0; index < ports.length; index++) {
+        if (ports.slice(0, index).some((other) => other.host === ports[index].host && bindAddressesOverlap(other.hostIp, ports[index].hostIp))) {
+            throw new Error(`Overlapping ${label} host IP/port bindings in mapping`);
+        }
     }
 }
 

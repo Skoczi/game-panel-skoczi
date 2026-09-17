@@ -24,8 +24,9 @@ export interface InstallGameHandlerPayload {
   imageOptions?: { patchline?: string; profileUuid?: string | null };
   runtimeIdentity?: { user: string; uid: number; gid: number };
   ports: {
-    tcp: { host: number; container: number; label: string }[];
-    udp: { host: number; container: number; label: string }[];
+    // Modified by Skoczi: retain explicit IPv4 allocations in installation payloads.
+    tcp: { host: number; container: number; label: string; hostIp?: string }[];
+    udp: { host: number; container: number; label: string; hostIp?: string }[];
   };
   healthcheck: null | { mode: 'disabled' } | { mode: 'override'; type: string; port?: number; interval?: number; timeout?: number; retries?: number; startPeriod?: number };
   mounts?: { key: string; containerPath: string }[];

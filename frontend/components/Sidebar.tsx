@@ -206,11 +206,10 @@ export function Sidebar({
     >
       <div className={`border-b px-4 py-3 ${isDark ? 'border-white/10' : 'border-white/40'}`}>
         <div className="flex items-center justify-center">
-          <img
-            src="/OVHcloud_Game_Panel_Logo.png"
-            alt="OVHcloud Game Panel"
-            draggable={false}
-            className="h-10 w-auto object-contain brightness-0 invert cursor-pointer select-none"
+          {/* Modified by Skoczi: independent fork identity; upstream credits retained. */}
+          <button
+            type="button"
+            className="text-white text-center font-semibold"
             onClick={() => {
               const next = logoClickCount + 1;
               if (next >= 5) {
@@ -220,7 +219,7 @@ export function Sidebar({
                 setLogoClickCount(next);
               }
             }}
-          />
+          >OVH Game Panel<span className="block text-xs font-normal">by Skoczi · Community fork</span></button>
         </div>
       </div>
 
@@ -393,6 +392,12 @@ export function Sidebar({
 
           <AppModalBody className="max-h-[85vh] overflow-y-auto p-0">
             <div className="px-6 py-6">
+              <p className="mb-6 rounded border border-gray-600 p-3 text-sm">
+                Independent community fork maintained by Skoczi, not an official OVHcloud service.
+                The notices below are inherited from the original project. Operators must provide
+                their own deployment terms and privacy information. Fork modifications are documented
+                at github.com/Skoczi/game-panel-skoczi.
+              </p>
               <div className="space-y-6">
                 <LegalSection number="1" title="Terms and conditions">
                   <div className="grid gap-6 md:grid-cols-2">

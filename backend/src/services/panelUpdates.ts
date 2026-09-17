@@ -6,7 +6,8 @@ import { getConfig } from '../config.js';
 import { logError } from '../utils/logger.js';
 import { toIsoTimestamp, toIsoTimestampOrNull } from '../utils/time.js';
 
-const GITHUB_RELEASES_URL = 'https://api.github.com/repos/ovh/game-panel/releases?per_page=100';
+// Modified by Skoczi: fork release notes; automatic updates disabled for this preview.
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Skoczi/game-panel-skoczi/releases?per_page=100';
 const RELEASES_CACHE_TTL_MS = 10 * 60 * 1000;
 const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
@@ -263,6 +264,7 @@ export async function startPanelUpdate(input: {
   version: unknown;
   startedBy: string | null;
 }): Promise<PanelUpdateStartResult> {
+  assertForkUpdatesEnabled();
   const targetVersion = normalizeApiVersion(input.version);
   const currentVersion = getAppVersion();
   const target = parseVersion(targetVersion);
@@ -339,4 +341,8 @@ export async function startPanelUpdate(input: {
     jobId,
     targetVersion,
   };
+}
+
+function assertForkUpdatesEnabled(): void {
+  throw Object.assign(new Error('Automatic updates are disabled in the Skoczi preview. Follow docs/skoczi/INSTALLATION.md for reviewed manual updates.'), { statusCode: 409 });
 }

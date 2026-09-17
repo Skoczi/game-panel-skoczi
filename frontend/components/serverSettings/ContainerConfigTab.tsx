@@ -1,9 +1,11 @@
+// Modified by Skoczi: retain and edit host IPv4 allocations without widening bindings.
+import { HostIpSelect } from '../HostIpSelect';
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Save, AlertTriangle, Loader2, RefreshCw, X } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
 
-type PortEntry = { host: string; container: string; label: string };
+type PortEntry = { host: string; container: string; label: string; hostIp?: string };
 type EnvEntry = { key: string; value: string };
 type MountEntry = { key: string; containerPath: string };
 type HealthcheckMode = 'image_default' | 'disabled' | 'override';
@@ -127,6 +129,7 @@ function portsFromRaw(raw: unknown): { tcp: PortEntry[]; udp: PortEntry[] } {
       host: String(e.host ?? ''),
       container: String(e.container ?? ''),
       label: e.label ?? '',
+      hostIp: e.hostIp ?? '',
     }));
   return {
     tcp: toEntries(parsed?.tcp ?? []),
@@ -235,10 +238,10 @@ export function ContainerConfigTab({
       ports: {
         tcp: tcpPorts
           .filter(p => p.host && p.container)
-          .map(p => ({ host: Number(p.host), container: Number(p.container), label: p.label })),
+          .map(p => ({ host: Number(p.host), container: Number(p.container), label: p.label, hostIp: p.hostIp || undefined })),
         udp: udpPorts
           .filter(p => p.host && p.container)
-          .map(p => ({ host: Number(p.host), container: Number(p.container), label: p.label })),
+          .map(p => ({ host: Number(p.host), container: Number(p.container), label: p.label, hostIp: p.hostIp || undefined })),
       },
       mounts: mounts.filter(m => m.key && m.containerPath),
       healthcheck: buildHealthcheckPayload(healthcheck),
@@ -759,7 +762,8 @@ function PortsSection({
           </div>
         )}
         {ports.map((port, idx) => (
-          <div key={idx} className="flex gap-2 items-center">
+          <div key={idx} className="flex flex-wrap gap-2 items-center">
+            <div className="w-full"><HostIpSelect value={port.hostIp} disabled={!canEdit} onChange={(value) => onUpdate(idx, 'hostIp', value)} /></div>
             <input
               type="number"
               className={`${inputClass} flex-1`}

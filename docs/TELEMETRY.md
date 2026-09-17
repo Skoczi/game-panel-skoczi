@@ -1,6 +1,6 @@
 # 📡 Telemetry
 
-OVHcloud Game Panel sends anonymous usage telemetry by default. The collected data helps guide development priorities and improve support for the most-used games.
+**Skoczi fork change:** telemetry is **off by default** on fresh installs and when no environment setting is present. Existing explicit `TELEMETRY_ENABLED=true` settings are preserved during manual upgrades. The upstream telemetry integration remains available as an opt-in; it sends the fields below to the configured telemetry service, not to Skoczi. Because it includes a domain and instance identifiers, do not treat it as anonymous.
 
 ## Sent on panel install / update
 

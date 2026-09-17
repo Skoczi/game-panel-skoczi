@@ -58,7 +58,7 @@ export function AppSelect({
         placeholder={placeholder}
         aria-label={controlLabel}
       />
-      <SelectContent createPortal={createPortal} />
+      <SelectContent className="gp-app-select-content" createPortal={createPortal} />
     </Select>
   );
 }

@@ -21,7 +21,7 @@ This is allocation management, not IP provisioning: configure interfaces, provid
 - **Show Follow Us** controls the sidebar social links.
 - **Show Trustpilot** controls the sidebar review badge.
 - **Show announcements** controls the news carousel. Disabled means no browser news request, not just a hidden banner.
-- Footer: **Game Panel by Skoczi · v&lt;version&gt;**, sourced from the frontend package version.
+- Footer: **Game Panel by Skoczi**, with the compact revision on a separate line below (e.g. **skoczi.0.05**). It is derived from the package version; the full technical version remains in the tooltip and update dialog.
 
 Visibility updates after saving, on page reload or when another browser tab regains focus. Legal notices remain available. Both sections default to visible on upgrade.
 

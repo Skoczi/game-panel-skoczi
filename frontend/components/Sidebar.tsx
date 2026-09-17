@@ -3,7 +3,7 @@ import { KeyRound, Moon, MoreVertical, Power, Sun, X, Settings } from 'lucide-re
 import { useBranding } from '../contexts/BrandingContext';
 import { PanelBrand } from './PanelBrand';
 import { Icon, type IconName } from '@ovhcloud/ods-react';
-import { getAppVersion } from '../utils/appInfo';
+import { formatDisplayVersion, getAppVersion } from '../utils/appInfo';
 import type { AuthUser } from '../utils/permissions';
 import { useTheme } from '../contexts/ThemeContext';
 import {
@@ -187,6 +187,10 @@ export function Sidebar({
   const currentUserLabel = currentUser?.username || 'Unknown user';
   const currentUserInitial = currentUserLabel.trim().charAt(0).toUpperCase() || '?';
   const appVersion = getAppVersion();
+  const versionLabel = <>
+    <span className="block whitespace-nowrap">Game Panel by Skoczi</span>
+    <span className="mt-1 block whitespace-nowrap text-[11px] tracking-wide tabular-nums" data-testid="panel-revision">{formatDisplayVersion(appVersion)}</span>
+  </>;
   const { appearance, loaded } = useBranding();
 
   useEffect(() => {
@@ -336,15 +340,15 @@ export function Sidebar({
               type="button"
               onClick={() => setIsPanelUpdateOpen(true)}
               className="relative w-full rounded-sm px-1 text-xs transition-colors text-gray-400 hover:text-gray-200"
-              title={updateInfo?.updateAvailable ? `Update available: v${updateInfo.latestVersion}` : 'Panel update'}
+              title={`Version ${appVersion}${updateInfo?.updateAvailable ? ` — Update available: v${updateInfo.latestVersion}` : ' — Panel update'}`}
             >
-              Game Panel by Skoczi · v{appVersion}
+              {versionLabel}
               {updateInfo?.updateAvailable && (
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-orange-400 ring-2 ring-[#000e9c] dark:ring-[#111827]" />
               )}
             </button>
           ) : (
-            <span className="w-full text-xs text-gray-400">Game Panel by Skoczi · v{appVersion}</span>
+            <span className="w-full text-xs text-gray-400" title={`Version ${appVersion}`}>{versionLabel}</span>
           )}
           <button
             type="button"

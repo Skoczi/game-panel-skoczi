@@ -2,6 +2,12 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.5 — preview — 2026-09-17
+
+- Split the sidebar footer into two lines: **Game Panel by Skoczi**, then **skoczi.0.05**.
+- Added compact display revisions (`1.5.0-skoczi.4` → `skoczi.0.04`). Full package versions remain in update checks, the update dialog and the footer tooltip.
+- No database or configuration changes.
+
 ## 1.5.0-skoczi.4 — preview — 2026-09-17
 
 - Added an announcements switch. When disabled, the carousel is not mounted and the browser does not request news.

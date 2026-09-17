@@ -1,5 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import { DEFAULT_APPEARANCE } from '../types/globalSettings';
+import { formatDisplayVersion } from '../utils/appInfo';
+
+test('display revisions remain separate from technical package versions', () => {
+  expect(formatDisplayVersion('1.5.0-skoczi.4')).toBe('skoczi.0.04');
+  expect(formatDisplayVersion('1.5.0-skoczi.5')).toBe('skoczi.0.05');
+  expect(formatDisplayVersion('1.5.0-skoczi.12')).toBe('skoczi.0.12');
+  expect(formatDisplayVersion('1.5.0-skoczi.4.1')).toBe('skoczi.0.04.1');
+  expect(formatDisplayVersion('0.0.0-dev')).toBe('0.0.0-dev');
+});
 
 const initial = () => ({ revision: 1, appearance: { ...DEFAULT_APPEARANCE }, network: { restrictPorts: true, allocations: [{ ip: '192.0.2.10', alias: 'Game node', tcp: '27015-27030', udp: '27015-27030' }] }, assignments: [{ serverId: 1, serverName: 'Test game', ip: '192.0.2.10', port: 27015, protocol: 'udp' }] });
 async function mock(page: Page, conflict = false) {
@@ -81,7 +90,12 @@ test('root edits allocations, saves appearance and sees changes in the sidebar',
   await expect(page.getByText('Follow Us', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'Trustpilot', exact: true })).toHaveCount(0);
   expect(state().network.allocations[1].tcp).toBe('28015-28020');
-  await expect(page.getByText(/Game Panel by Skoczi · v/)).toBeVisible();
+  const footerName = page.locator('aside').getByText('Game Panel by Skoczi', { exact: true });
+  const revision = page.getByTestId('panel-revision');
+  await expect(footerName).toBeVisible();
+  await expect(revision).toHaveText('skoczi.0.05');
+  const nameBox = await footerName.boundingBox(); const revisionBox = await revision.boundingBox();
+  expect(revisionBox!.y).toBeGreaterThanOrEqual(nameBox!.y + nameBox!.height);
   await page.reload(); await expect(page.getByText('Second node', { exact: true })).toBeVisible();
 });
 
@@ -97,6 +111,7 @@ test('conflicting save preserves edits and offers reload', async ({ page }) => {
 test('non-root menu has no global Settings entry', async ({ page }) => {
   await mock(page); await page.goto('/test/settings.fixture.html?nonroot');
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('panel-revision')).toHaveText('skoczi.0.05');
 });
 
 test('settings stays within a narrow viewport', async ({ page }) => {

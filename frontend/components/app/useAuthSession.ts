@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../utils/api';
-import { ACTIVE_NODE, selectNode } from '../../utils/nodeContext';
+import {
+  ACTIVE_NODE,
+  ACTIVE_SERVER,
+  ADMIN_RUNTIME,
+  openServer,
+  openFleet,
+  type ServerContext,
+} from '../../utils/nodeContext';
+import { nodesRequest } from '../../utils/nodesApi';
 import {
   type AuthPermissions,
   type AuthUser,
@@ -22,9 +30,39 @@ export function useAuthSession() {
   const [currentPermissions, setCurrentPermissions] = useState<AuthPermissions>(emptyPermissions);
   const [installPermissionsSyncing, setInstallPermissionsSyncing] = useState(false);
 
-  const applyProfile = useCallback((profile: any) => {
+  const applyProfile = useCallback(async (profile: any) => {
     const user = profile?.user ?? null;
-    if (user && !user.isRoot && ACTIVE_NODE !== 'local') { selectNode('local'); return; }
+    const requestedServer = new URLSearchParams(location.search).get('server') || ACTIVE_SERVER?.id;
+    if (requestedServer) {
+      try {
+        const context = await nodesRequest<ServerContext>(
+          `/api/fleet/${encodeURIComponent(requestedServer)}/context`
+        );
+        if (
+          !ACTIVE_SERVER ||
+          context.id !== ACTIVE_SERVER.id ||
+          context.nodeId !== ACTIVE_NODE ||
+          context.runtimeId !== ACTIVE_SERVER.runtimeId ||
+          context.placementRevision !== ACTIVE_SERVER.placementRevision
+        ) {
+          openServer(context);
+          return;
+        }
+        profile = {
+          ...profile,
+          permissions: {
+            global: [],
+            servers: [{ serverId: context.runtimeId, permissions: context.permissions }],
+          },
+        };
+      } catch {
+        openFleet();
+        return;
+      }
+    } else if (user && !user.isRoot && ADMIN_RUNTIME) {
+      openFleet();
+      return;
+    }
     setCurrentUser(user);
     setCurrentPermissions(normalizeAuthPermissions(profile?.permissions));
     setCurrentUserId(typeof user?.id === 'number' ? user.id : null);
@@ -39,7 +77,7 @@ export function useAuthSession() {
   const loadCurrentUser = useCallback(async () => {
     try {
       const profile = await apiClient.getCurrentUser();
-      applyProfile(profile);
+      await applyProfile(profile);
     } catch {
       clearProfile();
     }
@@ -70,8 +108,8 @@ export function useAuthSession() {
 
         const profile = await apiClient.getCurrentUser();
         if (!cancelled) {
+          await applyProfile(profile);
           setIsAuthenticated(true);
-          applyProfile(profile);
         }
       } catch (error: any) {
         if (!cancelled) {

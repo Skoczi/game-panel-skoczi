@@ -1,29 +1,17 @@
-import express, {
-    type Request,
-    type Response,
-    type NextFunction,
-} from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import WebSocket, { WebSocketServer, type RawData } from 'ws';
 import { getDatabase } from '../database/init.js';
 import { getConfig } from '../config.js';
-import {
-    authMiddleware,
-    rootOnly,
-    type AuthenticatedRequest,
-} from '../middleware/auth.js';
+import { authMiddleware, rootOnly, type AuthenticatedRequest } from '../middleware/auth.js';
 import { userRepository } from '../database/index.js';
 import { verifyToken } from '../utils/auth.js';
 import { NodeStore } from './store.js';
-import {
-    NODE_ID,
-    RequestVerifier,
-    runtimePath,
-    signNodeRequest,
-    secret,
-} from './protocol.js';
+import { NODE_ID, RequestVerifier, runtimePath, signNodeRequest, secret } from './protocol.js';
 import { nodeTls, proxyRuntime } from './transport.js';
+import { serverDelegation } from '../fleet/control.js';
+import { delegatedPath, type Delegation } from './delegation.js';
 
 let store: NodeStore;
 const verifier = new RequestVerifier();
@@ -36,6 +24,8 @@ const downloads = new Map<
         actor: string;
         expires: number;
         credential: string;
+        userToken: string;
+        serverId?: string;
     }
 >();
 export async function initializeNodes() {
@@ -61,6 +51,20 @@ export function mountNodeControl(app: express.Application) {
             downloads.delete(req.params.token);
             if (!claim || claim.expires < Date.now())
                 return res.status(404).json({ error: 'Download expired' });
+            let delegatedDownload: Delegation | undefined;
+            try {
+                const user = await activeUser(claim.userToken);
+                if (!user.is_root) {
+                    const delegation = await serverDelegation(claim.serverId || '', claim.nodeId, {
+                        userId: user.id,
+                        isRoot: false,
+                    });
+                    if (!delegation.permissions.includes('fs.read')) throw new Error();
+                    delegatedDownload = { ...delegation, downloadPath: claim.path };
+                }
+            } catch {
+                return res.status(403).json({ error: 'Download access revoked' });
+            }
             const node = await store.get(claim.nodeId);
             if (!node?.enabled || node.key_encrypted !== claim.credential)
                 return res.status(503).json({ error: 'Node unavailable' });
@@ -70,6 +74,7 @@ export function mountNodeControl(app: express.Application) {
                 key: store.key(node),
                 path: claim.path,
                 actor: claim.actor,
+                delegation: delegatedDownload,
             });
         }),
     );
@@ -77,39 +82,40 @@ export function mountNodeControl(app: express.Application) {
     app.use(
         '/api/nodes/:nodeId/runtime',
         authMiddleware,
-        rootOnly,
         safe(async (req, res) => {
             if (!NODE_ID.test(req.params.nodeId) || !runtimePath(req.url))
-                return res
-                    .status(404)
-                    .json({ error: 'Unknown node runtime path' });
+                return res.status(404).json({ error: 'Unknown node runtime path' });
             const node = await store.get(req.params.nodeId);
             if (!node?.enabled || !node.key_encrypted)
-                return res
-                    .status(503)
-                    .json({ error: 'Node disabled or not enrolled' });
+                return res.status(503).json({ error: 'Node disabled or not enrolled' });
+            let delegation: Delegation | undefined;
+            if (!req.user!.isRoot) {
+                try {
+                    delegation = await serverDelegation(
+                        String(req.headers['x-gamepanel-server'] || ''),
+                        node.id,
+                        req.user!,
+                    );
+                    if (!delegatedPath(req.url, delegation, req.method)) throw new Error();
+                } catch {
+                    return res.status(403).json({ error: 'Server access denied' });
+                }
+            }
             if (/\/members(?:\/|\?|$)/.test(req.url))
-                return res
-                    .status(409)
-                    .json({
-                        error: 'Remote nodes currently require a panel root administrator; per-server delegation is unavailable.',
-                    });
+                return res.status(409).json({
+                    error: 'Manage server members from the central Game Servers workspace.',
+                });
             const transformJson =
-                req.method === 'POST' &&
-                req.path.endsWith('/files/download-token')
+                req.method === 'POST' && req.path.endsWith('/files/download-token')
                     ? (value: Record<string, unknown>) => {
                           if (
                               typeof value.path !== 'string' ||
-                              !/^\/api\/download\/[a-zA-Z0-9_-]{43}$/.test(
-                                  value.path,
-                              )
+                              !/^\/api\/download\/[a-zA-Z0-9_-]{43}$/.test(value.path)
                           )
                               throw new Error('Invalid download response');
                           for (const [id, item] of downloads)
-                              if (item.expires < Date.now())
-                                  downloads.delete(id);
-                          if (downloads.size >= 10000)
-                              throw new Error('Download capacity reached');
+                              if (item.expires < Date.now()) downloads.delete(id);
+                          if (downloads.size >= 10000) throw new Error('Download capacity reached');
                           const token = secret();
                           downloads.set(token, {
                               nodeId: node.id,
@@ -117,6 +123,8 @@ export function mountNodeControl(app: express.Application) {
                               actor: req.user!.username,
                               expires: Date.now() + 60000,
                               credential: node.key_encrypted!,
+                              userToken: req.headers.authorization!.split(' ')[1],
+                              serverId: String(req.headers['x-gamepanel-server'] || ''),
                           });
                           return {
                               ...value,
@@ -131,6 +139,7 @@ export function mountNodeControl(app: express.Application) {
                 key: store.key(node),
                 path: req.url,
                 actor: req.user!.username,
+                delegation,
                 transformJson,
             });
         }),
@@ -200,9 +209,7 @@ export function mountNodeControl(app: express.Application) {
         '/',
         safe(async (req, res) => {
             try {
-                res.status(201).json(
-                    await store.create(req.body, req.user!.username),
-                );
+                res.status(201).json(await store.create(req.body, req.user!.username));
             } catch {
                 res.status(400).json({
                     error: 'Invalid or duplicate node. Use a unique HTTPS origin and a name up to 80 characters.',
@@ -214,23 +221,15 @@ export function mountNodeControl(app: express.Application) {
         '/:id',
         safe(async (req, res) => {
             if (typeof req.body?.enabled !== 'boolean')
-                return res
-                    .status(400)
-                    .json({ error: 'enabled must be boolean' });
-            await store.setEnabled(
-                req.params.id,
-                req.body.enabled,
-                req.user!.username,
-            );
+                return res.status(400).json({ error: 'enabled must be boolean' });
+            await store.setEnabled(req.params.id, req.body.enabled, req.user!.username);
             return res.json({ ok: true });
         }),
     );
     router.post(
         '/:id/credentials',
         safe(async (req, res) =>
-            res.json(
-                await store.renewEnrollment(req.params.id, req.user!.username),
-            ),
+            res.json(await store.renewEnrollment(req.params.id, req.user!.username)),
         ),
     );
     router.get(
@@ -249,11 +248,12 @@ export function mountNodeControl(app: express.Application) {
     app.use('/api/nodes', router);
 }
 
-async function rootUser(token: string) {
+async function activeUser(token: string) {
     const payload = verifyToken(token);
     const user = await userRepository.findById(payload.userId);
     if (
-        !user?.is_root ||
+        !user ||
+        payload.delegation ||
         !user.is_enabled ||
         user.token_version !== payload.tokenVersion
     )
@@ -270,49 +270,60 @@ export function createNodeWebSocketRouter(
         noServer: true,
         maxPayload: 1024 * 1024,
     });
-    server.on(
-        'upgrade',
-        (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-            const match = /^\/api\/nodes\/([0-9a-f-]{36})\/ws$/.exec(
-                req.url || '',
+    server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+        const match = /^\/api\/nodes\/([0-9a-f-]{36})\/ws(?:\?server=([0-9a-f-]{36}))?$/.exec(
+            req.url || '',
+        );
+        if (match && !agentUpgrade) {
+            remoteSockets.handleUpgrade(req, socket, head, (client) =>
+                bridgeNodeSocket(client, match[1], match[2]),
             );
-            if (match && !agentUpgrade) {
-                remoteSockets.handleUpgrade(req, socket, head, (client) =>
-                    bridgeNodeSocket(client, match[1]),
-                );
-            } else if (
-                (req.url === '/api' || req.url === '/') &&
-                (!agentUpgrade || agentUpgrade(req))
-            ) {
-                local.handleUpgrade(req, socket, head, (ws) =>
-                    local.emit('connection', ws, req),
-                );
-            } else socket.destroy();
-        },
-    );
+        } else if (
+            (req.url === '/api' || req.url === '/') &&
+            (!agentUpgrade || agentUpgrade(req))
+        ) {
+            local.handleUpgrade(req, socket, head, (ws) => local.emit('connection', ws, req));
+        } else socket.destroy();
+    });
     return () => {
         for (const socket of remoteSockets.clients) socket.terminate();
         remoteSockets.close();
     };
 }
 
-function bridgeNodeSocket(client: WebSocket, nodeId: string) {
+function bridgeNodeSocket(client: WebSocket, nodeId: string, serverId?: string) {
     let upstream: WebSocket | undefined;
     let token = '';
     let starting = false;
     let ready = false;
     let validating = false;
     let credential = '';
-    const authDeadline = setTimeout(
-        () => client.close(1008, 'Authentication timeout'),
-        3000,
-    );
+    let accessFingerprint = '';
+    const access = async () => {
+        const user = await activeUser(token);
+        const delegation = user.is_root
+            ? undefined
+            : await serverDelegation(serverId || '', nodeId, {
+                  userId: user.id,
+                  isRoot: false,
+              });
+        return {
+            user,
+            delegation,
+            fingerprint: JSON.stringify([Boolean(user.is_root), delegation]),
+        };
+    };
+    const authDeadline = setTimeout(() => client.close(1008, 'Authentication timeout'), 3000);
     const watchdog = setInterval(() => {
         if (!ready || validating) return;
         validating = true;
-        void Promise.all([rootUser(token), store.get(nodeId)])
-            .then(([, node]) => {
-                if (!node?.enabled || node.key_encrypted !== credential)
+        void Promise.all([access(), store.get(nodeId)])
+            .then(([current, node]) => {
+                if (
+                    !node?.enabled ||
+                    node.key_encrypted !== credential ||
+                    current.fingerprint !== accessFingerprint
+                )
                     client.close(1008, 'Node access revoked');
             })
             .catch(() => client.close(1008, 'Access revoked'))
@@ -357,10 +368,10 @@ function bridgeNodeSocket(client: WebSocket, nodeId: string) {
         starting = true;
         void (async () => {
             const message = JSON.parse(data.toString());
-            if (message.type !== 'auth' || typeof message.token !== 'string')
-                throw new Error();
+            if (message.type !== 'auth' || typeof message.token !== 'string') throw new Error();
             token = message.token;
-            const user = await rootUser(token);
+            const { user, delegation, fingerprint } = await access();
+            accessFingerprint = fingerprint;
             const node = await store.get(nodeId);
             if (!node?.enabled || !node.key_encrypted) throw new Error();
             credential = node.key_encrypted;
@@ -377,6 +388,7 @@ function bridgeNodeSocket(client: WebSocket, nodeId: string) {
                         'GET',
                         '/api',
                         user.username,
+                        delegation,
                     ),
                 },
             });

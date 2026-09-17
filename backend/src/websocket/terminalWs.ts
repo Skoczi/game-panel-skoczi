@@ -7,14 +7,18 @@ import {
     resizeTerminal,
     writeToTerminal,
 } from './terminalManager.js';
-import { serverMemberRepository } from '../database/index.js';
 import { PERMISSIONS } from '../permissions.js';
 import { sendSafe } from './auth.js';
+import { serverPermissions } from '../middleware/auth.js';
 
-async function hasTerminalPermission(ws: AuthenticatedWebSocket, serverId: number, perm: string): Promise<boolean> {
+async function hasTerminalPermission(
+    ws: AuthenticatedWebSocket,
+    serverId: number,
+    perm: string,
+): Promise<boolean> {
     if (ws.isRoot) return true;
     if (!ws.userId) return false;
-    const perms = await serverMemberRepository.getUserServerPermissions(serverId, ws.userId);
+    const perms = await serverPermissions(ws, serverId);
     return perms.includes('*') || perms.includes(perm);
 }
 
@@ -23,10 +27,7 @@ function isOwnerOrRoot(ws: AuthenticatedWebSocket, session: any): boolean {
     return session?.ownerUserId === ws.userId;
 }
 
-async function assertTerminalAccess(
-    ws: AuthenticatedWebSocket,
-    session: any
-): Promise<boolean> {
+async function assertTerminalAccess(ws: AuthenticatedWebSocket, session: any): Promise<boolean> {
     if (!isOwnerOrRoot(ws, session)) {
         sendSafe(ws, { type: 'terminal:error', error: 'forbidden' });
         return false;
@@ -36,7 +37,10 @@ async function assertTerminalAccess(
     if (serverId) {
         const ok = await hasTerminalPermission(ws, serverId, PERMISSIONS.container.terminal);
         if (!ok) {
-            sendSafe(ws, { type: 'terminal:error', error: 'insufficient_permissions' });
+            sendSafe(ws, {
+                type: 'terminal:error',
+                error: 'insufficient_permissions',
+            });
             return false;
         }
     }
@@ -44,7 +48,10 @@ async function assertTerminalAccess(
     return true;
 }
 
-export async function handleTerminalWsMessage(ws: AuthenticatedWebSocket, msg: WsTerminalMessage): Promise<void> {
+export async function handleTerminalWsMessage(
+    ws: AuthenticatedWebSocket,
+    msg: WsTerminalMessage,
+): Promise<void> {
     // msg.type: terminal:attach | terminal:input | terminal:resize
     if (!ws.userId) {
         sendSafe(ws, { type: 'terminal:error', error: 'unauthorized' });
@@ -126,7 +133,7 @@ export async function handleTerminalWsMessage(ws: AuthenticatedWebSocket, msg: W
         // Ownership check here too
         if (!(await assertTerminalAccess(ws, session))) return;
 
-        resizeTerminal(sessionId, { cols, rows }).catch(() => { });
+        resizeTerminal(sessionId, { cols, rows }).catch(() => {});
         return;
     }
 }
@@ -136,7 +143,7 @@ export function cleanupTerminalWs(ws: AuthenticatedWebSocket): void {
         for (const unsub of Object.values(ws.terminalSubs)) {
             try {
                 unsub();
-            } catch { }
+            } catch {}
         }
         ws.terminalSubs = {};
     }

@@ -5,7 +5,11 @@ import {
     parseStoredPorts,
     parseStoredResourceLimits,
 } from '../providers/runtimeConfig.js';
-import type { InstallationInteractionRow, InstallationProgressRow, ServerActionRow } from '../types/database.js';
+import type {
+    InstallationInteractionRow,
+    InstallationProgressRow,
+    ServerActionRow,
+} from '../types/database.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import { parseJsonObject } from './json.js';
 import { toIsoTimestamp, toIsoTimestampOrNull } from './time.js';
@@ -26,6 +30,7 @@ export type SerializedInstallationProgress = {
 
 export type SerializedGameServer = {
     id: number;
+    runtimeKey?: string;
     name: string;
     provider: GameServerRow['provider'];
     catalogId: string | null;
@@ -94,7 +99,7 @@ function parseOptionalJsonObject(raw: unknown): JsonObject {
 }
 
 export function serializeInstallationProgress(
-    row: InstallationProgressRow | undefined | null
+    row: InstallationProgressRow | undefined | null,
 ): SerializedInstallationProgress | undefined {
     if (!row) return undefined;
 
@@ -118,6 +123,7 @@ export function redactServerEnv<T extends { env: Record<string, string> }>(serve
 export function serializeGameServer(server: GameServerRow): SerializedGameServer {
     return {
         id: server.id,
+        runtimeKey: server.runtime_uuid,
         name: server.name,
         provider: server.provider,
         catalogId: server.catalog_id,
@@ -144,7 +150,7 @@ export function serializeGameServer(server: GameServerRow): SerializedGameServer
 
 export function serializeGameServerWithInstallProgress(
     server: GameServerRow,
-    installProgress?: InstallationProgressRow | null
+    installProgress?: InstallationProgressRow | null,
 ): SerializedGameServerWithInstallProgress {
     return {
         ...serializeGameServer(server),
@@ -153,7 +159,7 @@ export function serializeGameServerWithInstallProgress(
 }
 
 export function serializeInstallationInteraction(
-    interaction: InstallationInteractionRow
+    interaction: InstallationInteractionRow,
 ): SerializedInstallationInteraction {
     return {
         id: interaction.id,
@@ -161,7 +167,9 @@ export function serializeInstallationInteraction(
         kind: interaction.kind,
         status: interaction.status,
         payload: parseOptionalJsonObject(interaction.payload_json),
-        response: interaction.response_json ? parseOptionalJsonObject(interaction.response_json) : null,
+        response: interaction.response_json
+            ? parseOptionalJsonObject(interaction.response_json)
+            : null,
         expiresAt: toIsoTimestampOrNull(interaction.expires_at),
         createdAt: toIsoTimestamp(interaction.created_at),
         updatedAt: toIsoTimestamp(interaction.updated_at),

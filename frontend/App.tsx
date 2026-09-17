@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
+import { ACTIVE_SERVER } from './utils/nodeContext';
 import { Login } from './components/Login';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { type GameServer } from './types/gameServer';
@@ -7,7 +15,10 @@ import { METRICS_HISTORY_REQUEST_LIMIT } from './components/gameServersTable/uti
 import { clearAppCache } from './utils/appStorage';
 import { OVHCLOUD_IMAGES } from './utils/ovhcloudCatalog';
 import { AppShell } from './components/app/AppShell';
-import { createWebSocketMessageHandler, type FleetMetricValues } from './components/app/createWebSocketMessageHandler';
+import {
+  createWebSocketMessageHandler,
+  type FleetMetricValues,
+} from './components/app/createWebSocketMessageHandler';
 import { useAuthSession } from './components/app/useAuthSession';
 import { useCliMessages } from './components/app/useCliMessages';
 import { useInstallAutoOpenLogs } from './components/app/useInstallAutoOpenLogs';
@@ -73,7 +84,13 @@ function AppContent() {
     null
   );
 
-  const [gameServers, setGameServers] = useState<GameServer[]>([]);
+  const [gameServers, setGameServersState] = useState<GameServer[]>([]);
+  const setGameServers: Dispatch<SetStateAction<GameServer[]>> = useCallback((value) => {
+    setGameServersState((previous) => {
+      const next = typeof value === 'function' ? value(previous) : value;
+      return ACTIVE_SERVER ? next.filter((s) => Number(s.id) === ACTIVE_SERVER!.runtimeId) : next;
+    });
+  }, []);
   const [serverMetricsHistoryById, setServerMetricsHistoryById] = useState<
     Record<string, ServerMetricHistoryPoint[]>
   >({});
@@ -104,7 +121,9 @@ function AppContent() {
   const [installProgressPercent, setInstallProgressPercent] = useState<number | null>(null);
   const [installStatus, setInstallStatus] = useState<string | null>(null);
   const [installServerId, setInstallServerId] = useState<number | null>(null);
-  const [installInteraction, setInstallInteraction] = useState<import('./types/gameServer').InstallInteraction | null>(null);
+  const [installInteraction, setInstallInteraction] = useState<
+    import('./types/gameServer').InstallInteraction | null
+  >(null);
   const [installPlan, setInstallPlan] = useState<import('./types/gameServer').InstallStep[]>([]);
   const [installModalOpen, setInstallModalOpen] = useState(false);
   const metricsServerIdsKey = gameServers
@@ -381,7 +400,10 @@ function AppContent() {
     // Skoczi fork: preserve allocation addresses across realtime partial updates.
     let portBindings = existing?.portBindings;
     let connectionHost = existing?.connectionHost;
-    let portMappings: { tcp: number[]; udp: number[] } = existing?.portMappings ?? { tcp: [], udp: [] };
+    let portMappings: { tcp: number[]; udp: number[] } = existing?.portMappings ?? {
+      tcp: [],
+      udp: [],
+    };
     let portLabels: { tcp: Record<string, string>; udp: Record<string, string> } =
       existing?.portLabels ?? { tcp: {}, udp: {} };
 
@@ -409,8 +431,9 @@ function AppContent() {
         portMappings.udp[0] ??
         null;
       const entries = [...tcpEntries, ...udpEntries];
-      const primaryBinding = entries.find((entry) => entry.host === primary && isGame(entry.label ?? ''))
-        ?? entries.find((entry) => entry.host === primary);
+      const primaryBinding =
+        entries.find((entry) => entry.host === primary && isGame(entry.label ?? '')) ??
+        entries.find((entry) => entry.host === primary);
       connectionHost = primaryBinding?.hostIp;
     } else {
       primary = existing?.port ?? null;
@@ -419,7 +442,11 @@ function AppContent() {
     return {
       id: String(server.id),
       name: server.name,
-      game: server.catalogId ?? (server.provider === 'external' ? server.dockerImage : null) ?? server.provider ?? '',
+      game:
+        server.catalogId ??
+        (server.provider === 'external' ? server.dockerImage : null) ??
+        server.provider ??
+        '',
       provider: server.provider,
       catalogId: server.catalogId,
       port: primary ?? undefined,
@@ -435,7 +462,9 @@ function AppContent() {
       containerStatus: server.containerStatus,
       healthStatus: server.healthStatus,
       lastError: server.lastError ?? null,
-      providerMetadataJson: server.providerMetadata ? JSON.stringify(server.providerMetadata) : null,
+      providerMetadataJson: server.providerMetadata
+        ? JSON.stringify(server.providerMetadata)
+        : null,
     };
   }, []);
 

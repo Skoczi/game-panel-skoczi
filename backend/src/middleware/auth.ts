@@ -5,6 +5,8 @@ import { userRepository, serverMemberRepository } from '../database/index.js';
 import { parsePositiveIntId } from '../utils/ids.js';
 import { logError } from '../utils/logger.js';
 import { PERMISSIONS } from '../permissions.js';
+import { isAgent } from '../agent/identity.js';
+import type { Delegation } from '../nodes/delegation.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: JWTPayload;
@@ -13,7 +15,7 @@ export interface AuthenticatedRequest extends Request {
 export async function authMiddleware(
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> {
   try {
     const token = extractTokenFromHeader(req.headers.authorization);
@@ -24,6 +26,12 @@ export async function authMiddleware(
     }
 
     const payload = verifyToken(token);
+    if (payload.delegation) {
+      if (!isAgent()) throw new Error('Agent-only credential');
+      req.user = payload;
+      next();
+      return;
+    }
 
     const user = await userRepository.findById(payload.userId);
     if (!user) {
@@ -70,7 +78,9 @@ export function requireGlobalPermission(perm: string) {
         return;
       }
 
-      const perms = await userRepository.getGlobalPermissions(req.user.userId);
+      const perms = req.user.delegation
+        ? []
+        : await userRepository.getGlobalPermissions(req.user.userId);
 
       if (perms.includes('*') || perms.includes(perm)) {
         next();
@@ -101,10 +111,7 @@ export function requireServerPermission(permission: string) {
         return res.status(400).json({ error: 'Invalid server id' });
       }
 
-      const permissions = await serverMemberRepository.getUserServerPermissions(
-        serverId,
-        req.user.userId
-      );
+      const permissions = await serverPermissions(req.user, serverId);
 
       if (permissions.includes('*') || permissions.includes(permission)) {
         return next();
@@ -120,20 +127,50 @@ export function requireServerPermission(permission: string) {
 export async function userHasServerPermission(
   user: JWTPayload | undefined,
   serverId: number,
-  permission: string
+  permission: string,
 ): Promise<boolean> {
   if (!user) return false;
   if (user.isRoot) return true;
 
-  const perms = await serverMemberRepository.getUserServerPermissions(serverId, user.userId);
+  const perms = await serverPermissions(user, serverId);
   return perms.includes('*') || perms.includes(permission);
 }
 
+export type ServerPrincipal = {
+  userId?: number;
+  isRoot?: boolean;
+  delegation?: Delegation;
+};
+export async function serverPermissions(
+  user: ServerPrincipal,
+  serverId: number,
+): Promise<string[]> {
+  if (user.delegation)
+    return user.delegation.serverId === serverId ? user.delegation.permissions : [];
+  if (!user.userId) return [];
+  return serverMemberRepository.getUserServerPermissions(serverId, user.userId);
+}
+export async function buildServerVisibility(
+  user: ServerPrincipal | undefined,
+): Promise<(id: number) => boolean> {
+  if (user?.isRoot) return () => true;
+  if (user?.delegation) return (id) => id === user.delegation!.serverId;
+  if (!user?.userId) return () => false;
+  const ids = new Set(
+    (await serverMemberRepository.listByUser(user.userId)).map((m) => m.server_id),
+  );
+  return (id) => ids.has(id);
+}
+
 export async function buildServerEnvVisibility(
-  user: { userId?: number; isRoot?: boolean } | undefined
+  user: ServerPrincipal | undefined,
 ): Promise<(serverId: number) => boolean> {
   if (user?.isRoot) return () => true;
   if (!user?.userId) return () => false;
+  if (user.delegation)
+    return (id) =>
+      id === user.delegation!.serverId &&
+      user.delegation!.permissions.includes(PERMISSIONS.server.env);
 
   const memberships = (await serverMemberRepository.listByUser(user.userId)) as Array<{
     server_id: number;
@@ -167,7 +204,12 @@ function toHttpError(error: unknown): HttpError {
   return new Error('Unknown error');
 }
 
-export function errorHandler(error: unknown, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(
+  error: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction,
+): void {
   const err = toHttpError(error);
   logError('MIDDLEWARE:ERROR_HANDLER', err);
 
@@ -184,11 +226,11 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
       res.status(404).json({ error: 'Not found' });
       return;
 
-    default:
-      {
-        const statusCode = err.status ?? (err as any).statusCode ?? 500;
-        const safeMessage = statusCode >= 500 ? 'Internal server error' : err.message || 'Request failed';
-        res.status(statusCode).json({ error: safeMessage });
-      }
+    default: {
+      const statusCode = err.status ?? (err as any).statusCode ?? 500;
+      const safeMessage =
+        statusCode >= 500 ? 'Internal server error' : err.message || 'Request failed';
+      res.status(statusCode).json({ error: safeMessage });
+    }
   }
 }

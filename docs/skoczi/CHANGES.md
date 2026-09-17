@@ -43,6 +43,15 @@ Fresh-install telemetry is opt-in. Release metadata points to the fork; automati
 Game-specific runtime adapters, local user authentication, Docker socket access, catalogue/providers and general backup implementation remain upstream-derived. Revision 7 adds the agent boundary described below; local user permissions are not rewritten.
 No per-user IP ownership or quotas.
 
+## Server workspace in Revision 8
+
+- `backend/src/fleet/`: central UUIDs, inventory, access assignments and audit records.
+- `backend/src/nodes/delegation.ts`: signed single-server scope, without global permissions.
+- `backend/src/database/migrations/0002_server_runtime_identity.ts`: durable identity independent of recycled numeric IDs.
+- Runtime HTTP and WebSocket reads are filtered by membership; agent operations enforce delegated permissions. Download and socket access is rechecked after revocation.
+- `frontend/components/FleetWorkspace.tsx`: cross-location server cards, automatic context selection and per-server access editor. Infrastructure navigation is administrator-only.
+- See [Server workspace and access](FLEET.md) for the boundary between this implementation and future migrations.
+
 ## Review the diff
 ```bash
 git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.7 -- backend frontend deploy

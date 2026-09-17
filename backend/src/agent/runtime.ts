@@ -3,17 +3,14 @@ import type { IncomingMessage } from 'node:http';
 import http from 'node:http';
 import https from 'node:https';
 import { agentIdentity } from './identity.js';
-import {
-    RequestVerifier,
-    runtimePath,
-    signNodeRequest,
-    digest,
-} from '../nodes/protocol.js';
+import { RequestVerifier, runtimePath, signNodeRequest, digest } from '../nodes/protocol.js';
 import { nodeTls } from '../nodes/transport.js';
-import { generateToken } from '../utils/auth.js';
+import { generateToken, verifyToken, extractTokenFromHeader } from '../utils/auth.js';
+import { delegatedPath } from '../nodes/delegation.js';
 import { getDatabase } from '../database/init.js';
 import { getAppVersion } from '../utils/appInfo.js';
 import { OperationJournal } from './journal.js';
+import { serverRepository } from '../database/index.js';
 
 const verifier = new RequestVerifier();
 let principal: { id: number; token_version: number } | undefined;
@@ -21,30 +18,21 @@ let journal: OperationJournal;
 export async function initializeAgent() {
     agentIdentity();
     const db = await getDatabase();
-    principal = await db.get(
-        'SELECT id,token_version FROM users WHERE is_root=1 AND is_enabled=1',
-    );
+    principal = await db.get('SELECT id,token_version FROM users WHERE is_root=1 AND is_enabled=1');
     if (!principal) throw new Error('Agent runtime principal missing');
     await db.exec(
         'CREATE TABLE IF NOT EXISTS agent_identity (id INTEGER PRIMARY KEY CHECK(id=1), node_id TEXT NOT NULL)',
     );
-    const existing = await db.get(
-        'SELECT node_id FROM agent_identity WHERE id=1',
-    );
+    const existing = await db.get('SELECT node_id FROM agent_identity WHERE id=1');
     if (existing && existing.node_id !== agentIdentity().nodeId)
         throw new Error('Data directory belongs to another node');
     if (!existing) {
-        const servers = await db.get(
-            'SELECT COUNT(*) AS count FROM game_servers',
-        );
+        const servers = await db.get('SELECT COUNT(*) AS count FROM game_servers');
         if (servers.count)
             throw new Error(
                 'Agent enrollment requires a fresh runtime database; existing servers are not adopted',
             );
-        await db.run(
-            'INSERT INTO agent_identity(id,node_id) VALUES(1,?)',
-            agentIdentity().nodeId,
-        );
+        await db.run('INSERT INTO agent_identity(id,node_id) VALUES(1,?)', agentIdentity().nodeId);
     }
     journal = new OperationJournal(db);
     await journal.initialize();
@@ -61,14 +49,21 @@ export function authorizeAgent(req: IncomingMessage): boolean {
             req.url || '/',
         );
         if (!principal) return false;
+        if (
+            claim.delegation &&
+            req.url !== '/api' &&
+            !delegatedPath(req.url || '', claim.delegation, req.method || 'GET')
+        )
+            return false;
         // Local JWT is never returned to clients. Every inbound request needs a new bound signature.
         req.headers.authorization =
             'Bearer ' +
             generateToken({
-                userId: principal.id,
+                userId: claim.delegation?.actorId ?? principal.id,
                 username: claim.actor,
-                isRoot: true,
+                isRoot: !claim.delegation,
                 tokenVersion: principal.token_version,
+                delegation: claim.delegation,
             });
         delete req.headers.cookie;
         return true;
@@ -90,22 +85,26 @@ export function agentGate(req: Request, res: Response, next: NextFunction) {
         res.status(401).json({ error: 'Agent authentication required' });
         return;
     }
-    next();
+    const delegation = verifyToken(extractTokenFromHeader(req.headers.authorization)!).delegation;
+    if (!delegation) {
+        next();
+        return;
+    }
+    void serverRepository
+        .findById(delegation.serverId)
+        .then((server) => {
+            if (!server || server.runtime_uuid !== delegation.runtimeKey)
+                res.status(403).json({ error: 'Server identity changed' });
+            else next();
+        })
+        .catch(next);
 }
 
 // Durable at-most-once admission for JSON mutations. Unknown outcome is never replayed.
-export async function agentIdempotency(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-) {
+export async function agentIdempotency(req: Request, res: Response, next: NextFunction) {
     if (req.method === 'GET' && req.path.startsWith('/api/operations/')) {
-        const operation = await journal.lookup(
-            req.path.slice('/api/operations/'.length),
-        );
-        res.status(operation ? 200 : 404).json(
-            operation || { error: 'Unknown operation' },
-        );
+        const operation = await journal.lookup(req.path.slice('/api/operations/'.length));
+        res.status(operation ? 200 : 404).json(operation || { error: 'Unknown operation' });
         return;
     }
     if (
@@ -124,7 +123,12 @@ export async function agentIdempotency(
         return;
     }
     const fingerprint = digest(
-        JSON.stringify([req.method, req.originalUrl, req.body ?? null]),
+        JSON.stringify([
+            req.method,
+            req.originalUrl,
+            req.body ?? null,
+            verifyToken(extractTokenFromHeader(req.headers.authorization)!).delegation ?? null,
+        ]),
     );
     try {
         const previous = await journal.admit(key, fingerprint);

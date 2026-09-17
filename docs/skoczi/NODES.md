@@ -1,6 +1,6 @@
 # Nodes and Game Panel Agent
 
-Multi-node administrator preview, protocol 1. Built on the OVHcloud Game Panel runtime; the node registry, transport, enrollment and agent packaging are additions in the Skoczi Edition.
+Multi-node preview: protocol 1 for administration, protocol 2 for scoped server delegation. Built on the OVHcloud Game Panel runtime; node control and agent packaging are additions in the Skoczi Edition.
 
 ## What runs where
 
@@ -11,9 +11,9 @@ Browser ── HTTPS / WebSocket ── Panel (users, branding, node registry)
                                  └── HTTPS / WSS → Agent B → Docker B + files + SQLite B
 ```
 
-Each runtime owns its servers, files, transfers, schedules, operation journal and IP/port allocations. A server identity is **node UUID + server ID**, not the numeric ID alone. Selecting a node reloads the browser tab, disconnects its sockets and clears cached server data. Other tabs retain their own selection. An unavailable node returns an error; requests never fall back to Local.
+Each runtime owns its servers, files, transfers, schedules, operation journal and IP/port allocations. The panel maintains a central UUID per server backed by a durable runtime identity. Opening a server resolves placement automatically; node switching is confined to the administrator runtime workspace. Context changes reload the tab, close sockets and clear cached runtime data. Requests never fall back to Local.
 
-Existing installations keep their Local runtime. This release does not adopt existing Docker containers, migrate servers, move files or remove the panel's Docker dependency. Nodes are currently managed by **root administrators only**. Ordinary users retain their existing local permissions; remote server delegation, a fleet-wide server table, automatic placement and cross-node migration are not implemented.
+Existing installations keep their Local runtime. This release does not adopt existing Docker containers, migrate servers, move files or remove the panel's Docker dependency. Nodes are managed by **root administrators only**; ordinary users access assigned servers through scoped delegation. See [Server workspace and access](FLEET.md). Automatic placement and cross-node migration are not implemented.
 
 ## Requirements
 

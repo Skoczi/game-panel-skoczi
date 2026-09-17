@@ -5,7 +5,11 @@ import helmet from 'helmet';
 import brandingRoutes from './routes/branding.js';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { reconcileDockerHealthToDb, startDockerHealthEventListener, startPeriodicHealthReconcile } from './services/dockerEvents.js';
+import {
+  reconcileDockerHealthToDb,
+  startDockerHealthEventListener,
+  startPeriodicHealthReconcile,
+} from './services/dockerEvents.js';
 import { closeDatabase, initializeDatabase } from './database/init.js';
 import { ensureRootUserExists } from './database/bootstrap.js';
 import { initializeGlobalSettings } from './services/globalSettings.js';
@@ -28,7 +32,14 @@ import { startScheduledTaskRunner } from './services/scheduledTasks.js';
 import { reconcileStalePanelUpdate } from './services/panelUpdates.js';
 import { nowIso } from './utils/time.js';
 import { isAgent } from './agent/identity.js';
-import { agentGate, agentIdempotency, authorizeAgent, initializeAgent, startAgentHeartbeat } from './agent/runtime.js';
+import { initializeFleet, mountFleet } from './fleet/control.js';
+import {
+  agentGate,
+  agentIdempotency,
+  authorizeAgent,
+  initializeAgent,
+  startAgentHeartbeat,
+} from './agent/runtime.js';
 import { createNodeWebSocketRouter, initializeNodes, mountNodeControl } from './nodes/control.js';
 
 const { port, frontendUrl, trustProxy } = getConfig();
@@ -37,7 +48,11 @@ const API_BODY_LIMIT = '2mb';
 const app: Application = express();
 const httpServer = createServer(app);
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
-const closeNodeSockets = createNodeWebSocketRouter(httpServer, wss, isAgent() ? authorizeAgent : undefined);
+const closeNodeSockets = createNodeWebSocketRouter(
+  httpServer,
+  wss,
+  isAgent() ? authorizeAgent : undefined,
+);
 
 function toOrigin(value: string): string | null {
   try {
@@ -83,7 +98,10 @@ app.use(helmet());
 
 // Agent gate and remote proxy precede parsers so uploads remain streaming.
 if (isAgent()) app.use(agentGate);
-else mountNodeControl(app);
+else {
+  mountNodeControl(app);
+  mountFleet(app);
+}
 
 // CORS + preflight
 app.use(cors(corsOptions));
@@ -92,7 +110,10 @@ app.options('*', cors(corsOptions));
 // Body parsers
 app.use(express.json({ limit: API_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: API_BODY_LIMIT }));
-if (isAgent()) app.use((req, res, next) => { void agentIdempotency(req, res, next).catch(next); });
+if (isAgent())
+  app.use((req, res, next) => {
+    void agentIdempotency(req, res, next).catch(next);
+  });
 
 // /api/auth
 app.use('/api/auth', authRoutes);
@@ -135,7 +156,6 @@ app.use(errorHandler);
 // WebSocket server
 setupWebSocket(wss);
 
-
 // Bootstraps the app: database init + HTTP server start.
 async function startServer(): Promise<void> {
   try {
@@ -143,8 +163,13 @@ async function startServer(): Promise<void> {
     await initializeDatabase();
     await initializeGlobalSettings();
     await ensureRootUserExists();
-    if (isAgent()) { await initializeAgent(); agentHeartbeat = startAgentHeartbeat(); }
-    else await initializeNodes();
+    if (isAgent()) {
+      await initializeAgent();
+      agentHeartbeat = startAgentHeartbeat();
+    } else {
+      await initializeNodes();
+      await initializeFleet();
+    }
     logInfo('APP', 'Database initialized');
 
     // Sync current Docker health -> DB once at boot

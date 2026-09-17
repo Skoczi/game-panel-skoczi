@@ -6,6 +6,7 @@ import { getConfig } from '../config.js';
 import { DATABASE_MIGRATIONS } from './migrations/index.js';
 import type { DatabaseMigration } from './migrations/types.js';
 import { nowIso } from '../utils/time.js';
+import { RUNTIME_IDENTITY_SQL } from './migrations/0002_server_runtime_identity.js';
 import { logInfo } from '../utils/logger.js';
 
 const { gamepanelDataDir } = getConfig();
@@ -47,6 +48,7 @@ async function openAndInitialize(): Promise<Database> {
   }
 
   db = database;
+  await database.exec(RUNTIME_IDENTITY_SQL);
   return database;
 }
 
@@ -93,11 +95,14 @@ async function getAppliedMigrationIds(database: Database): Promise<Set<string>> 
   return new Set(rows.map((row) => row.id));
 }
 
-async function insertAppliedMigration(database: Database, migration: DatabaseMigration): Promise<void> {
+async function insertAppliedMigration(
+  database: Database,
+  migration: DatabaseMigration,
+): Promise<void> {
   await database.run(
     `INSERT OR IGNORE INTO schema_migrations (id, app_version, checksum, applied_at)
      VALUES (?, ?, ?, ?)`,
-    [migration.id, migration.appVersion, migration.checksum, nowIso()]
+    [migration.id, migration.appVersion, migration.checksum, nowIso()],
   );
 }
 
@@ -134,7 +139,6 @@ async function runPendingMigrations(database: Database): Promise<void> {
   }
 }
 
-
 // Creates all tables and indexes.
 async function createSchema(database: Database): Promise<void> {
   await database.exec('BEGIN');
@@ -159,6 +163,7 @@ async function createSchema(database: Database): Promise<void> {
     await database.exec(`
       CREATE TABLE IF NOT EXISTS game_servers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        runtime_uuid TEXT,
         name TEXT UNIQUE NOT NULL,
         provider TEXT NOT NULL CHECK(provider IN ('ovhcloud','linuxgsm','external')),
         catalog_id TEXT,

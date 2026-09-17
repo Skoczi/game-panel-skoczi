@@ -1,11 +1,12 @@
 import { Router, type Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.js';
-import { buildServerEnvVisibility, userHasServerPermission } from '../../middleware/auth.js';
-import { PERMISSIONS } from '../../permissions.js';
 import {
-    installProgressRepository,
-    serverRepository,
-} from '../../database/index.js';
+    buildServerEnvVisibility,
+    buildServerVisibility,
+    userHasServerPermission,
+} from '../../middleware/auth.js';
+import { PERMISSIONS } from '../../permissions.js';
+import { installProgressRepository, serverRepository } from '../../database/index.js';
 import type { GameServerRow } from '../../types/gameServer.js';
 import {
     redactServerEnv,
@@ -23,13 +24,21 @@ export function createServerReadRoutes(): Router {
         try {
             const servers = await serverRepository.listAll();
             const canSeeEnv = await buildServerEnvVisibility(req.user);
+            const canSee = await buildServerVisibility(req.user);
 
             const serversWithInstall = await Promise.all(
-                servers.map(async (server: GameServerRow) => {
-                    const installProgress = await installProgressRepository.getByServerId(server.id);
-                    const serialized = serializeGameServerWithInstallProgress(server, installProgress);
-                    return canSeeEnv(server.id) ? serialized : redactServerEnv(serialized);
-                })
+                servers
+                    .filter((server) => canSee(server.id))
+                    .map(async (server: GameServerRow) => {
+                        const installProgress = await installProgressRepository.getByServerId(
+                            server.id,
+                        );
+                        const serialized = serializeGameServerWithInstallProgress(
+                            server,
+                            installProgress,
+                        );
+                        return canSeeEnv(server.id) ? serialized : redactServerEnv(serialized);
+                    }),
             );
 
             res.json({ servers: serversWithInstall });
@@ -50,14 +59,20 @@ export function createServerReadRoutes(): Router {
             }
 
             const server = await serverRepository.findById(serverId);
-            if (!server) {
+            if (!server || !(await buildServerVisibility(req.user))(serverId)) {
                 return res.status(404).json({ error: 'Server not found' });
             }
 
-            const canSeeEnv = await userHasServerPermission(req.user, serverId, PERMISSIONS.server.env);
+            const canSeeEnv = await userHasServerPermission(
+                req.user,
+                serverId,
+                PERMISSIONS.server.env,
+            );
             const serialized = serializeGameServer(server);
 
-            return res.json({ server: canSeeEnv ? serialized : redactServerEnv(serialized) });
+            return res.json({
+                server: canSeeEnv ? serialized : redactServerEnv(serialized),
+            });
         } catch (error) {
             return sendRouteError(res, error, {
                 route: 'ROUTE:SERVERS:GET',

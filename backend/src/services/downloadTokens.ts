@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 export interface DownloadTokenData {
     serverId: number;
     userId: number;
+    tokenVersion: number;
+    runtimeKey: string;
     root: string;
     path: string;
 }
@@ -16,7 +18,10 @@ const DOWNLOAD_TOKEN_CLEANUP_INTERVAL_MS = 5 * 60_000;
 
 const tokens = new Map<string, StoredDownloadToken>();
 
-export function createDownloadToken(data: DownloadTokenData): { token: string; expiresInMs: number } {
+export function createDownloadToken(data: DownloadTokenData): {
+    token: string;
+    expiresInMs: number;
+} {
     const token = crypto.randomBytes(32).toString('base64url');
     tokens.set(token, { ...data, expiresAt: Date.now() + DOWNLOAD_TOKEN_TTL_MS });
     return { token, expiresInMs: DOWNLOAD_TOKEN_TTL_MS };

@@ -41,7 +41,10 @@ test('node enrollment keeps token masked and gives explicit operator instruction
 test('remote selection is per-tab and failed remote request cannot reach local server API', async ({
   page,
 }) => {
-  await page.addInitScript((value) => sessionStorage.setItem('gamepanel_active_node', value), id);
+  await page.addInitScript((value) => {
+    sessionStorage.setItem('gamepanel_active_node', value);
+    sessionStorage.setItem('gamepanel_admin_runtime', '1');
+  }, id);
   let local = 0,
     remote = 0;
   await page.route('**/api/servers/1', (r) => {
@@ -129,7 +132,10 @@ test('custom node menu selects confirmed runtime and stays within mobile viewpor
 test('custom node menu shows unavailable selection without silently switching to Local', async ({
   page,
 }) => {
-  await page.addInitScript((value) => sessionStorage.setItem('gamepanel_active_node', value), id);
+  await page.addInitScript((value) => {
+    sessionStorage.setItem('gamepanel_active_node', value);
+    sessionStorage.setItem('gamepanel_admin_runtime', '1');
+  }, id);
   await page.route('**/api/nodes', (r) =>
     r.fulfill({ status: 503, json: { error: 'Unavailable' } })
   );

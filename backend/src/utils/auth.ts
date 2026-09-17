@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { getConfig } from '../config.js';
+import { validateDelegation, type Delegation } from '../nodes/delegation.js';
 
 const TOKEN_EXPIRY = '120h';
 const BCRYPT_SALT_ROUNDS = 10;
@@ -14,6 +15,7 @@ export interface JWTPayload {
   username: string;
   isRoot: boolean;
   tokenVersion: number;
+  delegation?: Delegation;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -25,7 +27,10 @@ export async function comparePasswords(password: string, hash: string): Promise<
 }
 
 export function generateToken(payload: JWTPayload): string {
-  return jwt.sign(payload, jwtSecret(), { expiresIn: TOKEN_EXPIRY, algorithm: 'HS256' });
+  return jwt.sign(payload, jwtSecret(), {
+    expiresIn: payload.delegation ? '5m' : TOKEN_EXPIRY,
+    algorithm: 'HS256',
+  });
 }
 
 export function verifyToken(token: string): JWTPayload {
@@ -45,6 +50,11 @@ export function verifyToken(token: string): JWTPayload {
     throw new Error('Invalid token payload shape');
   }
 
+  if (d.delegation !== undefined) {
+    d.delegation = validateDelegation(d.delegation);
+    if (d.isRoot || d.userId !== d.delegation.actorId)
+      throw new Error('Invalid delegated principal');
+  }
   return d as JWTPayload;
 }
 

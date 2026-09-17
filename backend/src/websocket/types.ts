@@ -1,4 +1,5 @@
 import type WebSocket from 'ws';
+import type { Delegation } from '../nodes/delegation.js';
 import type { SerializedFileTransferJob } from '../database/repositories/fileTransferJobRepository.js';
 import type { InstallStep, InstallStatus } from '../services/installPlan.js';
 import type {
@@ -35,6 +36,10 @@ export interface AuthenticatedWebSocket extends WebSocket {
     isAlive?: boolean;
     isRoot?: boolean;
     tokenVersion?: number;
+    delegation?: Delegation;
+    visibleServers?: Set<number>;
+    accessFingerprint?: string;
+    permissionsByServer?: Record<number, string[]>;
     accountValidatedAt?: number;
     authTimeout?: ReturnType<typeof setTimeout>;
     gpClientId?: string;
@@ -50,19 +55,65 @@ export type WsLimitData = {
     limit?: number;
 };
 
-export type WsAuthMessage = { type: 'auth'; token?: string; data?: { token?: string } };
+export type WsAuthMessage = {
+    type: 'auth';
+    token?: string;
+    data?: { token?: string };
+};
 export type WsSubscribeServersMessage = { type: 'subscribe:servers' };
-export type WsSubscribeInstallMessage = { type: 'subscribe:install'; serverId: number };
-export type WsSubscribeLogsMessage = { type: 'subscribe:logs'; serverId: number; data?: WsLimitData };
-export type WsSubscribeActionsMessage = { type: 'subscribe:actions'; serverId: number; data?: WsLimitData };
-export type WsSubscribeServersMetricsMessage = { type: 'subscribe:servers-metrics' };
-export type WsSubscribeSystemMetricsMessage = { type: 'subscribe:system-metrics'; data?: WsLimitData };
-export type WsSubscribeFileTransfersMessage = { type: 'subscribe:file-transfers'; serverId: number; data?: WsLimitData };
-export type WsTerminalAttachMessage = { type: 'terminal:attach'; sessionId: string; serverId?: number };
-export type WsTerminalInputMessage = { type: 'terminal:input'; sessionId: string; dataB64: string; serverId?: number };
-export type WsTerminalResizeMessage = { type: 'terminal:resize'; sessionId: string; cols: number; rows: number; serverId?: number };
-export type WsTerminalMessage = WsTerminalAttachMessage | WsTerminalInputMessage | WsTerminalResizeMessage;
-export type WsUnsubscribeMessage = { type: 'unsubscribe'; channel: SubscriptionChannel; serverId?: number };
+export type WsSubscribeInstallMessage = {
+    type: 'subscribe:install';
+    serverId: number;
+};
+export type WsSubscribeLogsMessage = {
+    type: 'subscribe:logs';
+    serverId: number;
+    data?: WsLimitData;
+};
+export type WsSubscribeActionsMessage = {
+    type: 'subscribe:actions';
+    serverId: number;
+    data?: WsLimitData;
+};
+export type WsSubscribeServersMetricsMessage = {
+    type: 'subscribe:servers-metrics';
+};
+export type WsSubscribeSystemMetricsMessage = {
+    type: 'subscribe:system-metrics';
+    data?: WsLimitData;
+};
+export type WsSubscribeFileTransfersMessage = {
+    type: 'subscribe:file-transfers';
+    serverId: number;
+    data?: WsLimitData;
+};
+export type WsTerminalAttachMessage = {
+    type: 'terminal:attach';
+    sessionId: string;
+    serverId?: number;
+};
+export type WsTerminalInputMessage = {
+    type: 'terminal:input';
+    sessionId: string;
+    dataB64: string;
+    serverId?: number;
+};
+export type WsTerminalResizeMessage = {
+    type: 'terminal:resize';
+    sessionId: string;
+    cols: number;
+    rows: number;
+    serverId?: number;
+};
+export type WsTerminalMessage =
+    | WsTerminalAttachMessage
+    | WsTerminalInputMessage
+    | WsTerminalResizeMessage;
+export type WsUnsubscribeMessage = {
+    type: 'unsubscribe';
+    channel: SubscriptionChannel;
+    serverId?: number;
+};
 export type WsPingMessage = { type: 'ping' };
 
 export type WSMessage =
@@ -87,25 +138,79 @@ export type OutgoingWebSocketMessage =
     | { type: 'auth:success' }
     | { type: 'pong' }
     | ({ type: 'servers:subscribed' } & Timestamped)
-    | ({ type: 'servers:snapshot'; servers: SerializedGameServerWithInstallProgress[] } & Timestamped)
-    | ({ type: 'servers:created' | 'servers:updated'; server: SerializedGameServerWithInstallProgress } & Timestamped)
+    | ({
+          type: 'servers:snapshot';
+          servers: SerializedGameServerWithInstallProgress[];
+      } & Timestamped)
+    | ({
+          type: 'servers:created' | 'servers:updated';
+          server: SerializedGameServerWithInstallProgress;
+      } & Timestamped)
     | ({ type: 'servers:deleted'; serverId: number } & Timestamped)
-    | ({ type: 'logs:history'; serverId: number; logs: string[]; limit: number } & Timestamped)
+    | ({
+          type: 'logs:history';
+          serverId: number;
+          logs: string[];
+          limit: number;
+      } & Timestamped)
     | ({ type: 'logs:subscribed'; serverId: number } & Timestamped)
     | ({ type: 'logs:new'; serverId: number; lines: string[] } & Timestamped)
-    | ({ type: 'actions:history'; serverId: number; actions: SerializedServerAction[]; limit: number } & Timestamped)
+    | ({
+          type: 'actions:history';
+          serverId: number;
+          actions: SerializedServerAction[];
+          limit: number;
+      } & Timestamped)
     | ({ type: 'actions:subscribed'; serverId: number } & Timestamped)
-    | ({ type: 'actions:new'; serverId: number; action: SerializedServerAction | (Omit<SerializedServerAction, 'id'> & { id: number | null }) } & Timestamped)
-    | ({ type: 'install:plan'; serverId: number; steps: InstallStep[] } & Timestamped)
-    | ({ type: 'install:progress'; serverId: number; progress: number; status: InstallStatus; errorMessage: string | null } & Timestamped)
-    | ({ type: 'install:interaction' } & Omit<SerializedInstallationInteraction, 'createdAt' | 'updatedAt'> & Partial<Pick<SerializedInstallationInteraction, 'createdAt' | 'updatedAt'>> & Timestamped)
+    | ({
+          type: 'actions:new';
+          serverId: number;
+          action:
+              | SerializedServerAction
+              | (Omit<SerializedServerAction, 'id'> & { id: number | null });
+      } & Timestamped)
+    | ({
+          type: 'install:plan';
+          serverId: number;
+          steps: InstallStep[];
+      } & Timestamped)
+    | ({
+          type: 'install:progress';
+          serverId: number;
+          progress: number;
+          status: InstallStatus;
+          errorMessage: string | null;
+      } & Timestamped)
+    | ({ type: 'install:interaction' } & Omit<
+          SerializedInstallationInteraction,
+          'createdAt' | 'updatedAt'
+      > &
+          Partial<Pick<SerializedInstallationInteraction, 'createdAt' | 'updatedAt'>> &
+          Timestamped)
     | ({ type: 'install:subscribed'; serverId: number } & Timestamped)
-    | ({ type: 'file-transfer:snapshot'; serverId: number; jobs: SerializedFileTransferJob[]; limit: number } & Timestamped)
+    | ({
+          type: 'file-transfer:snapshot';
+          serverId: number;
+          jobs: SerializedFileTransferJob[];
+          limit: number;
+      } & Timestamped)
     | ({ type: 'file-transfer:subscribed'; serverId: number } & Timestamped)
-    | ({ type: 'file-transfer:progress'; serverId: number; job: SerializedFileTransferJob } & Timestamped)
+    | ({
+          type: 'file-transfer:progress';
+          serverId: number;
+          job: SerializedFileTransferJob;
+      } & Timestamped)
     | ({ type: 'servers-metrics:subscribed' } & Timestamped)
-    | ({ type: 'servers-metrics:update'; metrics: readonly ServerMetricsSample[] } & Timestamped)
-    | ({ type: 'system-metrics:history'; metrics: SerializedMetricPoint[]; limit: number; meta?: MetricsHistoryMeta } & Timestamped)
+    | ({
+          type: 'servers-metrics:update';
+          metrics: readonly ServerMetricsSample[];
+      } & Timestamped)
+    | ({
+          type: 'system-metrics:history';
+          metrics: SerializedMetricPoint[];
+          limit: number;
+          meta?: MetricsHistoryMeta;
+      } & Timestamped)
     | ({ type: 'system-metrics:subscribed' } & Timestamped)
     | ({ type: 'system-metrics:update'; metrics: MetricSample } & Timestamped)
     | ({ type: 'system:rebooting'; byUserId: number | null } & Timestamped)

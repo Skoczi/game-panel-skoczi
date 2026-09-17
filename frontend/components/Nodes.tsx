@@ -100,8 +100,8 @@ export function Nodes() {
         <Shield className="shrink-0" size={20} />
         <p>
           Node administration grants control over the host Docker runtime. Remote access is
-          restricted to panel root administrators in this preview. Existing local servers stay where
-          they are.
+          restricted to administrators. Users open their assigned servers from Game Servers;
+          location and routing are handled by the panel.
         </p>
       </div>
       {showCreate && (

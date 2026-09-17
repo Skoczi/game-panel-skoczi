@@ -2,7 +2,7 @@
 
 # Game Panel · Skoczi Edition
 
-**Remote nodes · Per-IP port ranges · Panel branding**
+**One server workspace · Remote nodes · Per-server access · Panel branding**
 
 [![Skoczi CI](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml/badge.svg)](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE-2.0.txt)
@@ -20,7 +20,8 @@ Game server panel built with React, Node.js, SQLite and Docker. Based on **OVHcl
 
 | Area | Upstream 1.5.0 | Skoczi preview |
 |---|---|---|
-| Execution hosts | Panel host | Local runtime + enrolled remote agents (root-administrator preview) |
+| Execution hosts | Panel host | Local runtime + enrolled remote agents |
+| User workspace | Runtime-local server list | Assigned servers across locations, automatic routing, central access management |
 | Node operations | Local runtime | Per-node files, allocations and schedules; HTTP/WebSocket gateway; durable JSON operation journal |
 | Port allocation | Host port + container port | Optional **host IPv4** per TCP/UDP binding |
 | Same port on different IPs | Port-only conflict checks | Allowed on distinct configured addresses |
@@ -39,7 +40,7 @@ Read the [changelog](CHANGELOG-SKOCZI.md), [change map](docs/skoczi/CHANGES.md) 
 
 Use **Nodes** to register an agent with a one-time token, then install it on a separate Linux Docker host. No existing games are moved. Each node has its own runtime data and allowed IP/port ranges. [Installation, operation and failure contract](docs/skoczi/NODES.md).
 
-Remote nodes are currently restricted to root administrators; per-user delegation and automatic migration are not part of this preview. The agent requires verified HTTPS and host-level Docker access.
+Administrators manage nodes; users open assigned servers without switching hosts. See [Server workspace and access](docs/skoczi/FLEET.md) for permissions and failure behavior. Automatic placement and migration are not implemented. The agent requires verified HTTPS and host-level Docker access.
 
 ## Start here
 

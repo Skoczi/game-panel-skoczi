@@ -18,11 +18,13 @@ import {
   handleUnsubscribe,
   handleSubscribeFileTransfers,
 } from './subscriptions.js';
-import { userRepository, serverMemberRepository } from '../database/index.js';
+import { userRepository, serverMemberRepository, serverRepository } from '../database/index.js';
 import { startSystemMetricsPoller } from './pollers/systemMetricsPoller.js';
 import { startServerMetricsPoller } from './pollers/serverMetricsPoller.js';
 import { logError } from '../utils/logger.js';
 import { PERMISSIONS } from '../permissions.js';
+import { serverPermissions } from '../middleware/auth.js';
+import { isAgent } from '../agent/identity.js';
 
 const WS_AUTH_TIMEOUT_MS = 3_000;
 const WS_ACCOUNT_VALIDATION_TTL_MS = 5_000;
@@ -38,6 +40,24 @@ async function ensureWsUserEnabled(ws: AuthenticatedWebSocket): Promise<boolean>
     return true;
   }
 
+  if (ws.delegation) {
+    if (!isAgent()) {
+      ws.close(1008, 'Invalid credential');
+      return false;
+    }
+    const server = await serverRepository.findById(ws.delegation.serverId);
+    if (!server || server.runtime_uuid !== ws.delegation.runtimeKey) {
+      ws.close(1008, 'Server identity changed');
+      return false;
+    }
+    ws.isRoot = false;
+    ws.visibleServers = new Set([ws.delegation.serverId]);
+    ws.permissionsByServer = {
+      [ws.delegation.serverId]: ws.delegation.permissions,
+    };
+    ws.accountValidatedAt = now;
+    return true;
+  }
   const user = await userRepository.findById(ws.userId);
   if (!user) {
     sendSafe(ws, { type: 'error', error: 'Unauthorized' });
@@ -58,6 +78,20 @@ async function ensureWsUserEnabled(ws: AuthenticatedWebSocket): Promise<boolean>
   }
 
   ws.isRoot = Boolean(user.is_root);
+  const memberships = await serverMemberRepository.listByUser(ws.userId);
+  const fingerprint = JSON.stringify([
+    ws.isRoot,
+    memberships.map((m) => [m.server_id, m.permissions_json]),
+  ]);
+  if (ws.accessFingerprint && ws.accessFingerprint !== fingerprint) {
+    ws.close(1008, 'Permissions changed; reconnect');
+    return false;
+  }
+  ws.accessFingerprint = fingerprint;
+  ws.visibleServers = new Set(memberships.map((m) => m.server_id));
+  ws.permissionsByServer = Object.fromEntries(
+    memberships.map((m) => [m.server_id, JSON.parse(m.permissions_json)]),
+  );
   ws.accountValidatedAt = now;
   return true;
 }
@@ -65,12 +99,12 @@ async function ensureWsUserEnabled(ws: AuthenticatedWebSocket): Promise<boolean>
 async function hasServerPermission(
   ws: AuthenticatedWebSocket,
   serverId: number,
-  perm: string
+  perm: string,
 ): Promise<boolean> {
   if (ws.isRoot) return true;
   if (!ws.userId) return false;
 
-  const perms = await serverMemberRepository.getUserServerPermissions(serverId, ws.userId);
+  const perms = await serverPermissions(ws, serverId);
   return perms.includes('*') || perms.includes(perm);
 }
 
@@ -78,8 +112,12 @@ export function setupWebSocket(wss: WebSocketServer): void {
   const broadcaster = attachBroadcaster(wss);
 
   // Start global pollers once at boot
-  const systemMetricsTimer = startSystemMetricsPoller(wss, { intervalMs: 10_000 });
-  const serverMetricsTimer = startServerMetricsPoller(wss, { intervalMs: 10_000 });
+  const systemMetricsTimer = startSystemMetricsPoller(wss, {
+    intervalMs: 10_000,
+  });
+  const serverMetricsTimer = startServerMetricsPoller(wss, {
+    intervalMs: 10_000,
+  });
 
   const heartbeatInterval = setInterval(() => {
     for (const client of wss.clients) {
@@ -94,6 +132,13 @@ export function setupWebSocket(wss: WebSocketServer): void {
       ws.ping();
     }
   }, 30_000);
+  const accessInterval = setInterval(() => {
+    for (const client of wss.clients) {
+      const ws = client as AuthenticatedWebSocket;
+      if (ws.userId)
+        void ensureWsUserEnabled(ws).catch(() => ws.close(1008, 'Authorization unavailable'));
+    }
+  }, 1000);
 
   wss.on('connection', (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
     ws.isAlive = true;
@@ -141,6 +186,7 @@ export function setupWebSocket(wss: WebSocketServer): void {
 
   const shutdown = () => {
     clearInterval(heartbeatInterval);
+    clearInterval(accessInterval);
     clearInterval(systemMetricsTimer);
     clearInterval(serverMetricsTimer);
 
@@ -161,13 +207,11 @@ export function setupWebSocket(wss: WebSocketServer): void {
   process.on('SIGINT', shutdown);
 }
 
-async function routeMessage(
-  ws: AuthenticatedWebSocket,
-  message: WSMessage
-): Promise<void> {
+async function routeMessage(ws: AuthenticatedWebSocket, message: WSMessage): Promise<void> {
   // If not authenticated yet, only auth messages can authenticate
   if (!ws.userId) {
     if (!authenticateFromMessage(ws, message)) return;
+    if (!(await ensureWsUserEnabled(ws))) return;
     if (ws.authTimeout) {
       clearTimeout(ws.authTimeout);
       ws.authTimeout = undefined;
@@ -178,6 +222,17 @@ async function routeMessage(
 
   // Validate account state once per socket to reject disabled/deleted users.
   if (!(await ensureWsUserEnabled(ws))) return;
+  if (!ws.isRoot) {
+    if (
+      message.type === 'subscribe:system-metrics' ||
+      ('serverId' in message &&
+        message.serverId !== undefined &&
+        !ws.visibleServers?.has(message.serverId))
+    ) {
+      sendSafe(ws, { type: 'error', error: 'Server access denied' });
+      return;
+    }
+  }
 
   switch (message.type) {
     // Some clients may still send auth even if already authed via headers.
@@ -194,7 +249,10 @@ async function routeMessage(
       if (message.serverId) {
         const ok = await hasServerPermission(ws, message.serverId, PERMISSIONS.container.terminal);
         if (!ok) {
-          sendSafe(ws, { type: 'error', error: 'Insufficient server permissions' });
+          sendSafe(ws, {
+            type: 'error',
+            error: 'Insufficient server permissions',
+          });
           return;
         }
       }
@@ -210,7 +268,10 @@ async function routeMessage(
     case 'subscribe:logs': {
       const ok = await hasServerPermission(ws, message.serverId, PERMISSIONS.container.logsRead);
       if (!ok) {
-        sendSafe(ws, { type: 'error', error: 'Insufficient server permissions' });
+        sendSafe(ws, {
+          type: 'error',
+          error: 'Insufficient server permissions',
+        });
         return;
       }
 
@@ -219,6 +280,13 @@ async function routeMessage(
     }
 
     case 'subscribe:actions': {
+      if (!(await hasServerPermission(ws, message.serverId, PERMISSIONS.container.logsRead))) {
+        sendSafe(ws, {
+          type: 'error',
+          error: 'Insufficient server permissions',
+        });
+        return;
+      }
       await handleSubscribeActions(ws, message.serverId, message);
       return;
     }
@@ -226,7 +294,10 @@ async function routeMessage(
     case 'subscribe:file-transfers': {
       const ok = await hasServerPermission(ws, message.serverId, PERMISSIONS.fs.read);
       if (!ok) {
-        sendSafe(ws, { type: 'error', error: 'Insufficient server permissions' });
+        sendSafe(ws, {
+          type: 'error',
+          error: 'Insufficient server permissions',
+        });
         return;
       }
 
@@ -243,6 +314,13 @@ async function routeMessage(
       return;
 
     case 'subscribe:install': {
+      if (!(await hasServerPermission(ws, message.serverId, PERMISSIONS.server.edit))) {
+        sendSafe(ws, {
+          type: 'error',
+          error: 'Insufficient server permissions',
+        });
+        return;
+      }
       await handleSubscribeInstall(ws, message.serverId);
       return;
     }

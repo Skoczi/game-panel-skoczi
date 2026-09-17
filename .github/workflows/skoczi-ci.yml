@@ -33,4 +33,4 @@ jobs:
       - run: npm run test:ui
         working-directory: frontend
       - name: Validate deployment shell syntax
-        run: find deploy -name '*.sh' -exec bash -n {} +
+        run: find deploy -name '*.sh' -exec bash -n {} \;

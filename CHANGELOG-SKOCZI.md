@@ -4,10 +4,22 @@ This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records 
 
 ## Unreleased
 
+## 1.5.0-skoczi.8 — server workspace and delegated access — 2026-09-17
+
+- Added one Game Servers workspace across locations. Users see assigned servers and location labels, without node switching or host administration.
+- Added central server UUIDs, durable runtime identities, per-server access management and viewer/operator/file-manager presets.
+- Added single-server protocol 2 capabilities for remote HTTP, files, console and WebSocket operations. No agent credential reaches the browser; global permissions are not delegated.
+- Restricted local and remote server reads, metrics and events to assigned servers. Revocation closes live sockets and invalidates unused download links.
+- Added bounded inventory collection with unknown/offline state and no fallback to a different runtime.
+- Added identity-reuse, permissions and browser tests; extended real-Docker CI to exercise ordinary users across separate runtimes.
+- This release does not move games or implement migration. See [workspace and access](docs/skoczi/FLEET.md).
+
+### Administrator node selector (included from post-Revision 7 patches)
+
 - Replaced the native execution-node select with a custom sidebar dropdown: a host icon in the trigger, status indicators, location labels, selected-state checkmark and a scrollable runtime list.
 - Simplified list rows: no host icons, separate name/location/status lines and a shorter pending label for narrow sidebars.
 - Added keyboard navigation, type-to-select, outside-click/Escape dismissal and reduced-motion support. Switching still requires confirmation and retains the per-tab runtime boundary.
-- Added browser coverage for selection, cancellation, unavailable nodes, Local-only inventory and open mobile/dark menus. No backend or deployment changes.
+- Added browser coverage for selection, cancellation, unavailable nodes, Local-only inventory and open mobile/dark menus.
 
 ## 1.5.0-skoczi.7 — multi-node administrator preview — 2026-09-17
 

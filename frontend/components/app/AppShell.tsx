@@ -16,7 +16,9 @@ import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppPageLayout } from '../../src/ui/layout';
 
 const HostStatus = lazy(() => import('../HostStatus').then((m) => ({ default: m.HostStatus })));
-const GlobalSettings = lazy(() => import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings })));
+const GlobalSettings = lazy(() =>
+  import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings }))
+);
 const Nodes = lazy(() => import('../Nodes').then((m) => ({ default: m.Nodes })));
 import type { CLIMessage } from '../../types/cli';
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
@@ -32,6 +34,8 @@ import { nextId } from '../../utils/uid';
 import type { ActiveLogPromptToast, ConsoleTerminalTarget } from './appRuntime';
 import { AppButton } from '../../src/ui/components';
 import { supportsConsoleCommand } from '../../utils/providerCapabilities';
+import { FleetWorkspace } from '../FleetWorkspace';
+import { ACTIVE_SERVER, ADMIN_RUNTIME, openFleet } from '../../utils/nodeContext';
 
 interface AppShellProps {
   activeTab: string;
@@ -159,7 +163,8 @@ export function AppShell({
     const perms = serverPermissionsById[server.id] ?? [];
     const permitted =
       Boolean(currentUser?.isRoot) || perms.includes('*') || perms.includes('server.command.send');
-    canSendCommandByServer[server.id] = permitted && supportsConsoleCommand(server.providerMetadataJson);
+    canSendCommandByServer[server.id] =
+      permitted && supportsConsoleCommand(server.providerMetadataJson);
   }
 
   const handleSendConsoleCommand = async (serverId: string, command: string) => {
@@ -169,7 +174,11 @@ export function AppShell({
     // the HTTP response, never in the logs stream. Surface stdout/stderr in the
     // console so it isn't lost. Pretty-print JSON payloads when possible.
     const prettify = (raw: string) => {
-      try { return JSON.stringify(JSON.parse(raw), null, 2); } catch { return raw; }
+      try {
+        return JSON.stringify(JSON.parse(raw), null, 2);
+      } catch {
+        return raw;
+      }
     };
     const appendOutput = (message: string, type: LogEntry['type']) => {
       onAppendServerLog(serverId, {
@@ -199,7 +208,9 @@ export function AppShell({
         />
       </div>
 
-      <div className={`md:hidden fixed top-0 left-0 right-0 z-40 border-b ${mobileMenuOpen ? 'hidden' : ''} ${isDark ? 'border-gray-800 bg-[#111827]' : 'border-[#000b82] bg-[#000e9c]'}`}>
+      <div
+        className={`md:hidden fixed top-0 left-0 right-0 z-40 border-b ${mobileMenuOpen ? 'hidden' : ''} ${isDark ? 'border-gray-800 bg-[#111827]' : 'border-[#000b82] bg-[#000e9c]'}`}
+      >
         <div className="flex items-center justify-between p-4">
           <AppButton
             onClick={() => setMobileMenuOpen(true)}
@@ -213,7 +224,11 @@ export function AppShell({
             <Menu className={`w-6 h-6 ${isDark ? 'text-white' : 'text-white'}`} />
           </AppButton>
           {/* Modified by Skoczi: independent fork identity on mobile. */}
-          <span className="text-white text-center text-sm font-semibold">Game Panel<br />Skoczi Edition</span>
+          <span className="text-white text-center text-sm font-semibold">
+            Game Panel
+            <br />
+            Skoczi Edition
+          </span>
           <div className="w-10"></div>
         </div>
       </div>
@@ -252,7 +267,7 @@ export function AppShell({
       )}
 
       <main className="flex-1 w-full overflow-x-hidden bg-transparent pt-16 md:pl-52 md:pt-0">
-        {activeTab === 'host-status' && (
+        {activeTab === 'host-status' && currentUser?.isRoot && (
           <AppPageLayout className={pageShellClassName}>
             <Suspense fallback={<div className="p-6 text-sm text-gray-400">Loading…</div>}>
               <HostStatus />
@@ -260,8 +275,31 @@ export function AppShell({
           </AppPageLayout>
         )}
 
-        {activeTab === 'game-servers' && (
+        {activeTab === 'game-servers' && !ACTIVE_SERVER && !ADMIN_RUNTIME && (
           <AppPageLayout className={pageShellClassName}>
+            <FleetWorkspace
+              administrator={Boolean(currentUser?.isRoot)}
+              onNodes={() => setActiveTab('nodes')}
+            />
+          </AppPageLayout>
+        )}
+        {activeTab === 'game-servers' && (ACTIVE_SERVER || ADMIN_RUNTIME) && (
+          <AppPageLayout className={pageShellClassName}>
+            <div className="gp-fleet">
+              <div className="gp-fleet-context">
+                <button className="gp-fleet-button" onClick={openFleet}>
+                  ← All servers
+                </button>
+                <div>
+                  <strong>{ACTIVE_SERVER?.name || 'Node administration'}</strong>
+                  <small>
+                    {ACTIVE_SERVER
+                      ? `${ACTIVE_SERVER.location} · ${ACTIVE_SERVER.nodeName}`
+                      : 'Administrator runtime workspace'}
+                  </small>
+                </div>
+              </div>
+            </div>
             <NewsPanel />
 
             <GameServersTable
@@ -278,7 +316,7 @@ export function AppShell({
               onRefresh={handleRefreshServerSnapshot}
               onStartAll={handleStartAll}
               onStopAll={handleStopAll}
-              canInstall={canInstallServers}
+              canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
               onOpenInstallModal={() => setInstallModalOpen(true)}
             />
 
@@ -287,7 +325,7 @@ export function AppShell({
               onClose={() => setInstallModalOpen(false)}
               onReopen={() => setInstallModalOpen(true)}
               onInstall={handleInstallGame}
-              canInstall={canInstallServers}
+              canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
               installing={installing}
               installError={installError}
               installProgressPercent={installProgressPercent}
@@ -326,10 +364,18 @@ export function AppShell({
         )}
 
         {activeTab === 'nodes' && currentUser?.isRoot && (
-          <AppPageLayout className={pageShellClassName}><Suspense fallback={<p>Loading nodes…</p>}><Nodes /></Suspense></AppPageLayout>
+          <AppPageLayout className={pageShellClassName}>
+            <Suspense fallback={<p>Loading nodes…</p>}>
+              <Nodes />
+            </Suspense>
+          </AppPageLayout>
         )}
         {activeTab === 'settings' && currentUser?.isRoot && (
-          <AppPageLayout className={pageShellClassName}><Suspense fallback={<p>Loading settings…</p>}><GlobalSettings /></Suspense></AppPageLayout>
+          <AppPageLayout className={pageShellClassName}>
+            <Suspense fallback={<p>Loading settings…</p>}>
+              <GlobalSettings />
+            </Suspense>
+          </AppPageLayout>
         )}
 
         {activeTab === 'resources' && (

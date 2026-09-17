@@ -1,6 +1,6 @@
 # Multi-node execution design
 
-Status: Revision 7 administrator preview; production rollout and operator acceptance are separate steps.
+Historical design: Revision 7 administrator preview. Revision 8 adds the [server workspace and delegated access](FLEET.md); that document supersedes the root-only user-access scope below. Production rollout and operator acceptance remain separate steps.
 
 ## Runtime boundary
 

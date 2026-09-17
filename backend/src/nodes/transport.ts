@@ -3,11 +3,10 @@ import https from 'node:https';
 import { readFileSync } from 'node:fs';
 import { pipeline } from 'node:stream';
 import { signNodeRequest } from './protocol.js';
+import type { Delegation } from './delegation.js';
 
 export function nodeTls() {
-    return process.env.GAMEPANEL_NODE_CA
-        ? { ca: readFileSync(process.env.GAMEPANEL_NODE_CA) }
-        : {};
+    return process.env.GAMEPANEL_NODE_CA ? { ca: readFileSync(process.env.GAMEPANEL_NODE_CA) } : {};
 }
 const safeHeaders = new Set([
     'content-type',
@@ -24,9 +23,7 @@ const safeHeaders = new Set([
 ]);
 export function filteredHeaders(headers: http.IncomingHttpHeaders) {
     return Object.fromEntries(
-        Object.entries(headers).filter(([key]) =>
-            safeHeaders.has(key.toLowerCase()),
-        ),
+        Object.entries(headers).filter(([key]) => safeHeaders.has(key.toLowerCase())),
     );
 }
 
@@ -40,31 +37,27 @@ export function proxyRuntime(
         key: string;
         path: string;
         actor: string;
-        transformJson?: (
-            value: Record<string, unknown>,
-        ) => Record<string, unknown>;
+        delegation?: Delegation;
+        transformJson?: (value: Record<string, unknown>) => Record<string, unknown>;
     },
 ) {
     const target = new URL(options.path, options.origin);
-    if (target.origin !== options.origin)
-        throw new Error('Runtime origin mismatch');
-    const upstream = (target.protocol === 'https:' ? https : http).request(
-        target,
-        {
-            method: req.method,
-            ...nodeTls(),
-            headers: {
-                ...filteredHeaders(req.headers),
-                'x-gamepanel-node-auth': signNodeRequest(
-                    options.key,
-                    options.nodeId,
-                    req.method || 'GET',
-                    options.path,
-                    options.actor,
-                ),
-            },
+    if (target.origin !== options.origin) throw new Error('Runtime origin mismatch');
+    const upstream = (target.protocol === 'https:' ? https : http).request(target, {
+        method: req.method,
+        ...nodeTls(),
+        headers: {
+            ...filteredHeaders(req.headers),
+            'x-gamepanel-node-auth': signNodeRequest(
+                options.key,
+                options.nodeId,
+                req.method || 'GET',
+                options.path,
+                options.actor,
+                options.delegation,
+            ),
         },
-    );
+    });
     const connectTimer = setTimeout(
         () => upstream.destroy(new Error('Node connection timeout')),
         10000,
@@ -72,14 +65,11 @@ export function proxyRuntime(
     upstream.on('socket', (socket) => {
         if (!socket.connecting) clearTimeout(connectTimer);
         else
-            socket.once(
-                target.protocol === 'https:' ? 'secureConnect' : 'connect',
-                () => clearTimeout(connectTimer),
+            socket.once(target.protocol === 'https:' ? 'secureConnect' : 'connect', () =>
+                clearTimeout(connectTimer),
             );
     });
-    upstream.setTimeout(120000, () =>
-        upstream.destroy(new Error('Node response idle timeout')),
-    );
+    upstream.setTimeout(120000, () => upstream.destroy(new Error('Node response idle timeout')));
     upstream.on('response', (remote) => {
         if (
             options.transformJson &&

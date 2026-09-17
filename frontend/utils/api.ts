@@ -1,11 +1,13 @@
 // Modified by Skoczi: host IP allowlist API and per-port IPv4 payloads.
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { runtimeUrl } from './nodeContext';
+import { runtimeUrl, ACTIVE_SERVER } from './nodeContext';
 import type { GlobalSettings, Appearance, Assignment } from '../types/globalSettings';
+import type { ReleaseConfigFileDefinition } from './api/types';
 import type {
-  ReleaseConfigFileDefinition,
-} from './api/types';
-import type { ProjectZomboidMod, ProjectZomboidModId, ProjectZomboidWorkshopPreview } from '../types/projectZomboid';
+  ProjectZomboidMod,
+  ProjectZomboidModId,
+  ProjectZomboidWorkshopPreview,
+} from '../types/projectZomboid';
 import type {
   PatchSettingsResponse,
   SettingOptionsResponse,
@@ -98,7 +100,11 @@ class ApiClient {
 
     this.client.interceptors.request.use((request) => {
       request.url = runtimeUrl(request.url || '');
-      if (['post', 'put', 'patch', 'delete'].includes(request.method || '') && !request.headers.has('Idempotency-Key')) {
+      if (ACTIVE_SERVER) request.headers.set('X-GamePanel-Server', ACTIVE_SERVER.id);
+      if (
+        ['post', 'put', 'patch', 'delete'].includes(request.method || '') &&
+        !request.headers.has('Idempotency-Key')
+      ) {
         request.headers.set('Idempotency-Key', crypto.randomUUID());
       }
       return request;
@@ -344,7 +350,18 @@ class ApiClient {
       tcp: { host: number; container: number; label: string; hostIp?: string }[];
       udp: { host: number; container: number; label: string; hostIp?: string }[];
     };
-    healthcheck: null | { mode: 'disabled' } | { mode: 'override'; type: string; port?: number; interval?: number; timeout?: number; retries?: number; startPeriod?: number };
+    healthcheck:
+      | null
+      | { mode: 'disabled' }
+      | {
+          mode: 'override';
+          type: string;
+          port?: number;
+          interval?: number;
+          timeout?: number;
+          retries?: number;
+          startPeriod?: number;
+        };
     mounts?: { key: string; containerPath: string }[];
     env?: Record<string, string>;
     requireSteamCredentials?: boolean;
@@ -358,8 +375,15 @@ class ApiClient {
     return response.data;
   }
 
-  async respondToInstallInteraction(serverId: number, interactionId: number, response: Record<string, unknown>) {
-    const res = await this.client.post(`/api/servers/${serverId}/install/interactions/${interactionId}/respond`, response);
+  async respondToInstallInteraction(
+    serverId: number,
+    interactionId: number,
+    response: Record<string, unknown>
+  ) {
+    const res = await this.client.post(
+      `/api/servers/${serverId}/install/interactions/${interactionId}/respond`,
+      response
+    );
     return res.data;
   }
 
@@ -396,18 +420,21 @@ class ApiClient {
     return response.data;
   }
 
-  async updateServer(serverId: number, payload: {
-    name?: string;
-    ports?: {
-      tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
-      udp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
-    };
-    mounts?: Array<{ key: string; containerPath: string }>;
-    env?: Record<string, string>;
-    healthcheck?: null | { mode: string; [key: string]: unknown };
-    deleteHostData?: boolean;
-    resourceLimits?: { memoryMb: number; cpu: number } | null;
-  }) {
+  async updateServer(
+    serverId: number,
+    payload: {
+      name?: string;
+      ports?: {
+        tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
+        udp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
+      };
+      mounts?: Array<{ key: string; containerPath: string }>;
+      env?: Record<string, string>;
+      healthcheck?: null | { mode: string; [key: string]: unknown };
+      deleteHostData?: boolean;
+      resourceLimits?: { memoryMb: number; cpu: number } | null;
+    }
+  ) {
     const response = await this.client.patch(`/api/servers/${serverId}`, payload);
     return response.data as { success?: boolean; server?: { id: number; name?: string } };
   }
@@ -451,14 +478,20 @@ class ApiClient {
   }
 
   async restoreBackup(serverId: number, path: string) {
-    const response = await this.client.post(`/api/servers/${serverId}/backups/restore`, { path }, {
-      timeout: LONG_TIMEOUT_MS,
-    });
+    const response = await this.client.post(
+      `/api/servers/${serverId}/backups/restore`,
+      { path },
+      {
+        timeout: LONG_TIMEOUT_MS,
+      }
+    );
     return response.data as { ok: boolean; exitCode: number; stdout?: string; stderr?: string };
   }
 
   async sendConsoleCommand(serverId: number, command: string) {
-    const response = await this.client.post(`/api/servers/${serverId}/console/commands`, { command });
+    const response = await this.client.post(`/api/servers/${serverId}/console/commands`, {
+      command,
+    });
     return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string };
   }
 
@@ -476,7 +509,10 @@ class ApiClient {
   }
 
   async renameBackupFile(serverId: number, path: string, name: string) {
-    const response = await this.client.patch(`/api/servers/${serverId}/backups/file`, { path, name });
+    const response = await this.client.patch(`/api/servers/${serverId}/backups/file`, {
+      path,
+      name,
+    });
     return response.data as { path: string; name: string };
   }
 
@@ -488,9 +524,13 @@ class ApiClient {
   }
 
   async createBackup(serverId: number, options?: { includeServerArtifact?: boolean }) {
-    const response = await this.client.post(`/api/servers/${serverId}/backups/create`, options ?? {}, {
-      timeout: LONG_TIMEOUT_MS,
-    });
+    const response = await this.client.post(
+      `/api/servers/${serverId}/backups/create`,
+      options ?? {},
+      {
+        timeout: LONG_TIMEOUT_MS,
+      }
+    );
     return response.data as { ok: boolean; exitCode: number; stdout?: string; stderr?: string };
   }
 
@@ -539,10 +579,9 @@ class ApiClient {
 
     if (!payload.enabled) {
       if (existingTask) {
-        await this.client.patch(
-          `/api/servers/${serverId}/scheduled-tasks/${existingTask.id}`,
-          { enabled: false }
-        );
+        await this.client.patch(`/api/servers/${serverId}/scheduled-tasks/${existingTask.id}`, {
+          enabled: false,
+        });
       }
       return { enabled: false as const };
     }
@@ -573,7 +612,14 @@ class ApiClient {
     try {
       const res = await fetch(`${CATALOG_BASE_URL}/linuxgsm/metadata`);
       if (!res.ok) return { games: [] };
-      const body = await res.json() as { items?: Array<{ shortname: string; serverFiles: ReleaseConfigFileDefinition[] | null; requireSteamCredentials?: boolean; requireGameCopy?: boolean }> };
+      const body = (await res.json()) as {
+        items?: Array<{
+          shortname: string;
+          serverFiles: ReleaseConfigFileDefinition[] | null;
+          requireSteamCredentials?: boolean;
+          requireGameCopy?: boolean;
+        }>;
+      };
       const items = body?.items ?? [];
       return {
         games: items.map((item) => ({
@@ -597,7 +643,7 @@ class ApiClient {
         `${CATALOG_BASE_URL}/linuxgsm/metadata/${encodeURIComponent(gameKey)}`
       );
       if (!res.ok) return null;
-      const data = await res.json() as {
+      const data = (await res.json()) as {
         shortname: string;
         ports?: {
           tcp?: Array<{ host: number; container: number; label?: string }>;
@@ -660,7 +706,12 @@ class ApiClient {
   async updateScheduledTask(
     serverId: number,
     taskId: number,
-    payload: { type?: string; schedule?: string; enabled?: boolean; payload?: Record<string, unknown> }
+    payload: {
+      type?: string;
+      schedule?: string;
+      enabled?: boolean;
+      payload?: Record<string, unknown>;
+    }
   ) {
     const response = await this.client.patch(
       `/api/servers/${serverId}/scheduled-tasks/${taskId}`,
@@ -670,9 +721,7 @@ class ApiClient {
   }
 
   async deleteScheduledTask(serverId: number, taskId: number) {
-    const response = await this.client.delete(
-      `/api/servers/${serverId}/scheduled-tasks/${taskId}`
-    );
+    const response = await this.client.delete(`/api/servers/${serverId}/scheduled-tasks/${taskId}`);
     return response.data;
   }
 
@@ -707,10 +756,10 @@ class ApiClient {
   }
 
   async getServerDownloadUrl(serverId: number, path: string, root?: string): Promise<string> {
-    const res = await this.client.post(
-      `/api/servers/${serverId}/files/download-token`,
-      { path, ...(root ? { root } : {}) }
-    );
+    const res = await this.client.post(`/api/servers/${serverId}/files/download-token`, {
+      path,
+      ...(root ? { root } : {}),
+    });
     return `${API_BASE_URL}${res.data.path as string}`;
   }
 
@@ -732,7 +781,13 @@ class ApiClient {
     return response.data;
   }
 
-  async createServerFile(serverId: number, path: string, name: string, content: string, root?: string) {
+  async createServerFile(
+    serverId: number,
+    path: string,
+    name: string,
+    content: string,
+    root?: string
+  ) {
     const response = await this.client.post(`/api/servers/${serverId}/files/touch`, {
       path,
       name,
@@ -789,8 +844,7 @@ class ApiClient {
         params: { path: destPath, overwrite: 'true', ...(root ? { root } : {}) },
         headers: { 'Content-Type': 'application/octet-stream' },
         timeout: LONG_TIMEOUT_MS,
-        onUploadProgress: (e) =>
-          onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
+        onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
       });
     } else {
       const CHUNK_SIZE = 16 * 1024 * 1024;
@@ -799,7 +853,13 @@ class ApiClient {
 
       const sessionRes = await this.client.post(
         `/api/servers/${serverId}/files/upload-sessions`,
-        { path: dirPath, totalBytes: file.size, totalFiles: 1, overwrite: true, ...(root ? { root } : {}) },
+        {
+          path: dirPath,
+          totalBytes: file.size,
+          totalFiles: 1,
+          overwrite: true,
+          ...(root ? { root } : {}),
+        },
         { timeout: LONG_TIMEOUT_MS }
       );
       const uploadId = sessionRes.data?.upload?.id as number;
@@ -892,7 +952,9 @@ class ApiClient {
 
   // 24h history of one server, downsampled by the backend. Fetched when a graph opens.
   async getServerMetrics(serverId: number, limit = 2000) {
-    const response = await this.client.get(`/api/servers/${serverId}/metrics`, { params: { limit } });
+    const response = await this.client.get(`/api/servers/${serverId}/metrics`, {
+      params: { limit },
+    });
     return response.data as {
       serverId: number;
       metrics: ServerMetricSample[];
@@ -924,7 +986,10 @@ class ApiClient {
   async getBindAddresses(): Promise<{
     addresses: string[];
     requireExplicitIp?: boolean;
-    portsByIp?: Record<string, { tcp: Array<{ from: number; to: number }>; udp: Array<{ from: number; to: number }> }> | null;
+    portsByIp?: Record<
+      string,
+      { tcp: Array<{ from: number; to: number }>; udp: Array<{ from: number; to: number }> }
+    > | null;
   }> {
     const response = await this.client.get('/api/system/bind-addresses');
     return response.data;
@@ -965,7 +1030,9 @@ class ApiClient {
     serverId: number,
     settings: Record<string, string | number | boolean | null>
   ) {
-    const response = await this.client.patch(`/api/servers/${serverId}/settings/file`, { settings });
+    const response = await this.client.patch(`/api/servers/${serverId}/settings/file`, {
+      settings,
+    });
     return response.data as PatchSettingsResponse;
   }
 
@@ -973,7 +1040,9 @@ class ApiClient {
     serverId: number,
     settings: Record<string, string | number | boolean | null>
   ) {
-    const response = await this.client.patch(`/api/servers/${serverId}/settings/launch`, { settings });
+    const response = await this.client.patch(`/api/servers/${serverId}/settings/launch`, {
+      settings,
+    });
     return response.data as PatchSettingsResponse;
   }
 
@@ -992,16 +1061,25 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/settings`);
     return response.data as {
       settings: Array<{
-        key: string; label: string; description: string;
+        key: string;
+        label: string;
+        description: string;
         type: 'select' | 'integer' | 'boolean' | 'string';
-        options?: string[]; min?: number; max?: number;
+        options?: string[];
+        min?: number;
+        max?: number;
         value: string | number | boolean;
       }>;
     };
   }
 
-  async patchMinecraftSettings(serverId: number, settings: Record<string, string | number | boolean>) {
-    const response = await this.client.patch(`/api/servers/${serverId}/minecraft/settings`, { settings });
+  async patchMinecraftSettings(
+    serverId: number,
+    settings: Record<string, string | number | boolean>
+  ) {
+    const response = await this.client.patch(`/api/servers/${serverId}/minecraft/settings`, {
+      settings,
+    });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
 
@@ -1013,12 +1091,16 @@ class ApiClient {
   }
 
   async addMinecraftOperator(serverId: number, name: string) {
-    const response = await this.client.post(`/api/servers/${serverId}/minecraft/operators`, { name });
+    const response = await this.client.post(`/api/servers/${serverId}/minecraft/operators`, {
+      name,
+    });
     return response.data;
   }
 
   async removeMinecraftOperator(serverId: number, name: string) {
-    const response = await this.client.delete(`/api/servers/${serverId}/minecraft/operators/${encodeURIComponent(name)}`);
+    const response = await this.client.delete(
+      `/api/servers/${serverId}/minecraft/operators/${encodeURIComponent(name)}`
+    );
     return response.data;
   }
 
@@ -1030,51 +1112,81 @@ class ApiClient {
   }
 
   async patchMinecraftWhitelist(serverId: number, enabled: boolean) {
-    const response = await this.client.patch(`/api/servers/${serverId}/minecraft/whitelist`, { enabled });
+    const response = await this.client.patch(`/api/servers/${serverId}/minecraft/whitelist`, {
+      enabled,
+    });
     return response.data;
   }
 
   async addMinecraftWhitelistPlayer(serverId: number, name: string) {
-    const response = await this.client.post(`/api/servers/${serverId}/minecraft/whitelist/players`, { name });
+    const response = await this.client.post(
+      `/api/servers/${serverId}/minecraft/whitelist/players`,
+      { name }
+    );
     return response.data;
   }
 
   async removeMinecraftWhitelistPlayer(serverId: number, name: string) {
-    const response = await this.client.delete(`/api/servers/${serverId}/minecraft/whitelist/players/${encodeURIComponent(name)}`);
+    const response = await this.client.delete(
+      `/api/servers/${serverId}/minecraft/whitelist/players/${encodeURIComponent(name)}`
+    );
     return response.data;
   }
 
   async getMinecraftPlayerBans(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/bans/players`);
     return response.data as {
-      bans: Array<{ name: string; uuid?: string; reason?: string; created?: string; expires?: string; source?: string }>;
+      bans: Array<{
+        name: string;
+        uuid?: string;
+        reason?: string;
+        created?: string;
+        expires?: string;
+        source?: string;
+      }>;
     };
   }
 
   async banMinecraftPlayer(serverId: number, name: string, reason?: string) {
-    const response = await this.client.post(`/api/servers/${serverId}/minecraft/bans/players`, { name, ...(reason ? { reason } : {}) });
+    const response = await this.client.post(`/api/servers/${serverId}/minecraft/bans/players`, {
+      name,
+      ...(reason ? { reason } : {}),
+    });
     return response.data;
   }
 
   async unbanMinecraftPlayer(serverId: number, name: string) {
-    const response = await this.client.delete(`/api/servers/${serverId}/minecraft/bans/players/${encodeURIComponent(name)}`);
+    const response = await this.client.delete(
+      `/api/servers/${serverId}/minecraft/bans/players/${encodeURIComponent(name)}`
+    );
     return response.data;
   }
 
   async getMinecraftIpBans(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/minecraft/bans/ips`);
     return response.data as {
-      bans: Array<{ ip: string; reason?: string; created?: string; expires?: string; source?: string }>;
+      bans: Array<{
+        ip: string;
+        reason?: string;
+        created?: string;
+        expires?: string;
+        source?: string;
+      }>;
     };
   }
 
   async banMinecraftIp(serverId: number, target: string, reason?: string) {
-    const response = await this.client.post(`/api/servers/${serverId}/minecraft/bans/ips`, { target, ...(reason ? { reason } : {}) });
+    const response = await this.client.post(`/api/servers/${serverId}/minecraft/bans/ips`, {
+      target,
+      ...(reason ? { reason } : {}),
+    });
     return response.data;
   }
 
   async unbanMinecraftIp(serverId: number, ip: string) {
-    const response = await this.client.delete(`/api/servers/${serverId}/minecraft/bans/ips/${encodeURIComponent(ip)}`);
+    const response = await this.client.delete(
+      `/api/servers/${serverId}/minecraft/bans/ips/${encodeURIComponent(ip)}`
+    );
     return response.data;
   }
 
@@ -1082,16 +1194,21 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${serverId}/hytale/settings`);
     return response.data as {
       settings: Array<{
-        key: string; label: string; description: string;
+        key: string;
+        label: string;
+        description: string;
         type: 'integer' | 'boolean' | 'string';
-        min?: number; max?: number;
+        min?: number;
+        max?: number;
         value: string | number | boolean;
       }>;
     };
   }
 
   async patchHytaleSettings(serverId: number, settings: Record<string, string | number | boolean>) {
-    const response = await this.client.patch(`/api/servers/${serverId}/hytale/settings`, { settings });
+    const response = await this.client.patch(`/api/servers/${serverId}/hytale/settings`, {
+      settings,
+    });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
 
@@ -1099,17 +1216,25 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${serverId}/palworld/settings`);
     return response.data as {
       settings: Array<{
-        key: string; label: string; description: string;
+        key: string;
+        label: string;
+        description: string;
         type: 'integer' | 'boolean' | 'string' | 'float' | 'select';
         options?: Array<{ label: string; value: string }> | string[];
-        min?: number; max?: number;
+        min?: number;
+        max?: number;
         value: string | number | boolean;
       }>;
     };
   }
 
-  async patchPalworldSettings(serverId: number, settings: Record<string, string | number | boolean>) {
-    const response = await this.client.patch(`/api/servers/${serverId}/palworld/settings`, { settings });
+  async patchPalworldSettings(
+    serverId: number,
+    settings: Record<string, string | number | boolean>
+  ) {
+    const response = await this.client.patch(`/api/servers/${serverId}/palworld/settings`, {
+      settings,
+    });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
 
@@ -1117,17 +1242,25 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${serverId}/project-zomboid/settings`);
     return response.data as {
       settings: Array<{
-        key: string; label: string; description: string;
+        key: string;
+        label: string;
+        description: string;
         type: 'integer' | 'boolean' | 'string' | 'float' | 'select';
         options?: Array<{ label: string; value: string }> | string[];
-        min?: number; max?: number;
+        min?: number;
+        max?: number;
         value: string | number | boolean;
       }>;
     };
   }
 
-  async patchProjectZomboidSettings(serverId: number, settings: Record<string, string | number | boolean>) {
-    const response = await this.client.patch(`/api/servers/${serverId}/project-zomboid/settings`, { settings });
+  async patchProjectZomboidSettings(
+    serverId: number,
+    settings: Record<string, string | number | boolean>
+  ) {
+    const response = await this.client.patch(`/api/servers/${serverId}/project-zomboid/settings`, {
+      settings,
+    });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
 
@@ -1146,7 +1279,9 @@ class ApiClient {
   // Bulk add: the backend resolves each Workshop item's mod ids via SteamCMD
   // (synchronous, can take seconds). Accepts a string or array of Workshop ids.
   async addProjectZomboidMods(serverId: number, workshopIds: string | string[]) {
-    const response = await this.client.post(`/api/servers/${serverId}/project-zomboid/mods`, { workshopIds });
+    const response = await this.client.post(`/api/servers/${serverId}/project-zomboid/mods`, {
+      workshopIds,
+    });
     return response.data as {
       mods: ProjectZomboidMod[];
       added: string[];
@@ -1168,7 +1303,9 @@ class ApiClient {
   }
 
   async reorderProjectZomboidMods(serverId: number, order: string[]) {
-    const response = await this.client.put(`/api/servers/${serverId}/project-zomboid/mods/order`, { order });
+    const response = await this.client.put(`/api/servers/${serverId}/project-zomboid/mods/order`, {
+      order,
+    });
     return response.data as { mods: ProjectZomboidMod[] };
   }
 
@@ -1202,17 +1339,40 @@ class ApiClient {
   }
 
   async installCS2Metamod(serverId: number, options?: { version?: string; gameinfoMode?: string }) {
-    const response = await this.client.post(`/api/servers/${serverId}/counter-strike-2/metamod/install`, options ?? {}, {
-      timeout: LONG_TIMEOUT_MS,
-    });
-    return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string; restarted: boolean };
+    const response = await this.client.post(
+      `/api/servers/${serverId}/counter-strike-2/metamod/install`,
+      options ?? {},
+      {
+        timeout: LONG_TIMEOUT_MS,
+      }
+    );
+    return response.data as {
+      ok: boolean;
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+      restarted: boolean;
+    };
   }
 
-  async installCS2CounterStrikeSharp(serverId: number, options?: { version?: string; releaseFlavor?: string; gameinfoMode?: string }) {
-    const response = await this.client.post(`/api/servers/${serverId}/counter-strike-2/counterstrikesharp/install`, options ?? {}, {
-      timeout: LONG_TIMEOUT_MS,
-    });
-    return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string; restarted: boolean };
+  async installCS2CounterStrikeSharp(
+    serverId: number,
+    options?: { version?: string; releaseFlavor?: string; gameinfoMode?: string }
+  ) {
+    const response = await this.client.post(
+      `/api/servers/${serverId}/counter-strike-2/counterstrikesharp/install`,
+      options ?? {},
+      {
+        timeout: LONG_TIMEOUT_MS,
+      }
+    );
+    return response.data as {
+      ok: boolean;
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+      restarted: boolean;
+    };
   }
 
   async uploadModFile(
@@ -1228,8 +1388,7 @@ class ApiClient {
         params: { path: `/${file.name}` },
         headers: { 'Content-Type': 'application/octet-stream' },
         timeout: LONG_TIMEOUT_MS,
-        onUploadProgress: (e) =>
-          onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
+        onUploadProgress: (e) => onProgress?.(e.total ? Math.round((e.loaded / e.total) * 100) : 0),
       });
     } else {
       const CHUNK_SIZE = 16 * 1024 * 1024;
@@ -1266,9 +1425,9 @@ class ApiClient {
           { timeout: LONG_TIMEOUT_MS }
         );
       } catch (err) {
-        await this.client.delete(
-          `/api/servers/${serverId}/${routeBase}/upload-sessions/${sessionId}`
-        ).catch(() => {});
+        await this.client
+          .delete(`/api/servers/${serverId}/${routeBase}/upload-sessions/${sessionId}`)
+          .catch(() => {});
         throw err;
       }
     }
@@ -1311,16 +1470,19 @@ class ApiClient {
   }
 
   async searchMinecraftAddons(serverId: number, params: SearchAddonsParams = {}) {
-    const response = await this.client.get(`/api/servers/${serverId}/minecraft/addons-catalog/search`, {
-      params: {
-        ...(params.query ? { query: params.query } : {}),
-        ...(params.sort ? { sort: params.sort } : {}),
-        ...(params.category ? { category: params.category } : {}),
-        ...(params.offset != null ? { offset: params.offset } : {}),
-        ...(params.limit != null ? { limit: params.limit } : {}),
-        ...(params.anyVersion ? { anyVersion: true } : {}),
-      },
-    });
+    const response = await this.client.get(
+      `/api/servers/${serverId}/minecraft/addons-catalog/search`,
+      {
+        params: {
+          ...(params.query ? { query: params.query } : {}),
+          ...(params.sort ? { sort: params.sort } : {}),
+          ...(params.category ? { category: params.category } : {}),
+          ...(params.offset != null ? { offset: params.offset } : {}),
+          ...(params.limit != null ? { limit: params.limit } : {}),
+          ...(params.anyVersion ? { anyVersion: true } : {}),
+        },
+      }
+    );
     return response.data as AddonSearchResponse;
   }
 
@@ -1333,7 +1495,9 @@ class ApiClient {
   }
 
   async getMinecraftInstalledAddons(serverId: number) {
-    const response = await this.client.get(`/api/servers/${serverId}/minecraft/addons-catalog/installed`);
+    const response = await this.client.get(
+      `/api/servers/${serverId}/minecraft/addons-catalog/installed`
+    );
     return response.data as InstalledResponse;
   }
 
@@ -1359,17 +1523,22 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${serverId}/rust/settings`);
     return response.data as {
       settings: Array<{
-        key: string; label: string; description: string;
+        key: string;
+        label: string;
+        description: string;
         type: 'integer' | 'boolean' | 'string' | 'float' | 'select';
         options?: Array<{ label: string; value: string }> | string[];
-        min?: number; max?: number;
+        min?: number;
+        max?: number;
         value: string | number | boolean;
       }>;
     };
   }
 
   async patchRustSettings(serverId: number, settings: Record<string, string | number | boolean>) {
-    const response = await this.client.patch(`/api/servers/${serverId}/rust/settings`, { settings });
+    const response = await this.client.patch(`/api/servers/${serverId}/rust/settings`, {
+      settings,
+    });
     return response.data as { updated: string[]; settings: Array<unknown> };
   }
 
@@ -1379,10 +1548,20 @@ class ApiClient {
   }
 
   async installRustOxide(serverId: number, options?: { version?: string }) {
-    const response = await this.client.post(`/api/servers/${serverId}/rust/oxide/install`, options ?? {}, {
-      timeout: LONG_TIMEOUT_MS,
-    });
-    return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string; restarted: boolean };
+    const response = await this.client.post(
+      `/api/servers/${serverId}/rust/oxide/install`,
+      options ?? {},
+      {
+        timeout: LONG_TIMEOUT_MS,
+      }
+    );
+    return response.data as {
+      ok: boolean;
+      exitCode: number;
+      stdout: string;
+      stderr: string;
+      restarted: boolean;
+    };
   }
 
   async listRustMods(serverId: number) {
@@ -1412,9 +1591,13 @@ class ApiClient {
 
   // The install script takes the version as a positional argument; omitted means "latest".
   async installValheimBepInEx(serverId: number, options?: { version?: string }) {
-    const response = await this.client.post(`/api/servers/${serverId}/valheim/bepinex/install`, options ?? {}, {
-      timeout: LONG_TIMEOUT_MS,
-    });
+    const response = await this.client.post(
+      `/api/servers/${serverId}/valheim/bepinex/install`,
+      options ?? {},
+      {
+        timeout: LONG_TIMEOUT_MS,
+      }
+    );
     return response.data as { ok: boolean; exitCode: number; stdout: string; stderr: string };
   }
 

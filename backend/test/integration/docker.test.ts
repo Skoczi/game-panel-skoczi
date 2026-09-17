@@ -44,7 +44,8 @@ test('real Docker publishes the same TCP/UDP port on two loopback IPs', { skip: 
         for (const protocol of ['tcp', 'udp']) assert.equal(info.HostConfig.PortBindings[`8080/${protocol}`].length, 2);
         for (const ip of ['127.0.0.2', '127.0.0.3']) {
             let body = '';
-            for (let attempt = 0; attempt < 20; attempt++) {
+            // Hosted CI can take several seconds to start the container process.
+            for (let attempt = 0; attempt < 60; attempt++) {
                 try { body = execFileSync('curl', ['--noproxy', '*', '--fail', '--silent', '--max-time', '2', `http://${ip}:${port}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); break; }
                 catch { await setTimeout(250); }
             }

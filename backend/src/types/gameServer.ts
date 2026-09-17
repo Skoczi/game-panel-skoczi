@@ -10,7 +10,7 @@ export const SERVER_STATUSES = [
     'failed',
 ] as const;
 
-export type ServerStatus = typeof SERVER_STATUSES[number];
+export type ServerStatus = (typeof SERVER_STATUSES)[number];
 
 export type DesiredServerState = 'running' | 'stopped';
 
@@ -26,20 +26,15 @@ export const CONTAINER_STATUSES = [
     'unknown',
 ] as const;
 
-export type ContainerStatus = typeof CONTAINER_STATUSES[number];
+export type ContainerStatus = (typeof CONTAINER_STATUSES)[number];
 
-export const HEALTH_STATUSES = [
-    'none',
-    'starting',
-    'healthy',
-    'unhealthy',
-    'unknown',
-] as const;
+export const HEALTH_STATUSES = ['none', 'starting', 'healthy', 'unhealthy', 'unknown'] as const;
 
-export type HealthStatus = typeof HEALTH_STATUSES[number];
+export type HealthStatus = (typeof HEALTH_STATUSES)[number];
 
 export interface GameServerRow {
     id: number;
+    runtime_uuid?: string;
     name: string;
 
     provider: 'ovhcloud' | 'linuxgsm' | 'external';

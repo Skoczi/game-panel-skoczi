@@ -2,7 +2,8 @@ import type { WebSocketServer } from 'ws';
 import { bus } from '../realtime/bus.js';
 import type { AuthenticatedWebSocket } from './types.js';
 import { sendSafe } from './auth.js';
-import { serverRepository, installProgressRepository, serverMemberRepository } from '../database/index.js';
+import { serverRepository, installProgressRepository } from '../database/index.js';
+import { serverPermissions } from '../middleware/auth.js';
 import { logError } from '../utils/logger.js';
 import { PERMISSIONS } from '../permissions.js';
 import { nowIso, toIsoTimestamp } from '../utils/time.js';
@@ -61,7 +62,7 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
                 if (cached !== undefined) {
                     canSeeEnv = cached;
                 } else {
-                    const perms = await serverMemberRepository.getUserServerPermissions(serverId, ws.userId);
+                    const perms = await serverPermissions(ws, serverId);
                     canSeeEnv = perms.includes('*') || perms.includes(PERMISSIONS.server.env);
                     envVisibilityByUser.set(ws.userId, canSeeEnv);
                 }

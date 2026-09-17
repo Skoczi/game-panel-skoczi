@@ -14,8 +14,19 @@ import { createServerMetricsRoutes } from './servers/metrics.js';
 import { createServerPatchRoutes } from './servers/patch.js';
 import { createServerPowerRoutes } from './servers/power.js';
 import { createServerReadRoutes } from './servers/read.js';
+import { buildServerVisibility, type AuthenticatedRequest } from '../middleware/auth.js';
 
 const router = Router();
+// Membership is a prerequisite for every server sub-resource, including provider extensions.
+router.use('/:id', (req: AuthenticatedRequest, res, next) => {
+    if (!/^\d+$/.test(req.params.id)) return next();
+    void buildServerVisibility(req.user)
+        .then((canSee) => {
+            if (!canSee(Number(req.params.id))) res.status(404).json({ error: 'Server not found' });
+            else next();
+        })
+        .catch(next);
+});
 
 // /api/servers/:id/file
 router.use('/:id/file', serverFileRoutes);

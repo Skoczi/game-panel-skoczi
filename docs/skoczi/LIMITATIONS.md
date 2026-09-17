@@ -1,10 +1,10 @@
 # Limitations and operational boundaries
 
-The fork adds IPv4/port allocation, branding and an administrator multi-node preview.
+The fork adds IPv4/port allocation, branding, remote agents and a central server workspace.
 
 ## Remote nodes
-- Root administrators only; no remote per-user delegation, automatic placement or migration.
-- Node-local databases and IDs; no single fleet-wide server table. Node selection clears browser runtime state.
+- Infrastructure administration is root-only; users receive per-server delegation. Automatic placement and migration are not implemented.
+- Runtime databases remain node-local. Central IDs, memberships and inventory do not replicate game data. Opening a different server reloads the context; use separate tabs for simultaneous workspaces.
 - The panel still has its Local runtime and Docker dependency. Agents reuse the upstream runtime and provider support matrix.
 - HTTPS origins, enrollment and explicit IP allocations are required. The agent installer does not configure host networking, TLS or firewalls.
 - Durable JSON admission does not mean exactly-once external effects. Interrupted operations can be uncertain. Terminal input and binary transfers are not covered by that journal.
@@ -21,7 +21,7 @@ The fork adds IPv4/port allocation, branding and an administrator multi-node pre
 ## Privilege and authentication
 - The backend controls the Docker socket. A compromised privileged panel can compromise the host.
 - The standard installer creates a user in the Docker group; this is not low-privilege sandboxing.
-- Upstream authentication/session/permission architecture is retained. This revision does not add MFA or redesign session revocation.
+- Upstream account authentication is retained; scoped agent capabilities and visibility/revocation checks are added, not MFA or an independent hostile-tenant sandbox.
 - Do not expose administration to untrusted tenants simply because IP selectors now exist.
 
 ## Deployment

@@ -1,5 +1,6 @@
 import { Router, type Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.js';
+import { buildServerVisibility } from '../../middleware/auth.js';
 import { serverMetricsRepository, serverRepository } from '../../database/index.js';
 import { METRICS_HISTORY_RAW_LIMIT, buildMetricsHistory } from '../../utils/metrics.js';
 import { parseLimit } from '../../utils/number.js';
@@ -11,8 +12,15 @@ export function createServerMetricsRoutes(): Router {
     const router = Router();
 
     // GET /api/servers/metrics
-    router.get('/metrics', (_req: AuthenticatedRequest, res: Response) => {
-        return res.json({ metrics: getServerMetricsSamples() });
+    router.get('/metrics', async (req: AuthenticatedRequest, res: Response, next) => {
+        try {
+            const canSee = await buildServerVisibility(req.user);
+            return res.json({
+                metrics: getServerMetricsSamples().filter((s) => canSee(s.serverId)),
+            });
+        } catch (error) {
+            next(error);
+        }
     });
 
     // GET /api/servers/:id/metrics
@@ -29,7 +37,11 @@ export function createServerMetricsRoutes(): Router {
             }
 
             const limit = parseLimit(req.query.limit, 100, 2000);
-            const raw = await serverMetricsRepository.getRecentForLastDays(serverId, 1, METRICS_HISTORY_RAW_LIMIT);
+            const raw = await serverMetricsRepository.getRecentForLastDays(
+                serverId,
+                1,
+                METRICS_HISTORY_RAW_LIMIT,
+            );
             const { points, meta } = buildMetricsHistory(raw, limit);
 
             return res.json({ serverId, metrics: points, limit, meta });

@@ -21,7 +21,7 @@ export const CATALOG_BASE_URL = normalizeBaseUrl(
 );
 export const PUBLIC_CONNECTION_HOST = getBrowserHostname();
 export const WS_URL = browserHost
-  ? `${getBrowserProtocol() === 'https:' ? 'wss:' : 'ws:'}//${browserHost}${ACTIVE_NODE === 'local' ? '/api' : `/api/nodes/${ACTIVE_NODE}/ws`}`
+  ? `${getBrowserProtocol() === 'https:' ? 'wss:' : 'ws:'}//${browserHost}${ACTIVE_NODE === 'local' ? '/api' : `/api/nodes/${ACTIVE_NODE}/ws`}${ACTIVE_SERVER ? `?server=${ACTIVE_SERVER.id}` : ''}`
   : '';
 
 export const AUTH_TOKEN_KEY = 'auth_token';
@@ -47,4 +47,4 @@ export const clearCookieValue = (name: string) => {
 export const getStoredToken = (): string | null => {
   return localStorage.getItem(AUTH_TOKEN_KEY) || getCookieValue(AUTH_TOKEN_KEY);
 };
-import { ACTIVE_NODE } from '../nodeContext';
+import { ACTIVE_NODE, ACTIVE_SERVER } from '../nodeContext';

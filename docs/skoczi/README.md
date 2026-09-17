@@ -1,8 +1,8 @@
 # Documentation
 
-**Game Panel · Skoczi Edition — v1.5.0 · Revision 7 (preview)**
+**Game Panel · Skoczi Edition — v1.5.0 · Revision 8 (preview)**
 
-Based on [OVHcloud Game Panel](https://github.com/ovh/game-panel). Technical release: `1.5.0-skoczi.7`.
+Based on [OVHcloud Game Panel](https://github.com/ovh/game-panel). Technical release: `1.5.0-skoczi.8`.
 
 | I want to… | Read |
 |---|---|
@@ -11,6 +11,7 @@ Based on [OVHcloud Game Panel](https://github.com/ovh/game-panel). Technical rel
 | Manage allocations and sidebar visibility | [Global Settings](SETTINGS.md) |
 | Bind game ports to additional IPs | [Additional IPv4 addresses](ADDITIONAL-IPS.md) |
 | Add a remote execution node | [Agent installation and operation](NODES.md) |
+| Assign servers to users across locations | [Server workspace and access](FLEET.md) |
 | Understand unsupported scenarios | [Limitations](LIMITATIONS.md) |
 | Develop or verify a change | [Development and tests](DEVELOPMENT.md) |
 | Read in Polish | [Przewodnik po polsku](README.pl.md) |

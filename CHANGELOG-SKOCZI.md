@@ -4,7 +4,8 @@ This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records 
 
 ## Unreleased
 
-- Replaced the native execution-node select with a custom sidebar dropdown: host icons, status indicators, location labels, selected-state checkmark and a scrollable runtime list.
+- Replaced the native execution-node select with a custom sidebar dropdown: a host icon in the trigger, status indicators, location labels, selected-state checkmark and a scrollable runtime list.
+- Simplified list rows: no host icons, separate name/location/status lines and a shorter pending label for narrow sidebars.
 - Added keyboard navigation, type-to-select, outside-click/Escape dismissal and reduced-motion support. Switching still requires confirmation and retains the per-tab runtime boundary.
 - Added browser coverage for selection, cancellation, unavailable nodes, Local-only inventory and open mobile/dark menus. No backend or deployment changes.
 

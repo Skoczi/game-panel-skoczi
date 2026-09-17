@@ -170,14 +170,16 @@ export function NodeSelector() {
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => choose(node.id)}
               >
-                <span className="gp-node-option-icon">
-                  <Server size={16} aria-hidden="true" />
-                </span>
                 <span className="gp-node-copy">
                   <span className="gp-node-name">{node.name}</span>
+                  <span className="gp-node-location" title={node.detail}>
+                    {node.detail}
+                  </span>
                   <span className="gp-node-caption">
                     <i data-status={node.status} />
-                    {node.detail} · {statusLabel(node.status)}
+                    <span>
+                      {node.status === 'pending' ? 'Not paired' : statusLabel(node.status)}
+                    </span>
                   </span>
                 </span>
                 {node.id === ACTIVE_NODE && (

@@ -2,6 +2,7 @@ import { getConfig } from './config.js';
 import cors, { type CorsOptions } from 'cors';
 import express, { type Application, type Request, type Response } from 'express';
 import helmet from 'helmet';
+import brandingRoutes from './routes/branding.js';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { reconcileDockerHealthToDb, startDockerHealthEventListener, startPeriodicHealthReconcile } from './services/dockerEvents.js';
@@ -85,6 +86,7 @@ app.use(express.urlencoded({ extended: true, limit: API_BODY_LIMIT }));
 
 // /api/auth
 app.use('/api/auth', authRoutes);
+app.use('/api/branding', brandingRoutes);
 // /api/download/:token
 app.use('/api/download', downloadRoutes);
 // /api/users

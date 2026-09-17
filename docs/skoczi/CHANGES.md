@@ -23,6 +23,8 @@ Connection display and copy actions use the allocation IP
 | backend/src/utils/portPolicy.ts | Range parsing and backend policy checks |
 | backend/src/services/globalSettings*.ts | Persistent settings, allocation usage checks and revision protection |
 | frontend/components/GlobalSettings.tsx | Root-only allocation and appearance editor |
+| frontend/contexts/BrandingContext.tsx, components/PanelBrand.tsx | Live shared identity, logo, browser title and login appearance |
+| backend/src/routes/branding.ts | Public appearance-only endpoint, without allocation data |
 | backend/src/utils/ports.ts | Optional IP, strict ports, address-aware duplicates |
 | backend/src/utils/docker/portBindings.ts | Pure binding builder; preserve multiple mappings |
 | backend/src/utils/docker/containers.ts | Pass HostIp; inspect other containers' HostIp |

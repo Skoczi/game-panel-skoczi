@@ -1,10 +1,48 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { GlobalSettingsStore, validateGlobalSettings, allocationPolicy, type GlobalSettings } from '../src/services/globalSettingsStore.js';
+import { DEFAULT_APPEARANCE, GlobalSettingsStore, validateGlobalSettings, allocationPolicy, type GlobalSettings } from '../src/services/globalSettingsStore.js';
 import { assertPortPolicy, configuredPortPolicy, setManagedPortPolicy } from '../src/utils/portPolicy.js';
 
-const seed = (): GlobalSettings => ({ appearance: { showFollowUs: true, showTrustpilot: true }, network: { restrictPorts: true, allocations: [{ ip: '192.0.2.10', alias: 'Game node', tcp: '27015-27030', udp: '27015-27030' }] } });
+const seed = (): GlobalSettings => ({ appearance: { ...DEFAULT_APPEARANCE }, network: { restrictPorts: true, allocations: [{ ip: '192.0.2.10', alias: 'Game node', tcp: '27015-27030', udp: '27015-27030' }] } });
+
+test('branding validates lengths, image protocols, content signatures and size', () => {
+    for (const logo of ['javascript:alert(1)', 'http://example.com/logo.png', '//example.com/logo.png', 'https://', 'https://user:password@example.com/logo.png',
+        'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,PHN2Zz4=',
+        'data:image/png;base64,' + Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(256 * 1024)]).toString('base64')]) {
+        const value = seed(); value.appearance.logo = logo;
+        assert.throws(() => validateGlobalSettings(value), /Logo/);
+    }
+    const value = seed(); value.appearance.logo = 'https://example.com/logo.png';
+    assert.equal(validateGlobalSettings(value).appearance.logo, value.appearance.logo);
+    value.appearance.logo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=';
+    assert.equal(validateGlobalSettings(value).appearance.logo, value.appearance.logo);
+    for (const [key, text] of [['siteName', ''], ['siteName', 'a'.repeat(81)], ['loginFooter', 'a'.repeat(241)]]) {
+        assert.throws(() => validateGlobalSettings({ ...seed(), appearance: { ...DEFAULT_APPEARANCE, [key]: text } }));
+    }
+});
+
+test('upgrading .3 adds branding once without changing policies or prior switches', async () => {
+    const { native, db } = database();
+    try {
+        native.exec('CREATE TABLE panel_settings(id INTEGER PRIMARY KEY, revision INTEGER, settings_json TEXT)');
+        const old = { ...seed(), appearance: { showFollowUs: false, showTrustpilot: false } };
+        native.prepare('INSERT INTO panel_settings VALUES(1, 7, ?)').run(JSON.stringify(old));
+        const store = new GlobalSettingsStore(db, () => {}); await store.initialize(seed());
+        assert.deepEqual(store.snapshot().network, old.network);
+        assert.equal(store.snapshot().appearance.showFollowUs, false);
+        assert.equal(store.snapshot().appearance.showNews, true);
+        assert.equal(store.snapshot().appearance.siteName, 'Game Panel');
+        assert.equal(store.snapshot().revision, 8);
+        const reloaded = new GlobalSettingsStore(db, () => {}); await reloaded.initialize(seed());
+        assert.equal(reloaded.snapshot().revision, 8);
+        const updated = { appearance: { ...reloaded.snapshot().appearance, siteName: 'Example games', showNews: false }, network: old.network };
+        await reloaded.save(updated, 8);
+        const again = new GlobalSettingsStore(db, () => {}); await again.initialize(seed());
+        assert.equal(again.snapshot().appearance.siteName, 'Example games');
+        assert.equal(again.snapshot().appearance.showNews, false);
+    } finally { native.close(); }
+});
 function database() {
     const native = new DatabaseSync(':memory:');
     native.exec('CREATE TABLE game_servers (id INTEGER PRIMARY KEY, name TEXT, ports_json TEXT)');

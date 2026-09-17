@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { App } from './App.tsx';
+import { BrandingProvider } from './contexts/BrandingContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RealtimeStatusBanner } from './components/RealtimeStatusBanner';
 import '@ovhcloud/ods-react/normalize-css';
@@ -14,7 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <RealtimeStatusBanner />
-      <App />
+      <BrandingProvider><App /></BrandingProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

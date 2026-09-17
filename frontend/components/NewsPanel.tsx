@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useBranding } from '../contexts/BrandingContext';
 import {
   AlertTriangle,
   CheckCircle,
@@ -79,6 +80,11 @@ function renderDescriptionWithLinks(text: string) {
 }
 
 export function NewsPanel() {
+  const { appearance, loaded } = useBranding();
+  return loaded && appearance.showNews ? <div className="mb-6"><NewsContent /></div> : null;
+}
+
+function NewsContent() {
   const [newsItems, setNewsItems] = useState<CatalogNewsItem[]>([]);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -275,5 +281,3 @@ export function NewsPanel() {
     </AppCard>
   );
 }
-
-

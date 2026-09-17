@@ -20,9 +20,22 @@ This is allocation management, not IP provisioning: configure interfaces, provid
 
 - **Show Follow Us** controls the sidebar social links.
 - **Show Trustpilot** controls the sidebar review badge.
+- **Show announcements** controls the news carousel. Disabled means no browser news request, not just a hidden banner.
 - Footer: **Game Panel by Skoczi · v&lt;version&gt;**, sourced from the frontend package version.
 
 Visibility updates after saving, on page reload or when another browser tab regains focus. Legal notices remain available. Both sections default to visible on upgrade.
+
+## Branding & login page
+
+- **Site name** (required, max. 80 characters) appears in the sidebar, login heading and browser tab title.
+- **Subtitle** (max. 120) appears below the name. Leave it blank to hide it.
+- **Login description** and **Login footer text** accept up to 240 characters each. Empty text hides that line; **Show login footer** can hide the footer independently.
+- **Logo** is shared by the sidebar and login screen. Use an HTTPS image URL or upload PNG, JPEG or WebP up to 256 KiB. **Remove logo** returns to text-only branding. An image that cannot load is hidden without blocking sign-in.
+- Uploaded images are encoded in the settings row and included with the database backup. SVG/HTML uploads and non-HTTPS remote URLs are rejected. Remote URLs load in the visitor's browser, without a referrer; the backend never downloads them. Use an upload to avoid third-party image requests.
+
+The editor has a login preview. **Save changes** publishes it without restarting or rebuilding. All branding is public before login: do not put credentials, private URLs or other secrets in these fields. Text is escaped, not interpreted as HTML. The panel's versioned fork attribution and legal/license notices remain available.
+
+News and the new branding fields receive defaults when upgrading from .3. Existing IP policy, Follow Us and Trustpilot switches are preserved.
 
 ## Storage and upgrades
 
@@ -32,11 +45,14 @@ The panel runs one backend process against its database. Save requests include a
 
 Include the database in backups. Before downgrading to an environment-only version, export/reapply the desired IP policy to its environment; older releases ignore the settings table.
 
+When downgrading **.4 to .3**, restore the matching pre-upgrade database as well as the source/images: .3 rejects the new appearance fields. Changes made since that backup would be lost, so plan and export them before downgrading.
+
 ## API
 
 - `GET /api/system/settings` — root only; returns revision, appearance, network and assignments.
 - `PUT /api/system/settings` — root only; accepts revision, appearance and network. Validation errors return 400; conflicts return 409.
-- `GET /api/system/appearance` — authenticated users; returns only the two visibility switches.
+- `GET /api/system/appearance` — authenticated users; appearance fields only.
+- `GET /api/branding` — public, `Cache-Control: no-store`; the same appearance fields for pre-login rendering. No network settings, assignments or revision.
 - `GET /api/system/bind-addresses` — authenticated users; current effective IP/port policy for game forms.
 
 Example save body (documentation address):
@@ -44,7 +60,12 @@ Example save body (documentation address):
 ```json
 {
   "revision": 1,
-  "appearance": { "showFollowUs": false, "showTrustpilot": false },
+  "appearance": {
+    "showFollowUs": false, "showTrustpilot": false, "showNews": false,
+    "siteName": "Example Games", "siteSubtitle": "Community servers", "logo": "",
+    "loginDescription": "Sign in to manage your servers",
+    "showLoginFooter": true, "loginFooter": "Example Games"
+  },
   "network": {
     "restrictPorts": true,
     "allocations": [

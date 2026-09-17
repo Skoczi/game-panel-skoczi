@@ -261,9 +261,7 @@ export function AppShell({
 
         {activeTab === 'game-servers' && (
           <AppPageLayout className={pageShellClassName}>
-            <div className="mb-6">
-              <NewsPanel />
-            </div>
+            <NewsPanel />
 
             <GameServersTable
               servers={gameServers}

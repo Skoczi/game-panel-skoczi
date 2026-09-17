@@ -17,7 +17,7 @@ Review the script first. On the **fresh test host**:
 ```bash
 sudo apt update
 sudo apt install git
-git clone --branch v1.5.0-skoczi.3 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v1.5.0-skoczi.4 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh --telemetry-disabled
 ```
@@ -49,6 +49,8 @@ The inherited updater creates an update backup, rebuilds and regenerates Compose
 Preserve `GAMEPANEL_BIND_IPS` and `GAMEPANEL_IP_PORTS`. Do not repoint `GAMEPANEL_REPOSITORY_URL` to upstream while depending on fork features. Explicit existing telemetry settings are preserved; review them.
 
 Version 1.5.0-skoczi.3 seeds allocation rules from these environment values once, then stores them in the database. Further edits use **Settings**. Back up the database and review [Settings storage/downgrade notes](SETTINGS.md).
+
+Version .4 adds public branding and extends the stored appearance schema. It preserves existing rules and switches. Downgrading to .3 also requires the corresponding pre-upgrade database backup.
 
 ## Rollback
 

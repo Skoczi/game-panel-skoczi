@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Network, Pencil, Plus, Save, Settings2, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/api';
 import type { Allocation, Assignment, GlobalSettings as Settings } from '../types/globalSettings';
+import { PanelBrand } from './PanelBrand';
 
 const blank: Allocation = { ip: '', alias: '', tcp: '', udp: '' };
 const field = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-[#0f1723] dark:text-white';
@@ -29,6 +30,21 @@ export function GlobalSettings() {
   useEffect(() => { void load(); }, []);
 
   function update(value: Settings) { setSettings(value); setDirty(true); setNotice(''); }
+  async function uploadLogo(file?: File) {
+    if (!file || !settings) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 256 * 1024) {
+      setError('Choose a PNG, JPEG or WebP image up to 256 KiB.'); return;
+    }
+    setBusy(true);
+    try {
+      const logo = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file);
+      });
+      setSettings((current) => current ? { ...current, appearance: { ...current.appearance, logo } } : current);
+      setDirty(true); setNotice(''); setError('');
+    } catch { setError('Cannot read this image.'); }
+    finally { setBusy(false); }
+  }
   async function save() {
     if (!settings) return;
     setBusy(true); setError(''); setNotice('');
@@ -68,10 +84,38 @@ export function GlobalSettings() {
     {settings && <fieldset disabled={busy} className="min-w-0 space-y-6">
       <section className={card}>
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Settings2 size={20} />Appearance</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Sidebar visibility for all users. Legal notices remain available.</p>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Visibility for all users. Disabling announcements also stops their browser requests. Legal notices remain available.</p>
         <div className="mt-4 flex flex-wrap gap-6">
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.appearance.showFollowUs} onChange={(event) => update({ ...settings, appearance: { ...settings.appearance, showFollowUs: event.target.checked } })} />Show Follow Us</label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.appearance.showTrustpilot} onChange={(event) => update({ ...settings, appearance: { ...settings.appearance, showTrustpilot: event.target.checked } })} />Show Trustpilot</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.appearance.showNews} onChange={(event) => update({ ...settings, appearance: { ...settings.appearance, showNews: event.target.checked } })} />Show announcements</label>
+        </div>
+      </section>
+      <section className={card}>
+        <h2 className="text-lg font-semibold">Branding &amp; login page</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">These fields are public, including before sign-in. Do not enter secrets. Text is displayed as plain text, not HTML.</p>
+        <div className="mt-5 grid min-w-0 gap-6 lg:grid-cols-2">
+          <div className="min-w-0 space-y-4">
+            {(['siteName', 'siteSubtitle', 'loginDescription', 'loginFooter'] as const).map((key) => <label className="block text-sm" key={key}>
+              {{ siteName: 'Site name', siteSubtitle: 'Subtitle (optional)', loginDescription: 'Login description (optional)', loginFooter: 'Login footer text' }[key]}
+              <input className={`${field} mt-1`} value={settings.appearance[key]} maxLength={key === 'siteName' ? 80 : key === 'siteSubtitle' ? 120 : 240} onChange={(event) => update({ ...settings, appearance: { ...settings.appearance, [key]: event.target.value } })} />
+            </label>)}
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.appearance.showLoginFooter} onChange={(event) => update({ ...settings, appearance: { ...settings.appearance, showLoginFooter: event.target.checked } })} />Show login footer</label>
+            <label className="block text-sm">Logo HTTPS URL<input type="url" placeholder="https://example.com/logo.png" className={`${field} mt-1`} maxLength={2048} value={settings.appearance.logo.startsWith('data:') ? '' : settings.appearance.logo} onChange={(event) => update({ ...settings, appearance: { ...settings.appearance, logo: event.target.value } })} /></label>
+            <label className="block text-sm">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp" className="mt-2 block w-full text-sm" onChange={(event) => { void uploadLogo(event.target.files?.[0]); event.target.value = ''; }} /></label>
+            <p className="text-xs text-gray-500">PNG, JPEG or WebP, up to 256 KiB. Uploads stay in the panel database. HTTPS images load directly in visitors’ browsers. One logo is used on login and in the sidebar.</p>
+            {settings.appearance.logo && <button type="button" className={button} onClick={() => update({ ...settings, appearance: { ...settings.appearance, logo: '' } })}>Remove logo</button>}
+          </div>
+          <div className="min-w-0">
+            <p className="mb-2 text-sm font-medium">Login preview</p>
+            <div className="rounded-xl px-6 py-8" style={{ background: 'linear-gradient(135deg, #000e9c, #002dbe)' }}>
+              <PanelBrand appearance={settings.appearance} />
+              {settings.appearance.loginDescription && <p className="mt-4 break-words text-center text-sm" style={{ color: '#fff' }}>{settings.appearance.loginDescription}</p>}
+              <div className="mt-6 space-y-3 rounded-xl bg-white p-5" aria-hidden="true"><div className="h-9 rounded border border-gray-200 bg-gray-50" /><div className="h-9 rounded border border-gray-200 bg-gray-50" /><div className="rounded bg-blue-700 p-2 text-center text-sm" style={{ color: '#fff' }}>Sign In</div></div>
+              {settings.appearance.showLoginFooter && <p className="mt-5 break-words text-center text-xs" style={{ color: '#fff' }}>{settings.appearance.loginFooter}</p>}
+            </div>
+            <p className="mt-3 text-xs text-gray-500">Site name also sets the browser tab title. Blank subtitle or description hides that line. Save changes to publish.</p>
+          </div>
         </div>
       </section>
       <section className="space-y-4">

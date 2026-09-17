@@ -2,6 +2,17 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.4 — preview — 2026-09-17
+
+- Added an announcements switch. When disabled, the carousel is not mounted and the browser does not request news.
+- Added site name, subtitle, shared sidebar/login logo, login description and footer text/visibility in Settings, with a preview.
+- Logos support HTTPS URLs or PNG/JPEG/WebP uploads up to 256 KiB stored in SQLite. SVG uploads and executable URL schemes are rejected; the backend does not fetch image URLs.
+- Site name updates the browser title. Fixed white login branding text being overridden by the UI theme.
+- Added public, non-cacheable `GET /api/branding` for the login screen. It exposes appearance only, never IP allocations, accounts or secrets.
+- Existing settings receive the new defaults once; IP rules and previous visibility switches are preserved. Branding changes need no rebuild.
+
+**Downgrading to .3 requires the matching database backup:** its settings validator does not understand the new appearance fields. Keep the backup made before upgrading. Legal/license notices and versioned panel attribution remain unchanged.
+
 ## 1.5.0-skoczi.3 — preview — 2026-09-17
 
 - Added root-only **Settings** navigation and API.

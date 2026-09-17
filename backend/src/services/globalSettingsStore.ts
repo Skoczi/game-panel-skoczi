@@ -3,8 +3,14 @@ import type { Database } from 'sqlite';
 import { assertPortPolicy, configuredPortPolicy, isUnicastIPv4 } from '../utils/portPolicy.js';
 
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
+export const DEFAULT_APPEARANCE = {
+    showFollowUs: true, showTrustpilot: true, showNews: true,
+    siteName: 'Game Panel', siteSubtitle: 'by Skoczi', logo: '',
+    loginDescription: 'Sign in to manage your game servers',
+    showLoginFooter: true, loginFooter: 'Game Panel by Skoczi',
+};
 export type GlobalSettings = {
-    appearance: { showFollowUs: boolean; showTrustpilot: boolean };
+    appearance: typeof DEFAULT_APPEARANCE;
     network: { restrictPorts: boolean; allocations: Allocation[] };
 };
 export type SettingsSnapshot = GlobalSettings & { revision: number };
@@ -20,11 +26,31 @@ function text(value: unknown, max: number): string {
     return value.trim();
 }
 
+function logo(value: unknown): string {
+    const source = text(value, 350000);
+    if (!source) return '';
+    if (source.startsWith('https://') && source.length <= 2048) {
+        try {
+            const url = new URL(source);
+            if (!url.username && !url.password) return url.href;
+        } catch { /* Continue to the validation error below. */ }
+    }
+    const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(source);
+    if (match) {
+        const data = Buffer.from(match[2], 'base64');
+        const valid = match[1] === 'png' ? data.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
+            : match[1] === 'jpeg' ? data.subarray(0, 3).equals(Buffer.from('ffd8ff', 'hex'))
+            : data.subarray(0, 4).toString() === 'RIFF' && data.subarray(8, 12).toString() === 'WEBP';
+        if (valid && data.length <= 256 * 1024 && data.toString('base64') === match[2]) return source;
+    }
+    invalid('Logo must be an HTTPS image URL or a PNG, JPEG or WebP upload up to 256 KiB');
+}
+
 export function validateGlobalSettings(input: unknown): GlobalSettings {
     const root = object(input, ['appearance', 'network']);
-    const appearance = object(root.appearance, ['showFollowUs', 'showTrustpilot']);
+    const appearance = object(root.appearance, Object.keys(DEFAULT_APPEARANCE));
     const network = object(root.network, ['restrictPorts', 'allocations']);
-    if (typeof appearance.showFollowUs !== 'boolean' || typeof appearance.showTrustpilot !== 'boolean' || typeof network.restrictPorts !== 'boolean') invalid('Settings switches must be booleans');
+    if (typeof appearance.showFollowUs !== 'boolean' || typeof appearance.showTrustpilot !== 'boolean' || typeof appearance.showNews !== 'boolean' || typeof appearance.showLoginFooter !== 'boolean' || typeof network.restrictPorts !== 'boolean') invalid('Settings switches must be booleans');
     if (!Array.isArray(network.allocations) || network.allocations.length > 128) invalid('At most 128 IP allocations are supported');
     const ips = new Set<string>();
     const allocations = network.allocations.map((item): Allocation => {
@@ -34,7 +60,13 @@ export function validateGlobalSettings(input: unknown): GlobalSettings {
         ips.add(ip);
         return { ip, alias: text(row.alias, 80), tcp: text(row.tcp, 1024), udp: text(row.udp, 1024) };
     });
-    const result = { appearance: { showFollowUs: appearance.showFollowUs, showTrustpilot: appearance.showTrustpilot }, network: { restrictPorts: network.restrictPorts, allocations } };
+    const siteName = text(appearance.siteName, 80);
+    if (!siteName) invalid('Site name cannot be empty');
+    const result = { appearance: { showFollowUs: appearance.showFollowUs, showTrustpilot: appearance.showTrustpilot,
+        showNews: appearance.showNews, showLoginFooter: appearance.showLoginFooter, siteName,
+        siteSubtitle: text(appearance.siteSubtitle, 120), logo: logo(appearance.logo),
+        loginDescription: text(appearance.loginDescription, 240), loginFooter: text(appearance.loginFooter, 240),
+    }, network: { restrictPorts: network.restrictPorts, allocations } };
     try { allocationPolicy(result.network); } catch (error) { invalid(error instanceof Error ? error.message : 'Invalid port ranges'); }
     return result;
 }
@@ -58,7 +90,16 @@ export class GlobalSettingsStore {
         }
         const row = await this.db.get('SELECT revision, settings_json FROM panel_settings WHERE id=1');
         if (!row || !Number.isSafeInteger(row.revision) || row.revision < 1) throw new Error('Invalid persisted panel settings');
-        const settings = validateGlobalSettings(JSON.parse(row.settings_json));
+        const stored = JSON.parse(row.settings_json);
+        const oldAppearance = object(stored.appearance, Object.keys(DEFAULT_APPEARANCE));
+        // Add only the new fields when upgrading .3; old switches remain required.
+        const { showFollowUs: _follow, showTrustpilot: _trust, ...newDefaults } = DEFAULT_APPEARANCE;
+        const settings = validateGlobalSettings({ ...stored, appearance: { ...newDefaults, ...oldAppearance } });
+        if (Object.keys(newDefaults).some((key) => !(key in oldAppearance))) {
+            const changed = await this.db.run('UPDATE panel_settings SET settings_json=?, revision=revision+1 WHERE id=1 AND revision=?', JSON.stringify(settings), row.revision);
+            if (changed.changes !== 1) throw new Error('Settings changed during migration');
+            row.revision++;
+        }
         this.current = { ...settings, revision: row.revision };
         this.apply(settings);
     }

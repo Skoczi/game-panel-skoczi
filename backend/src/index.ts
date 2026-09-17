@@ -1,6 +1,10 @@
 import { getConfig } from './config.js';
 import cors, { type CorsOptions } from 'cors';
-import express, { type Application, type Request, type Response } from 'express';
+import express, {
+  type Application,
+  type Request,
+  type Response,
+} from 'express';
 import helmet from 'helmet';
 import brandingRoutes from './routes/branding.js';
 import { createServer } from 'http';
@@ -32,7 +36,11 @@ import { startScheduledTaskRunner } from './services/scheduledTasks.js';
 import { reconcileStalePanelUpdate } from './services/panelUpdates.js';
 import { nowIso } from './utils/time.js';
 import { isAgent } from './agent/identity.js';
-import { initializeFleet, mountFleet } from './fleet/control.js';
+import {
+  initializeFleet,
+  mountFleet,
+  localFleetGuard,
+} from './fleet/control.js';
 import {
   agentGate,
   agentIdempotency,
@@ -40,7 +48,11 @@ import {
   initializeAgent,
   startAgentHeartbeat,
 } from './agent/runtime.js';
-import { createNodeWebSocketRouter, initializeNodes, mountNodeControl } from './nodes/control.js';
+import {
+  createNodeWebSocketRouter,
+  initializeNodes,
+  mountNodeControl,
+} from './nodes/control.js';
 
 const { port, frontendUrl, trustProxy } = getConfig();
 const API_BODY_LIMIT = '2mb';
@@ -123,9 +135,13 @@ app.use('/api/download', downloadRoutes);
 // /api/users
 app.use('/api/users', authMiddleware, userRoutes);
 // /api/servers/:id/members
-app.use('/api/servers', authMiddleware, serverMembersRoutes);
-// /api/servers
-app.use('/api/servers', authMiddleware, serverRoutes);
+app.use(
+  '/api/servers',
+  authMiddleware,
+  ...(isAgent() ? [] : [localFleetGuard]),
+  serverMembersRoutes,
+  serverRoutes,
+);
 // /api/catalog
 app.use('/api/catalog', authMiddleware, catalogRoutes);
 // /api/system

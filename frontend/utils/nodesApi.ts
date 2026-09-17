@@ -29,7 +29,10 @@ export async function nodesRequest<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const value = await response.json();
-    if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
+    if (!response.ok)
+      throw Object.assign(new Error(value.error || `Request failed (${response.status})`), {
+        status: response.status,
+      });
     return value as T;
   } finally {
     clearTimeout(timer);

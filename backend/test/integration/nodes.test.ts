@@ -16,13 +16,18 @@ test(
         timeout: 480000,
     },
     async () => {
-        assert.equal(process.platform, 'linux', 'Run only in the disposable Linux CI job');
+        assert.equal(
+            process.platform,
+            'linux',
+            'Run only in the disposable Linux CI job',
+        );
         const root = mkdtempSync(path.join(tmpdir(), 'gamepanel-node-ci-'));
         const suffix = randomUUID().slice(0, 8),
             panelName = `gp-ci-panel-${suffix}`,
             agentName = `gp-ci-agent-${suffix}`,
             sentinelName = `gp-ci-foreign-${suffix}`;
-        const image = process.env.GAMEPANEL_NODE_TEST_IMAGE || 'gamepanel-agent:ci';
+        const image =
+            process.env.GAMEPANEL_NODE_TEST_IMAGE || 'gamepanel-agent:ci';
         const password = randomBytes(24).toString('base64url'),
             master = randomBytes(48).toString('base64url');
         const panel = 'http://127.0.0.1:32181',
@@ -34,14 +39,21 @@ test(
             serverHeader = '';
         const docker = (...args: string[]) =>
             execFileSync('docker', args, { encoding: 'utf8', timeout: 120000 });
-        const request = async (url: string, method = 'GET', body?: unknown, key = randomUUID()) => {
+        const request = async (
+            url: string,
+            method = 'GET',
+            body?: unknown,
+            key = randomUUID(),
+        ) => {
             const response = await fetch(url, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                     'Idempotency-Key': key,
-                    ...(serverHeader ? { 'X-GamePanel-Server': serverHeader } : {}),
+                    ...(serverHeader
+                        ? { 'X-GamePanel-Server': serverHeader }
+                        : {}),
                 },
                 body: body === undefined ? undefined : JSON.stringify(body),
                 signal: AbortSignal.timeout(20000),
@@ -55,7 +67,12 @@ test(
             }
             return { status: response.status, value };
         };
-        const ok = async (url: string, method = 'GET', body?: unknown, key?: string) => {
+        const ok = async (
+            url: string,
+            method = 'GET',
+            body?: unknown,
+            key?: string,
+        ) => {
             const result = await request(url, method, body, key);
             assert.ok(
                 result.status < 300,
@@ -118,7 +135,10 @@ test(
                 `${root}/panel-app/servers:${root}/panel-app/servers`,
                 image,
             );
-            await waitFor(async () => (await fetch(panel + '/api/health')).ok, 'central startup');
+            await waitFor(
+                async () => (await fetch(panel + '/api/health')).ok,
+                'central startup',
+            );
             token = (
                 await ok(panel + '/api/auth/login', 'POST', {
                     username: 'ciadmin',
@@ -131,14 +151,22 @@ test(
                 origin: agent,
             });
             nodeId = created.node.id;
-            const identity = await ok(panel + `/api/nodes/${nodeId}/enroll`, 'POST', {
-                token: created.enrollmentToken,
-            });
+            const identity = await ok(
+                panel + `/api/nodes/${nodeId}/enroll`,
+                'POST',
+                {
+                    token: created.enrollmentToken,
+                },
+            );
             assert.equal(
                 (
-                    await request(panel + `/api/nodes/${nodeId}/enroll`, 'POST', {
-                        token: created.enrollmentToken,
-                    })
+                    await request(
+                        panel + `/api/nodes/${nodeId}/enroll`,
+                        'POST',
+                        {
+                            token: created.enrollmentToken,
+                        },
+                    )
                 ).status,
                 401,
             );
@@ -177,7 +205,10 @@ test(
                 `${root}/agent-app/servers:${root}/agent-app/servers`,
                 image,
             );
-            await waitFor(async () => (await fetch(agent + '/api/health')).ok, 'agent startup');
+            await waitFor(
+                async () => (await fetch(agent + '/api/health')).ok,
+                'agent startup',
+            );
             assert.equal((await request(agent + '/api/servers')).status, 401);
             assert.equal(
                 (
@@ -189,7 +220,9 @@ test(
                 404,
             );
             await waitFor(
-                async () => (await ok(panel + '/api/nodes')).nodes[0].status === 'online',
+                async () =>
+                    (await ok(panel + '/api/nodes')).nodes[0].status ===
+                    'online',
                 'heartbeat',
             );
             const runtime = panel + `/api/nodes/${nodeId}/runtime`;
@@ -200,7 +233,9 @@ test(
                 appearance: settings.appearance,
                 network: {
                     restrictPorts: true,
-                    allocations: [{ ip: '127.0.0.1', alias: 'CI', tcp: '32280', udp: '' }],
+                    allocations: [
+                        { ip: '127.0.0.1', alias: 'CI', tcp: '32280', udp: '' },
+                    ],
                 },
             });
             const spec = {
@@ -214,20 +249,38 @@ test(
                     udp: [],
                 },
             };
-            const forbidden = await request(runtime + '/api/servers/install', 'POST', {
-                ...spec,
-                ports: {
-                    tcp: [{ host: 8080, container: 80, hostIp: '127.0.0.1' }],
-                    udp: [],
+            const forbidden = await request(
+                runtime + '/api/servers/install',
+                'POST',
+                {
+                    ...spec,
+                    ports: {
+                        tcp: [
+                            { host: 8080, container: 80, hostIp: '127.0.0.1' },
+                        ],
+                        udp: [],
+                    },
                 },
-            });
+            );
             assert.equal(forbidden.status, 400);
             const operation = randomUUID();
-            const installed = await ok(runtime + '/api/servers/install', 'POST', spec, operation);
+            const installed = await ok(
+                runtime + '/api/servers/install',
+                'POST',
+                spec,
+                operation,
+            );
             const id = installed.server.id;
             assert.ok(id);
             assert.equal(
-                (await ok(runtime + '/api/servers/install', 'POST', spec, operation)).server.id,
+                (
+                    await ok(
+                        runtime + '/api/servers/install',
+                        'POST',
+                        spec,
+                        operation,
+                    )
+                ).server.id,
                 id,
             );
             assert.equal(
@@ -248,7 +301,9 @@ test(
             const listed = await ok(runtime + '/api/servers');
             assert.ok(JSON.stringify(listed).includes('CI remote nginx'));
             assert.ok(
-                !JSON.stringify(await ok(panel + '/api/servers')).includes('CI remote nginx'),
+                !JSON.stringify(await ok(panel + '/api/servers')).includes(
+                    'CI remote nginx',
+                ),
             );
             gameContainer = docker(
                 'ps',
@@ -272,27 +327,48 @@ test(
                 'gamepanel.managed=true',
                 '--label',
                 `gamepanel.serverId=${id}`,
+                '--label',
+                `gamepanel.node=${randomUUID()}`,
                 'nginx:alpine',
             );
             await ok(runtime + `/api/servers/${id}/files/touch`, 'POST', {
                 path: '/',
                 name: 'agent-test.txt',
             });
-            await ok(runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`, 'PUT', {
-                content: 'remote file persists',
-            });
-            const content = await ok(runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`);
+            await ok(
+                runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`,
+                'PUT',
+                {
+                    content: 'remote file persists',
+                },
+            );
+            const content = await ok(
+                runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`,
+            );
             assert.ok(JSON.stringify(content).includes('remote file persists'));
-            const download = await ok(runtime + `/api/servers/${id}/files/download-token`, 'POST', {
-                path: '/agent-test.txt',
-            });
+            const download = await ok(
+                runtime + `/api/servers/${id}/files/download-token`,
+                'POST',
+                {
+                    path: '/agent-test.txt',
+                },
+            );
             assert.match(download.path, /^\/api\/node-download\//);
-            assert.equal(await (await fetch(panel + download.path)).text(), 'remote file persists');
+            assert.equal(
+                await (await fetch(panel + download.path)).text(),
+                'remote file persists',
+            );
             assert.equal((await fetch(panel + download.path)).status, 404);
-            socket = new WebSocket(panel.replace('http:', 'ws:') + `/api/nodes/${nodeId}/ws`);
+            socket = new WebSocket(
+                panel.replace('http:', 'ws:') + `/api/nodes/${nodeId}/ws`,
+            );
             const frames: any[] = [];
-            socket.on('message', (data) => frames.push(JSON.parse(data.toString())));
-            socket.on('open', () => socket!.send(JSON.stringify({ type: 'auth', token })));
+            socket.on('message', (data) =>
+                frames.push(JSON.parse(data.toString())),
+            );
+            socket.on('open', () =>
+                socket!.send(JSON.stringify({ type: 'auth', token })),
+            );
             await waitFor(
                 async () => frames.some((f) => f.type === 'auth:success'),
                 'remote websocket authentication',
@@ -327,9 +403,9 @@ test(
                     type: 'terminal:input',
                     sessionId: terminal.sessionId,
                     serverId: id,
-                    dataB64: Buffer.from("printf 'node-terminal-%s\\n' verified\n").toString(
-                        'base64',
-                    ),
+                    dataB64: Buffer.from(
+                        "printf 'node-terminal-%s\\n' verified\n",
+                    ).toString('base64'),
                 }),
             );
             await waitFor(
@@ -350,33 +426,55 @@ test(
                 appearance: localSettings.appearance,
                 network: {
                     restrictPorts: true,
-                    allocations: [{ ip: '127.0.0.1', alias: 'CI local', tcp: '32281', udp: '' }],
+                    allocations: [
+                        {
+                            ip: '127.0.0.1',
+                            alias: 'CI local',
+                            tcp: '32281',
+                            udp: '',
+                        },
+                    ],
                 },
             });
-            const localInstalled = await ok(panel + '/api/servers/install', 'POST', {
-                ...spec,
-                name: 'CI local private',
-                ports: {
-                    tcp: [{ host: 32281, container: 80, hostIp: '127.0.0.1' }],
-                    udp: [],
+            const localInstalled = await ok(
+                panel + '/api/servers/install',
+                'POST',
+                {
+                    ...spec,
+                    name: 'CI local private',
+                    ports: {
+                        tcp: [
+                            { host: 32281, container: 80, hostIp: '127.0.0.1' },
+                        ],
+                        udp: [],
+                    },
                 },
-            });
+            );
             const localId = localInstalled.server.id;
-            assert.equal(localId, id, 'Fixture must exercise colliding runtime IDs');
+            assert.equal(
+                localId,
+                id,
+                'Fixture must exercise colliding runtime IDs',
+            );
             await waitFor(
                 async () =>
-                    (await ok(panel + `/api/servers/${localId}`)).server.status === 'running',
+                    (await ok(panel + `/api/servers/${localId}`)).server
+                        .status === 'running',
                 'local game startup',
             );
-            localGameContainer = (await ok(panel + `/api/servers/${localId}`)).server
-                .dockerContainerId;
+            localGameContainer = (await ok(panel + `/api/servers/${localId}`))
+                .server.dockerContainerId;
             await waitFor(async () => {
                 await ok(panel + '/api/fleet/refresh', 'POST', {});
                 return (await ok(panel + '/api/fleet')).servers.length === 2;
             }, 'central fleet inventory');
             const inventory = (await ok(panel + '/api/fleet')).servers;
-            const remoteFleet = inventory.find((s: any) => s.name === spec.name);
-            const localFleet = inventory.find((s: any) => s.name === 'CI local private');
+            const remoteFleet = inventory.find(
+                (s: any) => s.name === spec.name,
+            );
+            const localFleet = inventory.find(
+                (s: any) => s.name === 'CI local private',
+            );
             assert.ok(remoteFleet?.id && localFleet?.id);
             assert.notEqual(remoteFleet.id, localFleet.id);
             for (const name of ['alice', 'bob'])
@@ -395,12 +493,20 @@ test(
                 'container.terminal',
                 'fs.read',
             ];
-            await ok(panel + `/api/fleet/${remoteFleet.id}/members/${alice.id}`, 'PUT', {
-                permissions: delegatedPermissions,
-            });
-            await ok(panel + `/api/fleet/${localFleet.id}/members/${bob.id}`, 'PUT', {
-                permissions: [],
-            });
+            await ok(
+                panel + `/api/fleet/${remoteFleet.id}/members/${alice.id}`,
+                'PUT',
+                {
+                    permissions: delegatedPermissions,
+                },
+            );
+            await ok(
+                panel + `/api/fleet/${localFleet.id}/members/${bob.id}`,
+                'PUT',
+                {
+                    permissions: [],
+                },
+            );
             const adminToken = token;
             const aliceToken = (
                 await ok(panel + '/api/auth/login', 'POST', {
@@ -420,38 +526,63 @@ test(
                 (await ok(panel + '/api/fleet')).servers.map((s: any) => s.id),
                 [remoteFleet.id],
             );
-            const context = await ok(panel + `/api/fleet/${remoteFleet.id}/context`);
+            const context = await ok(
+                panel + `/api/fleet/${remoteFleet.id}/context`,
+            );
             assert.equal(context.nodeId, nodeId);
             assert.equal(context.runtimeId, id);
             assert.equal(
-                (await request(panel + `/api/fleet/${localFleet.id}/context`)).status,
+                (await request(panel + `/api/fleet/${localFleet.id}/context`))
+                    .status,
                 404,
             );
             assert.equal((await request(panel + '/api/nodes')).status, 403);
-            assert.equal((await request(runtime + '/api/system/settings')).status, 403);
             assert.equal(
-                (await request(runtime + '/api/servers/install', 'POST', spec)).status,
+                (await request(runtime + '/api/system/settings')).status,
                 403,
             );
-            assert.equal((await request(runtime + `/api/servers/${id + 1}`)).status, 403);
+            assert.equal(
+                (await request(runtime + '/api/servers/install', 'POST', spec))
+                    .status,
+                403,
+            );
+            assert.equal(
+                (await request(runtime + `/api/servers/${id + 1}`)).status,
+                403,
+            );
             assert.equal(
                 (
                     await request(
-                        runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`,
+                        runtime +
+                            `/api/servers/${id}/file?path=%2Fagent-test.txt`,
                         'PUT',
                         { content: 'forbidden' },
                     )
                 ).status,
                 403,
             );
-            assert.equal((await request(panel + `/api/servers/${localId}`)).status, 404);
+            assert.equal(
+                (await request(panel + `/api/servers/${localId}`)).status,
+                403,
+            );
+            assert.equal((await request(panel + '/api/servers')).status, 403);
+            serverHeader = '';
+            assert.equal(
+                (await request(panel + `/api/servers/${localId}`)).status,
+                404,
+            );
             assert.deepEqual((await ok(panel + '/api/servers')).servers, []);
+            serverHeader = remoteFleet.id;
             const assigned = (await ok(runtime + '/api/servers')).servers;
             assert.equal(assigned.length, 1);
             assert.equal(assigned[0].id, id);
             assert.deepEqual(assigned[0].env, {});
             await ok(runtime + `/api/servers/${id}/stop`, 'POST');
-            assert.equal(JSON.parse(docker('inspect', localGameContainer))[0].State.Running, true);
+            assert.equal(
+                JSON.parse(docker('inspect', localGameContainer))[0].State
+                    .Running,
+                true,
+            );
             await ok(runtime + `/api/servers/${id}/start`, 'POST');
             const delegatedDownload = await ok(
                 runtime + `/api/servers/${id}/files/download-token`,
@@ -468,30 +599,48 @@ test(
                 { path: '/agent-test.txt' },
             );
             const userSocket = new WebSocket(
-                panel.replace('http:', 'ws:') + `/api/nodes/${nodeId}/ws?server=${remoteFleet.id}`,
+                panel.replace('http:', 'ws:') +
+                    `/api/nodes/${nodeId}/ws?server=${remoteFleet.id}`,
             );
             const userFrames: any[] = [];
-            userSocket.on('message', (data) => userFrames.push(JSON.parse(data.toString())));
+            userSocket.on('message', (data) =>
+                userFrames.push(JSON.parse(data.toString())),
+            );
             userSocket.on('open', () =>
-                userSocket.send(JSON.stringify({ type: 'auth', token: aliceToken })),
+                userSocket.send(
+                    JSON.stringify({ type: 'auth', token: aliceToken }),
+                ),
             );
             try {
                 await waitFor(
-                    async () => userFrames.some((f) => f.type === 'auth:success'),
+                    async () =>
+                        userFrames.some((f) => f.type === 'auth:success'),
                     'delegated websocket authentication',
                 );
                 userSocket.send(JSON.stringify({ type: 'subscribe:servers' }));
                 await waitFor(
-                    async () => userFrames.some((f) => f.type === 'servers:snapshot'),
+                    async () =>
+                        userFrames.some((f) => f.type === 'servers:snapshot'),
                     'delegated snapshot',
                 );
-                const snapshot = userFrames.find((f) => f.type === 'servers:snapshot');
+                const snapshot = userFrames.find(
+                    (f) => f.type === 'servers:snapshot',
+                );
                 assert.equal(snapshot.servers.length, 1);
                 assert.deepEqual(snapshot.servers[0].env, {});
-                userSocket.send(JSON.stringify({ type: 'subscribe:logs', serverId: id + 1 }));
-                userSocket.send(JSON.stringify({ type: 'subscribe:system-metrics' }));
+                userSocket.send(
+                    JSON.stringify({
+                        type: 'subscribe:logs',
+                        serverId: id + 1,
+                    }),
+                );
+                userSocket.send(
+                    JSON.stringify({ type: 'subscribe:system-metrics' }),
+                );
                 await waitFor(
-                    async () => userFrames.filter((f) => f.type === 'error').length >= 2,
+                    async () =>
+                        userFrames.filter((f) => f.type === 'error').length >=
+                        2,
                     'cross-server and host metrics denial',
                 );
                 const session = await ok(
@@ -506,7 +655,8 @@ test(
                     }),
                 );
                 await waitFor(
-                    async () => userFrames.some((f) => f.type === 'terminal:attached'),
+                    async () =>
+                        userFrames.some((f) => f.type === 'terminal:attached'),
                     'delegated terminal ownership',
                 );
                 userSocket.send(
@@ -514,36 +664,48 @@ test(
                         type: 'terminal:input',
                         sessionId: session.sessionId,
                         serverId: id,
-                        dataB64: Buffer.from("printf 'delegated-%s\\n' verified\n").toString(
-                            'base64',
-                        ),
+                        dataB64: Buffer.from(
+                            "printf 'delegated-%s\\n' verified\n",
+                        ).toString('base64'),
                     }),
                 );
                 await waitFor(
                     async () =>
                         userFrames
                             .filter((f) => f.type === 'terminal:output')
-                            .map((f) => Buffer.from(f.dataB64, 'base64').toString())
+                            .map((f) =>
+                                Buffer.from(f.dataB64, 'base64').toString(),
+                            )
                             .join('')
                             .includes('delegated-verified'),
                     'delegated terminal execution',
                 );
                 token = adminToken;
                 serverHeader = '';
-                await ok(panel + `/api/fleet/${remoteFleet.id}/members/${alice.id}`, 'DELETE');
+                await ok(
+                    panel + `/api/fleet/${remoteFleet.id}/members/${alice.id}`,
+                    'DELETE',
+                );
                 await waitFor(
                     async () => userSocket.readyState === WebSocket.CLOSED,
                     'permission revocation closes live socket',
                 );
-                assert.equal((await fetch(panel + revokedDownload.path)).status, 403);
+                assert.equal(
+                    (await fetch(panel + revokedDownload.path)).status,
+                    403,
+                );
             } finally {
                 userSocket.terminate();
             }
             token = aliceToken;
             serverHeader = remoteFleet.id;
-            assert.equal((await request(runtime + `/api/servers/${id}`)).status, 403);
             assert.equal(
-                (await request(panel + `/api/fleet/${remoteFleet.id}/context`)).status,
+                (await request(runtime + `/api/servers/${id}`)).status,
+                403,
+            );
+            assert.equal(
+                (await request(panel + `/api/fleet/${remoteFleet.id}/context`))
+                    .status,
                 404,
             );
             token = bobToken;
@@ -552,41 +714,74 @@ test(
                 (await ok(panel + '/api/fleet')).servers.map((s: any) => s.id),
                 [localFleet.id],
             );
-            assert.equal((await request(runtime + `/api/servers/${id}`)).status, 403);
+            assert.equal(
+                (await request(runtime + `/api/servers/${id}`)).status,
+                403,
+            );
+            serverHeader = localFleet.id;
             assert.equal((await ok(panel + '/api/servers')).servers.length, 1);
             assert.equal(
-                (await request(panel + `/api/servers/${localId}/stop`, 'POST')).status,
+                (await request(panel + `/api/servers/${localId}/stop`, 'POST'))
+                    .status,
                 403,
             );
             token = adminToken;
             serverHeader = '';
             await ok(panel + `/api/servers/${localId}`, 'DELETE');
             docker('restart', agentName);
-            await waitFor(async () => (await fetch(agent + '/api/health')).ok, 'agent restart');
-            assert.equal(JSON.parse(docker('inspect', gameContainer))[0].State.Running, true);
+            await waitFor(
+                async () => (await fetch(agent + '/api/health')).ok,
+                'agent restart',
+            );
+            assert.equal(
+                JSON.parse(docker('inspect', gameContainer))[0].State.Running,
+                true,
+            );
             assert.equal(
                 JSON.parse(docker('inspect', sentinelName))[0].State.Running,
                 true,
                 'foreign same-ID container must survive reconciliation',
             );
-            assert.equal((await ok(runtime + '/api/operations/' + operation)).state, 'completed');
-            docker('stop', panelName);
-            assert.equal(JSON.parse(docker('inspect', gameContainer))[0].State.Running, true);
-            docker('start', panelName);
-            await waitFor(async () => (await fetch(panel + '/api/health')).ok, 'panel restart');
             assert.equal(
-                (await ok(runtime + '/api/servers/install', 'POST', spec, operation)).server.id,
+                (await ok(runtime + '/api/operations/' + operation)).state,
+                'completed',
+            );
+            docker('stop', panelName);
+            assert.equal(
+                JSON.parse(docker('inspect', gameContainer))[0].State.Running,
+                true,
+            );
+            docker('start', panelName);
+            await waitFor(
+                async () => (await fetch(panel + '/api/health')).ok,
+                'panel restart',
+            );
+            assert.equal(
+                (
+                    await ok(
+                        runtime + '/api/servers/install',
+                        'POST',
+                        spec,
+                        operation,
+                    )
+                ).server.id,
                 id,
             );
             docker('stop', agentName);
             assert.equal((await request(runtime + '/api/servers')).status, 503);
             docker('start', agentName);
-            await waitFor(async () => (await fetch(agent + '/api/health')).ok, 'agent reconnect');
+            await waitFor(
+                async () => (await fetch(agent + '/api/health')).ok,
+                'agent reconnect',
+            );
             await ok(panel + `/api/nodes/${nodeId}`, 'PATCH', {
                 enabled: false,
             });
             assert.equal((await request(runtime + '/api/servers')).status, 503);
-            assert.equal(JSON.parse(docker('inspect', gameContainer))[0].State.Running, true);
+            assert.equal(
+                JSON.parse(docker('inspect', gameContainer))[0].State.Running,
+                true,
+            );
             await ok(panel + `/api/nodes/${nodeId}`, 'PATCH', {
                 enabled: true,
             });
@@ -598,7 +793,9 @@ test(
             );
             await ok(panel + `/api/nodes/${nodeId}/credentials`, 'POST', {});
             assert.equal((await request(runtime + '/api/servers')).status, 503);
-            console.log('Real node lifecycle, files, replay, WebSocket and outage checks passed');
+            console.log(
+                'Real node lifecycle, files, replay, WebSocket and outage checks passed',
+            );
         } catch (error) {
             for (const name of [panelName, agentName])
                 try {
@@ -616,7 +813,12 @@ test(
                     docker('rm', '-f', name);
                 } catch {}
             if (nodeId) {
-                for (const id of docker('ps', '-aq', '--filter', `label=gamepanel.node=${nodeId}`)
+                for (const id of docker(
+                    'ps',
+                    '-aq',
+                    '--filter',
+                    `label=gamepanel.node=${nodeId}`,
+                )
                     .trim()
                     .split('\n')
                     .filter(Boolean))

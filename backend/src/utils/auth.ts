@@ -16,13 +16,18 @@ export interface JWTPayload {
   isRoot: boolean;
   tokenVersion: number;
   delegation?: Delegation;
+  /** Added only by the local fleet routing guard, never by the login issuer. */
+  runtimeScope?: number;
 }
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 }
 
-export async function comparePasswords(password: string, hash: string): Promise<boolean> {
+export async function comparePasswords(
+  password: string,
+  hash: string,
+): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 

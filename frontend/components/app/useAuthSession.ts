@@ -74,6 +74,50 @@ export function useAuthSession() {
     setCurrentUserId(null);
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated || !ACTIVE_SERVER) return;
+    let cancelled = false;
+    let busy = false;
+    const refreshContext = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const context = await nodesRequest<ServerContext>(
+          `/api/fleet/${ACTIVE_SERVER!.id}/context`
+        );
+        if (cancelled) return;
+        if (
+          context.nodeId !== ACTIVE_NODE ||
+          context.runtimeId !== ACTIVE_SERVER!.runtimeId ||
+          context.placementRevision !== ACTIVE_SERVER!.placementRevision
+        ) {
+          openServer(context);
+          return;
+        }
+        setCurrentPermissions(
+          normalizeAuthPermissions({
+            global: [],
+            servers: [{ serverId: context.runtimeId, permissions: context.permissions }],
+          })
+        );
+      } catch (error) {
+        if (!cancelled && [401, 403, 404].includes(Number((error as { status?: number }).status)))
+          openFleet();
+        // A transient network/node outage must not discard open forms or switch runtime.
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = setInterval(() => void refreshContext(), 15000);
+    const onFocus = () => void refreshContext();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [isAuthenticated]);
+
   const loadCurrentUser = useCallback(async () => {
     try {
       const profile = await apiClient.getCurrentUser();

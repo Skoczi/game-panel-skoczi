@@ -26,6 +26,8 @@ export async function authMiddleware(
     }
 
     const payload = verifyToken(token);
+    // Request-local routing state is never accepted from a bearer token.
+    delete payload.runtimeScope;
     if (payload.delegation) {
       if (!isAgent()) throw new Error('Agent-only credential');
       req.user = payload;
@@ -56,7 +58,11 @@ export async function authMiddleware(
   }
 }
 
-export function rootOnly(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+export function rootOnly(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): void {
   if (!req.user?.isRoot) {
     res.status(403).json({ error: 'Root access required' });
     return;
@@ -65,7 +71,11 @@ export function rootOnly(req: AuthenticatedRequest, res: Response, next: NextFun
 }
 
 export function requireGlobalPermission(perm: string) {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  return async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       if (!req.user) {
         res.status(401).json({ error: 'Unauthorized' });
@@ -95,7 +105,11 @@ export function requireGlobalPermission(perm: string) {
 }
 
 export function requireServerPermission(permission: string) {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -140,26 +154,34 @@ export type ServerPrincipal = {
   userId?: number;
   isRoot?: boolean;
   delegation?: Delegation;
+  runtimeScope?: number;
 };
 export async function serverPermissions(
   user: ServerPrincipal,
   serverId: number,
 ): Promise<string[]> {
   if (user.delegation)
-    return user.delegation.serverId === serverId ? user.delegation.permissions : [];
+    return user.delegation.serverId === serverId
+      ? user.delegation.permissions
+      : [];
   if (!user.userId) return [];
   return serverMemberRepository.getUserServerPermissions(serverId, user.userId);
 }
 export async function buildServerVisibility(
   user: ServerPrincipal | undefined,
 ): Promise<(id: number) => boolean> {
-  if (user?.isRoot) return () => true;
+  if (user?.isRoot)
+    return (id) => user.runtimeScope === undefined || user.runtimeScope === id;
   if (user?.delegation) return (id) => id === user.delegation!.serverId;
   if (!user?.userId) return () => false;
   const ids = new Set(
-    (await serverMemberRepository.listByUser(user.userId)).map((m) => m.server_id),
+    (await serverMemberRepository.listByUser(user.userId)).map(
+      (m) => m.server_id,
+    ),
   );
-  return (id) => ids.has(id);
+  return (id) =>
+    ids.has(id) &&
+    (user.runtimeScope === undefined || user.runtimeScope === id);
 }
 
 export async function buildServerEnvVisibility(
@@ -172,7 +194,9 @@ export async function buildServerEnvVisibility(
       id === user.delegation!.serverId &&
       user.delegation!.permissions.includes(PERMISSIONS.server.env);
 
-  const memberships = (await serverMemberRepository.listByUser(user.userId)) as Array<{
+  const memberships = (await serverMemberRepository.listByUser(
+    user.userId,
+  )) as Array<{
     server_id: number;
     permissions_json: string;
   }>;
@@ -182,7 +206,8 @@ export async function buildServerEnvVisibility(
     let perms: string[] = [];
     try {
       const parsed = JSON.parse(membership.permissions_json ?? '[]');
-      if (Array.isArray(parsed)) perms = parsed.filter((x) => typeof x === 'string');
+      if (Array.isArray(parsed))
+        perms = parsed.filter((x) => typeof x === 'string');
     } catch {
       // Treat unparseable permissions as none.
     }
@@ -229,7 +254,9 @@ export function errorHandler(
     default: {
       const statusCode = err.status ?? (err as any).statusCode ?? 500;
       const safeMessage =
-        statusCode >= 500 ? 'Internal server error' : err.message || 'Request failed';
+        statusCode >= 500
+          ? 'Internal server error'
+          : err.message || 'Request failed';
       res.status(statusCode).json({ error: safeMessage });
     }
   }

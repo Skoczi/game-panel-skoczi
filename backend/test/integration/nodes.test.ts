@@ -226,11 +226,11 @@ test(
                 'heartbeat',
             );
             const runtime = panel + `/api/nodes/${nodeId}/runtime`;
-            const settings = await ok(runtime + '/api/system/settings');
+            const settings = await ok(panel + `/api/nodes/${nodeId}/allocations`);
             assert.equal(settings.network.restrictPorts, true);
-            await ok(runtime + '/api/system/settings', 'PUT', {
+            assert.equal((await request(runtime + '/api/system/settings', 'PUT', {})).status, 409);
+            await ok(panel + `/api/nodes/${nodeId}/allocations`, 'PUT', {
                 revision: settings.revision,
-                appearance: settings.appearance,
                 network: {
                     restrictPorts: true,
                     allocations: [
@@ -238,7 +238,7 @@ test(
                     ],
                 },
             });
-            const spec = {
+            const legacySpec = {
                 name: 'CI remote nginx',
                 provider: 'external',
                 dockerImage: 'nginx:alpine',
@@ -249,17 +249,27 @@ test(
                     udp: [],
                 },
             };
+            assert.equal((await ok(runtime + '/api/health')).templatesProtocol, 1);
+            const template = await ok(panel + '/api/game-templates', 'POST', { document: {
+                schemaVersion: 1, name: 'CI HTTP runtime', description: '', author: 'CI', source: '',
+                runtime: { provider: 'external', image: 'nginxinc/nginx-unprivileged:stable-alpine',
+                    catalogId: '', gameServerName: '', architectures: ['x64'], identity: { user: '101', uid: 101, gid: 101 } },
+                ports: [{ key: 'http', label: 'HTTP', protocol: 'tcp', container: 8080, suggested: 32280, env: '', linuxgsmKey: '' }],
+                variables: [], mounts: [{ key: 'data', containerPath: '/test-data' }],
+            } });
+            const templatePath = panel + `/api/game-templates/${template.id}/${template.version}`;
+            await ok(templatePath + '/status', 'POST', { status: 'published' });
+            const authorization = await ok(templatePath + '/prepare', 'POST', { nodeId });
+            const spec = { name: legacySpec.name, templateTicket: authorization.ticket,
+                bindings: [{ key: 'http', hostIp: '127.0.0.1', host: 32280 }], variables: {} };
+            assert.equal((await request(panel + '/api/servers/install', 'POST', spec)).status, 409,
+                'A remote template ticket cannot create a server on Local');
             const forbidden = await request(
                 runtime + '/api/servers/install',
                 'POST',
                 {
                     ...spec,
-                    ports: {
-                        tcp: [
-                            { host: 8080, container: 80, hostIp: '127.0.0.1' },
-                        ],
-                        udp: [],
-                    },
+                    bindings: [{ key: 'http', host: 8080, hostIp: '127.0.0.1' }],
                 },
             );
             assert.equal(forbidden.status, 400);
@@ -314,6 +324,12 @@ test(
                 `label=gamepanel.serverId=${id}`,
             ).trim();
             assert.ok(gameContainer);
+            const inspected = JSON.parse(docker('inspect', gameContainer))[0];
+            assert.ok(inspected.Config.Hostname.length <= 63);
+            const savedTemplate = (await ok(runtime + `/api/servers/${id}`)).server.providerMetadata.template;
+            assert.equal(savedTemplate.id, template.id);
+            assert.equal(savedTemplate.version, template.version);
+            assert.equal(savedTemplate.hash, template.hash);
             await waitFor(
                 async () => (await fetch('http://127.0.0.1:32280')).ok,
                 'published game port',
@@ -420,15 +436,18 @@ test(
             await ok(runtime + `/api/servers/${id}/stop`, 'POST');
             await ok(runtime + `/api/servers/${id}/start`, 'POST');
             // User workspace: same numeric ID on two runtimes, central UUIDs and single-server capabilities.
-            const localSettings = await ok(panel + '/api/system/settings');
-            await ok(panel + '/api/system/settings', 'PUT', {
+            const localSettings = await ok(panel + '/api/nodes/local/allocations');
+            assert.equal((await request(panel + '/api/nodes/local/allocations', 'PUT', {
                 revision: localSettings.revision,
-                appearance: localSettings.appearance,
+                network: { restrictPorts: true, allocations: [{ ip: '127.0.0.1', alias: 'duplicate', tcp: '32281', udp: '' }] },
+            })).status, 409, 'An address already owned by a remote node cannot be assigned to Local');
+            await ok(panel + '/api/nodes/local/allocations', 'PUT', {
+                revision: localSettings.revision,
                 network: {
                     restrictPorts: true,
                     allocations: [
                         {
-                            ip: '127.0.0.1',
+                            ip: '127.0.0.2',
                             alias: 'CI local',
                             tcp: '32281',
                             udp: '',
@@ -440,11 +459,11 @@ test(
                 panel + '/api/servers/install',
                 'POST',
                 {
-                    ...spec,
+                    ...legacySpec,
                     name: 'CI local private',
                     ports: {
                         tcp: [
-                            { host: 32281, container: 80, hostIp: '127.0.0.1' },
+                            { host: 32281, container: 80, hostIp: '127.0.0.2' },
                         ],
                         udp: [],
                     },

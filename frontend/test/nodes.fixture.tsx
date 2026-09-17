@@ -11,4 +11,18 @@ import '@ovhcloud/ods-themes/default/fonts';
 import '../src/ui/theme/ods-dark.css';
 import '../src/ui/theme/ods-light.css';
 import '../styles/globals.css';
-createRoot(document.getElementById('root')!).render(<ThemeProvider><BrandingProvider><main className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950"><div className="mb-6 max-w-sm rounded-xl bg-blue-900 p-4"><NodeSelector /></div><Nodes/><button onClick={()=>void apiClient.getServer(1).catch(()=>{})}>Test selected runtime</button></main></BrandingProvider></ThemeProvider>);
+createRoot(document.getElementById('root')!).render(
+  <ThemeProvider>
+    <BrandingProvider>
+      <main className="min-h-screen bg-slate-50 p-6 dark:bg-slate-950">
+        <div className="mb-6 max-w-sm rounded-xl bg-blue-900 p-4">
+          <NodeSelector />
+        </div>
+        <Nodes />
+        <button onClick={() => void apiClient.getServer(1).catch(() => {})}>
+          Test selected runtime
+        </button>
+      </main>
+    </BrandingProvider>
+  </ThemeProvider>
+);

@@ -1,6 +1,6 @@
 # Multi-node execution design
 
-Status: implementation branch; not deployed to a production host.
+Status: Revision 7 administrator preview; production rollout and operator acceptance are separate steps.
 
 ## Runtime boundary
 

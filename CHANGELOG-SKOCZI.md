@@ -11,6 +11,7 @@ This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records 
 - Added durable JSON mutation admission with stable idempotency keys. Interrupted requests become uncertain and are not automatically replayed.
 - Added a scoped agent installer, re-enrollment and image upgrade tooling. It does not change host proxy, firewall, SSH or unrelated containers. Fresh agents start with no allowed published ports.
 - Added protocol, enrollment, journal, transport and browser tests, plus a real-Docker central/agent CI job.
+- Updated the Docker client dependency and its UUID override; production dependency audits report no known vulnerabilities at release verification time.
 - Preserved stored branding, users and local server IDs. Node tables are additive; agents refuse databases belonging to another node or unadopted existing servers.
 
 **Scope:** root administrators only for remote nodes. No automatic migration, cross-node user delegation, fleet-wide server table or automatic placement. Provider-specific features retain the upstream support matrix. Read [Nodes](docs/skoczi/NODES.md) before installation; production acceptance tests are a separate step.

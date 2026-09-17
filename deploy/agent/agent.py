@@ -165,6 +165,8 @@ def main():
         else:
             commands = {'start': ['up', '-d', '--pull', 'never', '--no-build'],
                 'stop': ['stop', 'agent'], 'status': ['ps'], 'logs': ['logs', '--tail', '100', 'agent']}
+            if args.action == 'start':
+                ensure_network(json.loads((root / 'identity/agent.json').read_text())['nodeId'])
             compose(root, *commands[args.action])
 
 

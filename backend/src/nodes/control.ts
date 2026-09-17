@@ -54,10 +54,10 @@ export function mountNodeControl(app: express.Application) {
             let delegatedDownload: Delegation | undefined;
             try {
                 const user = await activeUser(claim.userToken);
-                if (!user.is_root) {
+                if (!user.is_root || claim.serverId) {
                     const delegation = await serverDelegation(claim.serverId || '', claim.nodeId, {
                         userId: user.id,
-                        isRoot: false,
+                        isRoot: Boolean(user.is_root),
                     });
                     if (!delegation.permissions.includes('fs.read')) throw new Error();
                     delegatedDownload = { ...delegation, downloadPath: claim.path };
@@ -89,7 +89,7 @@ export function mountNodeControl(app: express.Application) {
             if (!node?.enabled || !node.key_encrypted)
                 return res.status(503).json({ error: 'Node disabled or not enrolled' });
             let delegation: Delegation | undefined;
-            if (!req.user!.isRoot) {
+            if (!req.user!.isRoot || req.headers['x-gamepanel-server']) {
                 try {
                     delegation = await serverDelegation(
                         String(req.headers['x-gamepanel-server'] || ''),
@@ -302,11 +302,11 @@ function bridgeNodeSocket(client: WebSocket, nodeId: string, serverId?: string) 
     let accessFingerprint = '';
     const access = async () => {
         const user = await activeUser(token);
-        const delegation = user.is_root
+        const delegation = user.is_root && !serverId
             ? undefined
             : await serverDelegation(serverId || '', nodeId, {
                   userId: user.id,
-                  isRoot: false,
+                  isRoot: Boolean(user.is_root),
               });
         return {
             user,

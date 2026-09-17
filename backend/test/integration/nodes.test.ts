@@ -477,6 +477,10 @@ test(
             );
             assert.ok(remoteFleet?.id && localFleet?.id);
             assert.notEqual(remoteFleet.id, localFleet.id);
+            serverHeader = remoteFleet.id;
+            assert.equal((await request(runtime + `/api/servers/${id + 1}`)).status, 403, 'selected administrator context is also single-server');
+            assert.equal((await ok(runtime + '/api/servers')).servers.length, 1);
+            serverHeader = '';
             for (const name of ['alice', 'bob'])
                 await ok(panel + '/api/auth/register', 'POST', {
                     username: name,

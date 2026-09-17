@@ -2,6 +2,12 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## Unreleased
+
+- Replaced the native execution-node select with a custom sidebar dropdown: host icons, status indicators, location labels, selected-state checkmark and a scrollable runtime list.
+- Added keyboard navigation, type-to-select, outside-click/Escape dismissal and reduced-motion support. Switching still requires confirmation and retains the per-tab runtime boundary.
+- Added browser coverage for selection, cancellation, unavailable nodes, Local-only inventory and open mobile/dark menus. No backend or deployment changes.
+
 ## 1.5.0-skoczi.7 — multi-node administrator preview — 2026-09-17
 
 - Added **Nodes** and a per-tab execution-node selector. Local servers remain on their existing runtime; remote requests never fall back to Local.

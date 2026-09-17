@@ -1,11 +1,12 @@
 # Documentation
 
-**OVH Game Panel by Skoczi · 1.5.0-skoczi.2 preview**
+**OVH Game Panel by Skoczi · 1.5.0-skoczi.3 preview**
 
 | I want to… | Read |
 |---|---|
 | Understand the fork | [Changes compared with upstream](CHANGES.md) |
 | Install a test panel | [Installation and manual upgrades](INSTALLATION.md) |
+| Manage allocations and sidebar visibility | [Global Settings](SETTINGS.md) |
 | Bind game ports to additional IPs | [Additional IPv4 addresses](ADDITIONAL-IPS.md) |
 | Understand unsupported scenarios | [Limitations](LIMITATIONS.md) |
 | Develop or verify a change | [Development and tests](DEVELOPMENT.md) |

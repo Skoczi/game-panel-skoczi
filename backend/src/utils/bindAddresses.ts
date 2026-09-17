@@ -1,11 +1,14 @@
 // Skoczi fork: explicit, operator-managed IPv4 allocations. No host network mutations.
 import { isIPv4 } from 'node:net';
 import { configuredPortPolicy } from './portPolicy.js';
+let managedAddresses: string[] | undefined;
+export function setManagedBindAddresses(addresses: string[]): void { managedAddresses = addresses; }
 
 export function configuredBindAddresses(raw?: string): string[] {
     if (raw === undefined) {
         const policy = configuredPortPolicy();
         if (policy !== null) return Object.keys(policy);
+        if (managedAddresses !== undefined) return [...managedAddresses];
         raw = process.env.GAMEPANEL_BIND_IPS ?? '';
     }
     if (!raw.trim()) return [];

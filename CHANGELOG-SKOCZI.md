@@ -2,6 +2,19 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.3 — preview — 2026-09-17
+
+- Added root-only **Settings** navigation and API.
+- Added IP/alias/TCP/UDP allocation editing and a table of saved server bindings.
+- Prevented removal or narrowing of allocations used by existing servers.
+- Persisted global settings in SQLite, seeded once from the previous environment configuration. Saves apply without restarting the backend.
+- Added revision checks to reject concurrent overwrites.
+- Added Follow Us and Trustpilot visibility switches; legal notices remain available.
+- Changed the footer to **Game Panel by Skoczi** with the package version.
+- Added SQLite persistence, policy safety, authorization and browser settings tests.
+
+Upgrade creates `panel_settings`. After initialization, Settings replaces environment values as the source of allocation rules. Back up the database; see [Settings](docs/skoczi/SETTINGS.md) for downgrade notes. No live server deployment is included.
+
 ## 1.5.0-skoczi.2 — preview — 2026-09-17
 
 - Added `GAMEPANEL_IP_PORTS`: separate allowed TCP/UDP host port ranges per IPv4.

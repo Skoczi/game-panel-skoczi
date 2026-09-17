@@ -3,6 +3,8 @@ import { isIPv4 } from 'node:net';
 
 export type PortRange = { from: number; to: number };
 export type IpPortPolicy = Record<string, { tcp: PortRange[]; udp: PortRange[] }>;
+let managedPolicy: IpPortPolicy | null | undefined;
+export function setManagedPortPolicy(policy: IpPortPolicy | null): void { managedPolicy = policy; }
 
 export function isUnicastIPv4(value: string): boolean {
     return isIPv4(value) && value !== '0.0.0.0' && Number(value.split('.')[0]) < 224;
@@ -23,7 +25,9 @@ function parseRanges(value: unknown): PortRange[] {
     });
 }
 
-export function configuredPortPolicy(raw = process.env.GAMEPANEL_IP_PORTS ?? ''): IpPortPolicy | null {
+export function configuredPortPolicy(raw?: string): IpPortPolicy | null {
+    if (raw === undefined && managedPolicy !== undefined) return managedPolicy;
+    raw ??= process.env.GAMEPANEL_IP_PORTS ?? '';
     if (!raw.trim()) return null;
     let parsed: unknown;
     try { parsed = JSON.parse(raw); } catch { throw new Error('GAMEPANEL_IP_PORTS must be a JSON object'); }

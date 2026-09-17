@@ -2,9 +2,17 @@
 
 Each TCP/UDP mapping selects a host IPv4 and host port. The container port is independent. Addresses must already be configured on the Docker host, including persistent interfaces and provider routing. The panel does not provision IPs or firewall rules.
 
-## Configure per-IP ranges
+## Configure in Settings (recommended)
 
-On a standard installation, edit `/opt/gamepanel/deploy/.env`:
+Sign in as the root administrator and open **Settings → IP allocations**. Add an IPv4, optional alias, and separate TCP/UDP ranges. Enable **Restrict published ports to these allocations**, then **Save changes**. Changes apply immediately; no backend restart is needed.
+
+The page lists configured addresses and saved server assignments, including stopped servers. An IP or range cannot be removed while a saved server needs it. Reassign that server first. Aliases are labels only; they do not change DNS or connection addresses.
+
+Settings are persisted in the panel database. Concurrent edits are rejected with a reload prompt rather than overwriting the other administrator's changes.
+
+## Environment seeding for the first startup
+
+Before the first startup of version 1.5.0-skoczi.3, existing environment values can seed the database. On a standard installation, edit `/opt/gamepanel/deploy/.env`:
 
 ```dotenv
 GAMEPANEL_IP_PORTS='{"192.0.2.10":{"tcp":"27015-27030,28015","udp":"27015-27030"},"192.0.2.11":{"udp":"28015-28020"}}'
@@ -16,17 +24,17 @@ Replace documentation addresses with assigned host IPs. Each protocol accepts co
 - Second IP: UDP 28015–28020; no TCP publishing.
 - Host port 8080 is refused on both. A permitted host port can still map to container port 8080.
 
-Apply the environment and reload the panel:
+If settings have not been initialized yet, apply the environment:
 
 ```bash
 sudo docker compose -f /opt/gamepanel/deploy/compose.yml up -d --no-deps --no-build backend
 ```
 
-The Compose file must contain the new variable (new installs and the fork updater render it). For custom deployments, pass `GAMEPANEL_IP_PORTS` into the **backend container**. Setting it only in the host shell has no effect.
+The Compose file must contain the variable. For custom deployments, pass `GAMEPANEL_IP_PORTS` into the **backend container**. After the first startup, the database is authoritative: later environment changes do not overwrite Settings. Back up the database before upgrading or downgrading.
 
-Open installation or **Container configuration → Ports → Host IPv4**. Select an IP for each mapping. The UI shows allowed ports for that protocol; the backend rejects invalid requests even if the UI is bypassed.
+During game installation or in **Container configuration → Ports → Host IPv4**, select an IP for each mapping. The UI shows allowed ports for that protocol; the backend rejects invalid requests even if the UI is bypassed.
 
-## Policy rules
+## Environment seed rules
 
 | Configuration | Result |
 |---|---|
@@ -40,7 +48,7 @@ Wildcards, IPv6, CIDRs, hostnames, reversed ranges, noninteger ports and unknown
 
 Checks apply to install/edit mappings, Docker container creation, recreation, and panel start/restart. Recreation validates before stopping the old container. **Changing policy does not stop existing running containers.** Correct old bindings before their next panel start/restart or recreation. Direct Docker commands and Docker-managed automatic restarts do not pass through panel validation. Use host firewall rules if network-level enforcement is required.
 
-Without the new policy, legacy **Docker default** remains available and usually binds all interfaces. Use `GAMEPANEL_IP_PORTS` to prohibit that option. No database migration is required; addresses are stored in existing port JSON.
+With restrictions disabled, legacy **Docker default** remains available and usually binds all interfaces. Enable restrictions in Settings to prohibit that option. Version 1.5.0-skoczi.3 creates a `panel_settings` table; game bindings remain in existing port JSON.
 
 ## Conflicts
 

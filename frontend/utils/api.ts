@@ -1,5 +1,6 @@
 // Modified by Skoczi: host IP allowlist API and per-port IPv4 payloads.
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import type { GlobalSettings, Appearance, Assignment } from '../types/globalSettings';
 import type {
   ReleaseConfigFileDefinition,
 } from './api/types';
@@ -918,6 +919,18 @@ class ApiClient {
   }> {
     const response = await this.client.get('/api/system/bind-addresses');
     return response.data;
+  }
+
+  async getPanelAppearance(): Promise<Appearance> {
+    return (await this.client.get('/api/system/appearance')).data;
+  }
+
+  async getGlobalSettings(): Promise<GlobalSettings & { assignments: Assignment[] }> {
+    return (await this.client.get('/api/system/settings')).data;
+  }
+
+  async saveGlobalSettings(settings: GlobalSettings): Promise<GlobalSettings> {
+    return (await this.client.put('/api/system/settings', settings)).data;
   }
 
   async checkPanelUpdate(): Promise<PanelUpdateCheck> {

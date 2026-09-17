@@ -5,7 +5,7 @@ The fork currently changes IPv4/port allocation and release defaults.
 ## Networking
 - IPv4 selectors only; no IP provisioning, interface management or provider automation.
 - No per-user IP ownership/quotas, source-IP routing policy or tenant isolation.
-- Without `GAMEPANEL_IP_PORTS`, legacy default bindings may publish broadly. With it, the panel requires explicit allowed IPs and ports.
+- With port restrictions disabled in Settings, legacy default bindings may publish broadly. Enabled restrictions require explicit allowed IPs and ports.
 - Policy changes do not stop running containers. Direct Docker operations and Docker-managed restart policies bypass panel validation; use a host firewall for network-level enforcement.
 - Preflight checks panel records and Docker bindings, not every host socket; races may still fail at container creation.
 - Game-specific network/firewall behavior requires real client tests.

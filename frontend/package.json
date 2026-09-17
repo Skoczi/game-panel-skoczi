@@ -1,7 +1,7 @@
 {
   "name": "game-panel-frontend",
   "private": true,
-  "version": "1.5.0-skoczi.2",
+  "version": "1.5.0-skoczi.3",
   "type": "module",
   "scripts": {
     "test:ui": "playwright test",

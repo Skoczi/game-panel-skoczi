@@ -1,5 +1,11 @@
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
-export type Appearance = { showFollowUs: boolean; showTrustpilot: boolean };
+export const DEFAULT_APPEARANCE = {
+  showFollowUs: true, showTrustpilot: true, showNews: true,
+  siteName: 'Game Panel', siteSubtitle: 'by Skoczi', logo: '',
+  loginDescription: 'Sign in to manage your game servers',
+  showLoginFooter: true, loginFooter: 'Game Panel by Skoczi',
+};
+export type Appearance = typeof DEFAULT_APPEARANCE;
 export type GlobalSettings = {
   revision: number;
   appearance: Appearance;

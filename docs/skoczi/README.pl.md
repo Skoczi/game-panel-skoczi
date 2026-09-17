@@ -1,6 +1,6 @@
 # OVH Game Panel by Skoczi
 
-Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.3 (preview)**. Nie jest to oficjalne wydanie OVHcloud.
+Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.4 (preview)**. Nie jest to oficjalne wydanie OVHcloud.
 
 ## Co zmieniłem?
 
@@ -47,3 +47,9 @@ Backend ma dostęp administracyjny do Dockera. [Ograniczenia](LIMITATIONS.md) ·
 ## Autorstwo
 
 Oryginał: [ovh/game-panel](https://github.com/ovh/game-panel). Licencja Apache 2.0 i autorstwo OVH są zachowane. Zmiany Skoczi mają oddzielny changelog. Nie dodawaj do repozytorium konfiguracji produkcyjnej, baz, kluczy ani logów z sekretami.
+
+## Personalizacja w .4
+
+W **Settings → Branding & login page** zmienisz nazwę panelu, podtytuł, logo, opis logowania i stopkę. Logo można wgrać jako PNG/JPEG/WebP (do 256 KiB) lub podać link HTTPS. W **Appearance** wyłączysz aktualności, Follow Us i Trustpilot. Podgląd pokazuje zmiany przed zapisem; zapis nie wymaga przebudowy ani restartu.
+
+Te pola są publiczne również przed zalogowaniem. Nie wpisuj sekretów. Aktualizacja zachowuje wcześniejsze adresy, porty i przełączniki. Powrót z .4 do .3 wymaga również kopii bazy sprzed aktualizacji. [Szczegóły](SETTINGS.md).

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { KeyRound, Moon, MoreVertical, Power, Sun, X, Settings } from 'lucide-react';
-import type { Appearance } from '../types/globalSettings';
+import { useBranding } from '../contexts/BrandingContext';
+import { PanelBrand } from './PanelBrand';
 import { Icon, type IconName } from '@ovhcloud/ods-react';
 import { getAppVersion } from '../utils/appInfo';
 import type { AuthUser } from '../utils/permissions';
@@ -186,15 +187,7 @@ export function Sidebar({
   const currentUserLabel = currentUser?.username || 'Unknown user';
   const currentUserInitial = currentUserLabel.trim().charAt(0).toUpperCase() || '?';
   const appVersion = getAppVersion();
-  const [appearance, setAppearance] = useState<Appearance>({ showFollowUs: false, showTrustpilot: false });
-  useEffect(() => {
-    let active = true;
-    const refresh = () => { void apiClient.getPanelAppearance().then((value) => { if (active) setAppearance(value); }).catch(() => {}); };
-    refresh();
-    window.addEventListener('panel-settings-changed', refresh);
-    window.addEventListener('focus', refresh);
-    return () => { active = false; window.removeEventListener('panel-settings-changed', refresh); window.removeEventListener('focus', refresh); };
-  }, []);
+  const { appearance, loaded } = useBranding();
 
   useEffect(() => {
     if (!currentUser?.isRoot) return;
@@ -220,7 +213,7 @@ export function Sidebar({
           {/* Modified by Skoczi: independent fork identity; upstream credits retained. */}
           <button
             type="button"
-            className="text-white text-center font-semibold"
+            className="min-w-0 max-w-full text-white text-center font-semibold"
             onClick={() => {
               const next = logoClickCount + 1;
               if (next >= 5) {
@@ -230,7 +223,7 @@ export function Sidebar({
                 setLogoClickCount(next);
               }
             }}
-          >OVH Game Panel<span className="block text-xs font-normal">by Skoczi</span></button>
+          ><PanelBrand appearance={appearance} /></button>
         </div>
       </div>
 
@@ -282,7 +275,7 @@ export function Sidebar({
         />
       </div>
 
-      {appearance.showFollowUs && <div className="px-3 py-3">
+      {loaded && appearance.showFollowUs && <div className="px-3 py-3">
         <div className="flex flex-col items-center">
           <h3 className="mb-4 text-xs font-medium text-gray-400">Follow Us</h3>
 
@@ -321,7 +314,7 @@ export function Sidebar({
       </div>}
 
       <div className="border-t px-3 py-3 border-white/10">
-        {appearance.showTrustpilot && <div className="flex justify-center">
+        {loaded && appearance.showTrustpilot && <div className="flex justify-center">
           <a
             href="https://fr.trustpilot.com/review/ovhcloud.com"
             target="_blank"

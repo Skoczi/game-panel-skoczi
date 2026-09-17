@@ -20,12 +20,21 @@ test('settings routes require root; appearance exposes no allocations', async ()
         '../utils/routeErrors.js': { sendRouteError: (res: any, error: any) => res.status(error.statusCode || 500).json({ error: error.message }) }, '../utils/time.js': {},
     });
     const app = express(); app.use(express.json());
+    const { default: branding } = loadWithMocks('../src/routes/branding.ts', {
+        express, '../services/globalSettings.js': { globalSettings: () => ({ snapshot: () => snapshot }) },
+    });
+    app.use('/api/branding', branding);
     // Authentication boundary mirrors index.ts; rootOnly below is the actual middleware.
     app.use((req: any, res, next) => { if (!req.headers['x-test-role']) { res.sendStatus(401); return; } req.user = { isRoot: req.headers['x-test-role'] === 'root' }; next(); });
     app.use('/api/system', router);
     const server = createServer(app); server.listen(0, '127.0.0.1'); await once(server, 'listening');
     const url = `http://127.0.0.1:${(server.address() as any).port}/api/system`;
     try {
+        const publicBranding = await fetch(url.replace('/api/system', '/api/branding'));
+        assert.equal(publicBranding.status, 200);
+        assert.equal(publicBranding.headers.get('cache-control'), 'no-store');
+        assert.deepEqual(await publicBranding.json(), appearance);
+        assert.equal((await fetch(url.replace('/api/system', '/api/branding'), { method: 'PUT' })).status, 401);
         assert.equal((await fetch(`${url}/settings`)).status, 401);
         for (const method of ['GET', 'PUT']) assert.equal((await fetch(`${url}/settings`, { method, headers: { 'x-test-role': 'user' } })).status, 403);
         assert.equal(saves + assignmentReads, 0);

@@ -2,7 +2,7 @@
 
 # OVH Game Panel by Skoczi
 
-**IPv4 bindings · Per-IP port ranges**
+**IPv4 bindings · Per-IP port ranges · Panel branding**
 
 [![Skoczi CI](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml/badge.svg)](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE-2.0.txt)
@@ -26,6 +26,7 @@ Game server panel built with React, Node.js, SQLite and Docker. Based on **OVHcl
 | Game connection address | Panel hostname | Selected allocation IP; legacy hostname fallback |
 | Operator control | No bind-IP allowlist | Allowed IPs and TCP/UDP ranges in Settings, enforced by the backend |
 | Global settings | No allocation editor | Root-only Settings: IPs, aliases, ranges, server assignments and sidebar visibility |
+| Branding | Fixed identity and login footer | Site name, logo, login text/footer and announcements switch, with live preview |
 | Telemetry | On by default | **Opt-in** on fresh installs |
 | Updates | Upstream one-click updater | Fork release notes; **manual reviewed updates** |
 | Validation | Build checks | Regression tests + Linux Docker publishing CI |

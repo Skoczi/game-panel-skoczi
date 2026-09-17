@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react';
 import { apiClient } from '../utils/api';
+import { useBranding } from '../contexts/BrandingContext';
+import { PanelBrand } from './PanelBrand';
 
 interface LoginProps {
   onLogin: () => void;
 }
 
 export function Login({ onLogin }: LoginProps) {
+  const { appearance } = useBranding();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -57,16 +60,15 @@ export function Login({ onLogin }: LoginProps) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4"
+      className="min-h-screen flex items-center justify-center px-4 py-8"
       style={{ background: 'linear-gradient(135deg, #000e9c 0%, #002dbe 100%)' }}
     >
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
-          {/* Modified by Skoczi: distinguish this independent fork from upstream. */}
-          <h1 className="text-2xl font-semibold text-white text-center">OVH Game Panel <span className="block text-base font-normal">by Skoczi</span></h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
-            Sign in to manage your game servers
-          </p>
+          <PanelBrand appearance={appearance} login />
+          {appearance.loginDescription && <p className="max-w-full break-words text-center text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>
+            {appearance.loginDescription}
+          </p>}
         </div>
 
         <div
@@ -192,9 +194,9 @@ export function Login({ onLogin }: LoginProps) {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          © 2026 OVHcloud. All rights reserved.
-        </p>
+        {appearance.showLoginFooter && appearance.loginFooter && <p className="mt-6 break-words whitespace-pre-line text-center text-xs" style={{ color: 'rgba(255,255,255,0.8)' }}>
+          {appearance.loginFooter}
+        </p>}
       </div>
     </div>
   );

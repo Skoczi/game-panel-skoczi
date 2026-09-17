@@ -763,7 +763,7 @@ function PortsSection({
         )}
         {ports.map((port, idx) => (
           <div key={idx} className="flex flex-wrap gap-2 items-center">
-            <div className="w-full"><HostIpSelect value={port.hostIp} disabled={!canEdit} onChange={(value) => onUpdate(idx, 'hostIp', value)} /></div>
+            <div className="w-full"><HostIpSelect value={port.hostIp} protocol={label.startsWith('UDP') ? 'udp' : 'tcp'} hostPort={port.host} disabled={!canEdit} onChange={(value) => onUpdate(idx, 'hostIp', value)} /></div>
             <input
               type="number"
               className={`${inputClass} flex-1`}

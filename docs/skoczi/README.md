@@ -1,6 +1,6 @@
 # Documentation
 
-**OVH Game Panel by Skoczi · 1.5.0-skoczi.1 preview**
+**OVH Game Panel by Skoczi · 1.5.0-skoczi.2 preview**
 
 | I want to… | Read |
 |---|---|

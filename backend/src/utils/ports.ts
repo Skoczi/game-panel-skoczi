@@ -1,5 +1,6 @@
 // Modified by Skoczi: IPv4 allocations, address-aware conflicts and strict port parsing.
 import { normalizeBindAddress, bindAddressesOverlap } from './bindAddresses.js';
+import { assertPortPolicy } from './portPolicy.js';
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
@@ -97,6 +98,8 @@ export function buildAndValidateOpenPortMappings(params: {
     // Ensure no duplicate host ports within same proto
     assertNoDuplicateHostPorts(tcp, 'TCP');
     assertNoDuplicateHostPorts(udp, 'UDP');
+
+    assertPortPolicy({ tcp, udp });
 
     return { ports: { tcp, udp } };
 }

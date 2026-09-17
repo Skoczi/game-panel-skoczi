@@ -1,46 +1,43 @@
-# OVH Game Panel by Skoczi — przewodnik
+# OVH Game Panel by Skoczi
 
-To **niezależny fork społecznościowy**, a nie oficjalne wydanie OVHcloud.
-Bazujemy na wersji OVH 1.5.0; pierwsza rewizja to **1.5.0-skoczi.1 (preview)**.
+Fork OVHcloud Game Panel 1.5.0. Aktualna rewizja: **1.5.0-skoczi.2 (preview)**. Nie jest to oficjalne wydanie OVHcloud.
 
-## Co zmieniłem względem OVH?
-- Wybór dodatkowego **IPv4 hosta dla każdego portu TCP/UDP** przy instalacji i edycji.
-- Ten sam port na różnych IP jest dozwolony; nakładające się przypisania są odrzucane.
+## Co zmieniłem?
+
+- Wybór IPv4 hosta przy każdym mapowaniu TCP/UDP.
+- Osobne zakresy dozwolonych portów TCP i UDP dla każdego IP.
+- Ten sam port może działać na różnych IP. Nakładające się przypisania są odrzucane.
 - Kilka mapowań jednego portu kontenera nie nadpisuje się nawzajem.
-- Lista serwerów i kopiowanie adresu pokazują wybrane IP gry, niezależnie od domeny panelu.
-- Administrator określa dozwolone adresy w GAMEPANEL_BIND_IPS.
+- Lista serwerów i kopiowanie adresu pokazują wybrane IP gry.
 - Telemetria nowych instalacji jest domyślnie wyłączona.
-- Automatyczny aktualizator jest wyłączony w preview; informacje o wydaniach pochodzą z tego forka.
-- Dodane testy, CI, instrukcje i jawny wykaz zmian.
+- Aktualizacje są ręczne; informacje o wydaniach pochodzą z tego repozytorium.
 
-[Pełny changelog](../../CHANGELOG-SKOCZI.md) · [Mapa zmian w plikach](CHANGES.md)
+[Changelog](../../CHANGELOG-SKOCZI.md) · [Mapa zmian względem OVH](CHANGES.md)
 
-## Od czego zacząć?
-**Od osobnej testowej maszyny**, nie od działającego hosta z Pterodactylem/Nginx.
-Standardowy instalator instaluje Traefika i zajmuje porty 80/443. Nie jest instalatorem „obok” istniejących usług.
+## IP i porty
 
-1. Przeczytaj [instalację](INSTALLATION.md).
-2. Zainstaluj przypięty tag preview na nowej maszynie.
-3. Skonfiguruj IP w systemie zgodnie z wymaganiami dostawcy.
-4. Dodaj własne IP do środowiska backendu.
-5. Przetestuj jeden nowy serwer i połączenie prawdziwym klientem gry.
+Administrator ustawia reguły w `/opt/gamepanel/deploy/.env`. Przykład używa adresów dokumentacyjnych — zastąp je własnymi:
 
-Przykład w /opt/gamepanel/deploy/.env (adresy wyłącznie dokumentacyjne):
 ```dotenv
-GAMEPANEL_BIND_IPS=192.0.2.10,192.0.2.11
-TELEMETRY_ENABLED=false
+GAMEPANEL_IP_PORTS='{"192.0.2.10":{"tcp":"27015-27030,28015","udp":"27015-27030"},"192.0.2.11":{"udp":"28015-28020"}}'
 ```
 
-Po zmianie trzeba odtworzyć kontener backendu, aby wczytał nowe środowisko. Dokładne kroki: [dodatkowe IP](ADDITIONAL-IPS.md).
+Ta konfiguracja pozwala wystawić TCP `27015–27030` i `28015` oraz UDP `27015–27030` na pierwszym IP. Drugie IP pozwala wyłącznie na UDP `28015–28020`. Hostowy `8080` jest zabroniony. Port wewnątrz kontenera może być inny, np. `8080`.
 
-## Czego ta wersja nie robi?
-Nie tworzy interfejsów, MACVLAN-ów, tras ani reguł firewalla. Nie wybiera IP ruchu wychodzącego. Nie migruje Pterodactyla. Nie dodaje limitów IP per użytkownik, MFA ani kompletnej izolacji najemców. Brak wybranego IP zachowuje domyślne działanie Dockera, zwykle wszystkie interfejsy.
+Po ustawieniu reguł wybór konkretnego IP jest obowiązkowy. Backend odrzuca niedozwolone mapowania również przy bezpośrednich żądaniach API oraz przy tworzeniu, starcie, restarcie i odtwarzaniu kontenera przez panel. Brak protokołu w regule oznacza zakaz jego użycia. Błędna konfiguracja nie przełącza panelu na nieograniczony dostęp.
 
-Backend ma dostęp do socketa Dockera — traktuj go jak usługę administracyjną hosta.
-[Ograniczenia](LIMITATIONS.md) · [Testy i rozwój](DEVELOPMENT.md)
+`GAMEPANEL_IP_PORTS` zastępuje listę `GAMEPANEL_BIND_IPS`. Bez nowej zmiennej zachowane jest stare działanie: lista IP i opcjonalne mapowanie na wszystkie interfejsy. Aby ograniczać porty, trzeba więc **ustawić nową zmienną** i odtworzyć kontener backendu.
 
-## Prywatność i autorstwo
-Repozytorium zawiera kod i przykłady, nie konfigurację konkretnego serwera. Nie publikuj .env, baz danych, kluczy, certyfikatów ani logów z sekretami.
-Wyłączenie telemetrii nie wyłącza pobierania katalogu czy obrazów od zewnętrznych usług.
+Instrukcja wdrożenia, odpowiedź API i przykłady: [IP i zakresy portów](ADDITIONAL-IPS.md).
 
-Zachowujemy autorstwo OVH i licencję Apache 2.0. Zmiany Skoczi są opisane oddzielnie, a historia Git pozwala je porównać z oryginałem.
+## Instalacja
+
+Zacznij od [instrukcji instalacji](INSTALLATION.md) na osobnej maszynie testowej. Standardowy instalator używa Traefika i portów **80/443** — nie integruje się automatycznie z istniejącym reverse proxy.
+
+Adresy IP muszą być już skonfigurowane w systemie. Panel nie tworzy interfejsów, tras ani reguł firewalla. Zmiana zakresów nie zatrzymuje działających kontenerów; bezpośrednie polecenia Dockera i jego automatyczny restart nie przechodzą przez walidację panelu. Reguły są wspólne dla użytkowników, nie przypisane do konkretnych kont.
+
+Backend ma dostęp administracyjny do Dockera. [Ograniczenia](LIMITATIONS.md) · [Testy](DEVELOPMENT.md)
+
+## Autorstwo
+
+Oryginał: [ovh/game-panel](https://github.com/ovh/game-panel). Licencja Apache 2.0 i autorstwo OVH są zachowane. Zmiany Skoczi mają oddzielny changelog. Nie dodawaj do repozytorium konfiguracji produkcyjnej, baz, kluczy ani logów z sekretami.

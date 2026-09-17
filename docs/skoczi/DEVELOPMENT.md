@@ -20,6 +20,8 @@ The tests isolate database/daemon dependencies; ignored install scripts are adeq
 ## What the tests cover
 - Allowlist parsing, unsupported values and unknown addresses.
 - Strict port validation.
+- Per-IP TCP/UDP ranges, malformed policy and wildcard/missing-IP bypass attempts.
+- Policy checks before panel start/restart and before stopping a container for recreation.
 - Distinct-address reuse and conservative wildcard conflicts.
 - Multiple Docker bindings for one container port.
 - Stored JSON compatibility with old records.
@@ -33,7 +35,7 @@ npm ci --ignore-scripts
 npx playwright install chromium
 npm run test:ui
 ```
-These exercise allowed IP selection, retained stale addresses and failed discovery. They are component-level tests, not a full authenticated UI end-to-end run.
+These exercise IP selection, displayed port ranges, forbidden ports, retained stale addresses and failed discovery. They are component-level tests, not a full authenticated UI end-to-end run.
 
 ## Real Docker integration
 **Disposable Linux host only.** It pulls Node.js Alpine and creates a uniquely named container, publishes TCP and UDP 28080 on 127.0.0.2 and 127.0.0.3, inspects both bindings and tests HTTP plus UDP echo on both IPs. It removes only its own test container in a finally block. This is a transport check, not a game-protocol test.
@@ -53,7 +55,7 @@ Without the environment opt-in it skips. GitHub Actions runs this test on its is
 5. Test TCP/UDP with real clients as the game requires.
 6. Edit an IP, confirm expected restart/recreation and verify Docker HostIp.
 7. Refresh/restart the panel and verify settings remain.
-8. Test a legacy no-IP server; verify expected behavior.
+8. Enable per-IP ranges: verify host port 8080, missing IP and a forbidden protocol are rejected. With policy unset, verify legacy no-IP behavior.
 9. Remove a selected IP from the allowlist; confirm it is not silently widened.
 10. Verify the independent login/navigation identity on desktop and mobile.
 

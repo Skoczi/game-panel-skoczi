@@ -155,7 +155,7 @@ function PortSection({ label, rows, setRows }: { label: string; rows: PortRow[];
       )}
       {rows.map((row, i) => (
         <div key={i} className="flex flex-wrap gap-2 mb-3 items-center">
-          <div className="w-full"><HostIpSelect value={row.hostIp} onChange={(value) => update(i, 'hostIp', value)} /></div>
+          <div className="w-full"><HostIpSelect value={row.hostIp} protocol={label.startsWith('UDP') ? 'udp' : 'tcp'} hostPort={row.host} onChange={(value) => update(i, 'hostIp', value)} /></div>
           <input type="number" placeholder="Host" value={row.host} onChange={(e) => update(i, 'host', e.target.value)}
             className="w-20 rounded-lg bg-gray-50 dark:bg-[#0f1723]/60 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white text-xs px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--gp-ods-accent-primary)] dark:focus:ring-white/20" />
           <span className="text-gray-400 text-xs">→</span>

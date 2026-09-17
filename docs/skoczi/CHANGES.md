@@ -6,11 +6,11 @@ Git ancestry is retained so changes can be reviewed.
 ## Additional IPs, end to end
 
 ```text
-Administrator: GAMEPANEL_BIND_IPS
+Administrator: GAMEPANEL_IP_PORTS (IPv4 → TCP/UDP ranges)
        ↓
 Authenticated API → Host IPv4 selector
        ↓
-Port JSON: { hostIp, host, container, label }
+Port JSON: { hostIp, host, container, label } → allowed range check
        ↓
 Protocol / address / port overlap check → Docker HostIp
        ↓
@@ -20,9 +20,11 @@ Connection display and copy actions use the allocation IP
 | Files | Modification |
 |---|---|
 | backend/src/utils/bindAddresses.ts | Allowlist and conservative overlap checks |
+| backend/src/utils/portPolicy.ts | Range parsing and backend policy checks |
 | backend/src/utils/ports.ts | Optional IP, strict ports, address-aware duplicates |
 | backend/src/utils/docker/portBindings.ts | Pure binding builder; preserve multiple mappings |
 | backend/src/utils/docker/containers.ts | Pass HostIp; inspect other containers' HostIp |
+| backend/src/services/serverReconfiguration.ts | Validate policy before stopping a running container |
 | backend/src/services/hostPortAvailability.ts | Compare stored and Docker allocations by address/protocol/port |
 | backend/src/routes/system.ts | Authenticated address discovery |
 | frontend/components/HostIpSelect.tsx | Shared selector; saved IPs never silently cleared |
@@ -35,11 +37,11 @@ Fresh-install telemetry is opt-in. Release metadata points to the fork; automati
 
 ## Intentionally unchanged
 Runtime architecture, authentication model, Docker socket access, permissions, catalogue/providers and general backup implementation are upstream-derived.
-This is **not a comprehensive security rewrite** or a replacement for Pterodactyl quotas/tenant isolation.
+No per-user IP ownership, quotas or authentication changes.
 
 ## Review the diff
 ```bash
-git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.1 -- backend frontend deploy
+git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.2 -- backend frontend deploy
 ```
 
 See [limitations](LIMITATIONS.md) and the [release history](../../CHANGELOG-SKOCZI.md).

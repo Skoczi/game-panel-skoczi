@@ -3,6 +3,7 @@ import { getOvhcloudServerAdapter } from '../providers/ovhcloud/adapters/registr
 import type { NormalizedHealthcheck } from '../utils/healthcheck.js';
 import type { NormalizedMount } from '../utils/mounts.js';
 import type { NormalizedPorts } from '../utils/ports.js';
+import { assertPortPolicy } from '../utils/portPolicy.js';
 import type { NormalizedResourceLimits } from '../utils/resourceLimits.js';
 import { ensureServerMountDirs, removeServerMountDir } from '../utils/storage.js';
 import * as dockerUtils from '../utils/docker.js';
@@ -162,6 +163,7 @@ export async function reconfigureServerContainer(
     const currentResourceLimits = parseStoredResourceLimits(server);
 
     const nextPorts = input.ports ?? currentPorts;
+    assertPortPolicy(nextPorts); // Validate before stopping the existing container.
     const nextMounts = input.mounts ?? currentMounts;
     const nextEnv = validateEnvForServer(server, input.env ?? currentEnv);
     const nextHealthcheck = input.hasHealthcheckPatch ? input.healthcheck ?? null : currentHealthcheck;

@@ -63,7 +63,7 @@ export function Login({ onLogin }: LoginProps) {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
           {/* Modified by Skoczi: distinguish this independent fork from upstream. */}
-          <h1 className="text-2xl font-semibold text-white text-center">OVH Game Panel <span className="block text-base font-normal">by Skoczi · Community fork</span></h1>
+          <h1 className="text-2xl font-semibold text-white text-center">OVH Game Panel <span className="block text-base font-normal">by Skoczi</span></h1>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.65)' }}>
             Sign in to manage your game servers
           </p>

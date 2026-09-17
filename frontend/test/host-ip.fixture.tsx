@@ -5,9 +5,11 @@ import { HostIpSelect } from '../components/HostIpSelect';
 
 function Fixture() {
   const [value, setValue] = useState('');
+  const [port, setPort] = useState('27015');
   return <main style={{ padding: 24, maxWidth: 480 }}>
     <h1>Host IPv4</h1>
-    <HostIpSelect value={value} onChange={setValue} />
+    <label>Host port<input aria-label="Host port" value={port} onChange={(event) => setPort(event.target.value)} /></label>
+    <HostIpSelect value={value} hostPort={port} protocol="tcp" onChange={setValue} />
     <output data-testid="selected">{value || 'default'}</output>
     <h2>Saved address removed from the allowlist</h2>
     <HostIpSelect value="192.0.2.99" onChange={() => {}} />

@@ -1,5 +1,6 @@
 // Modified by Skoczi: expose the configured IPv4 allowlist to authenticated UI clients.
 import { configuredBindAddresses } from '../utils/bindAddresses.js';
+import { configuredPortPolicy } from '../utils/portPolicy.js';
 import { Router } from 'express';
 import { rootOnly, type AuthenticatedRequest } from '../middleware/auth.js';
 import { checkPanelUpdate, getPanelUpdateStatus, startPanelUpdate } from '../services/panelUpdates.js';
@@ -11,7 +12,8 @@ const router = Router();
 
 router.get('/bind-addresses', (_req, res) => {
   try {
-    res.json({ addresses: configuredBindAddresses() });
+    const portsByIp = configuredPortPolicy();
+    res.json({ addresses: configuredBindAddresses(), requireExplicitIp: portsByIp !== null, portsByIp });
   } catch (error) {
     return sendRouteError(res, error, { route: 'ROUTE:SYSTEM:BIND_ADDRESSES', fallbackMessage: 'Invalid host IP configuration' });
   }

@@ -1,6 +1,6 @@
 <div align="center">
 
-# OVH Game Panel by Skoczi
+# Game Panel · Skoczi Edition
 
 **IPv4 bindings · Per-IP port ranges · Panel branding**
 

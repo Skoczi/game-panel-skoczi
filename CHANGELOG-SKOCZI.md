@@ -2,6 +2,19 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.7 — multi-node administrator preview — 2026-09-17
+
+- Added **Nodes** and a per-tab execution-node selector. Local servers remain on their existing runtime; remote requests never fall back to Local.
+- Added one-time enrollment, encrypted per-node credentials, heartbeat status, disabling/re-enrollment and administration audit records.
+- Added an agent mode sharing the existing game runtime. Agents own their SQLite databases, files, schedules, allocations and node-labelled Docker containers/networks.
+- Added authenticated HTTP streaming, single-use download gateway capabilities and a WebSocket bridge for remote runtime subscriptions and terminal traffic.
+- Added durable JSON mutation admission with stable idempotency keys. Interrupted requests become uncertain and are not automatically replayed.
+- Added a scoped agent installer, re-enrollment and image upgrade tooling. It does not change host proxy, firewall, SSH or unrelated containers. Fresh agents start with no allowed published ports.
+- Added protocol, enrollment, journal, transport and browser tests, plus a real-Docker central/agent CI job.
+- Preserved stored branding, users and local server IDs. Node tables are additive; agents refuse databases belonging to another node or unadopted existing servers.
+
+**Scope:** root administrators only for remote nodes. No automatic migration, cross-node user delegation, fleet-wide server table or automatic placement. Provider-specific features retain the upstream support matrix. Read [Nodes](docs/skoczi/NODES.md) before installation; production acceptance tests are a separate step.
+
 ## 1.5.0-skoczi.6 — preview — 2026-09-17
 
 - Renamed the fork to **Game Panel · Skoczi Edition**, with a visible **Based on OVHcloud Game Panel** link below the sidebar revision.

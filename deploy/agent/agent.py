@@ -95,7 +95,7 @@ def ensure_network(node):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['install', 'start', 'status', 'logs', 'stop', 'reenroll', 'upgrade', 'rollback'])
+    parser.add_argument('action', choices=['install', 'start', 'status', 'logs', 'stop', 'reenroll', 'upgrade'])
     parser.add_argument('--root', default='/srv/gamepanel-agent')
     parser.add_argument('--panel', type=origin)
     parser.add_argument('--node')
@@ -162,8 +162,6 @@ def main():
             compose(root, 'up', '-d', '--pull', 'never', '--no-build', 'agent')
             print('Previous Compose retained:', previous)
             print('Game containers were not restarted. Verify heartbeat and console before accepting upgrade.')
-        elif args.action == 'rollback':
-            raise ValueError('Select the exact saved compose.previous-*.json after reviewing release database compatibility; see NODES.md')
         else:
             commands = {'start': ['up', '-d', '--pull', 'never', '--no-build'],
                 'stop': ['stop', 'agent'], 'status': ['ps'], 'logs': ['logs', '--tail', '100', 'agent']}

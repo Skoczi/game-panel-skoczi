@@ -49,3 +49,11 @@ git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.3 -- backend fr
 ```
 
 See [limitations](LIMITATIONS.md) and the [release history](../../CHANGELOG-SKOCZI.md).
+# Multi-node additions in Revision 7
+
+- `backend/src/nodes/`: registry, encrypted credentials, one-time enrollment, request signatures, HTTP/WebSocket routing and download capabilities.
+- `backend/src/agent/`: enrolled runtime identity and durable JSON mutation admission. Reuses existing OVHcloud runtime providers instead of reimplementing game adapters.
+- `backend/src/utils/docker/ownership.ts`: node-specific labels; container/network reconciliation respects ownership.
+- `frontend/components/Nodes.tsx`, `NodeSelector.tsx`: registration, status, enable/revoke actions, node allocations and explicit per-tab selection.
+- `deploy/agent/agent.py`: scoped build, install, re-enrollment and upgrade; no host proxy/firewall/SSH changes.
+- `docs/skoczi/NODES.md`: installation, trust boundaries, failure behavior and preview limitations.

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { KeyRound, Moon, MoreVertical, Power, Sun, X, Settings } from 'lucide-react';
+import { KeyRound, Moon, MoreVertical, Power, Sun, X, Settings, Server } from 'lucide-react';
 import { useBranding } from '../contexts/BrandingContext';
 import { PanelBrand } from './PanelBrand';
 import { NodeSelector } from './NodeSelector';
@@ -262,7 +262,7 @@ export function Sidebar({
               }`}
             >
               <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
-                {item.id === 'settings' ? <Settings size={20} /> : <Icon name={item.iconName} className="text-lg leading-none" />}
+                {item.id === 'settings' ? <Settings size={20} /> : item.id === 'nodes' ? <Server size={20} /> : <Icon name={item.iconName} className="text-lg leading-none" />}
               </span>
               <span className="text-sm font-medium leading-none">{item.label}</span>
             </AppButton>

@@ -13,6 +13,7 @@ import { nodeTls, proxyRuntime } from './transport.js';
 
 let store: NodeStore;
 const verifier = new RequestVerifier();
+const enrollmentAttempts = new Map<string, { until: number; count: number }>();
 const downloads = new Map<string, { nodeId: string; path: string; actor: string; expires: number; credential: string }>();
 export async function initializeNodes() {
     store = new NodeStore(await getDatabase(), getConfig().jwtSecret, process.env.GAMEPANEL_TEST_LOOPBACK_NODES === '1');
@@ -49,6 +50,16 @@ export function mountNodeControl(app: express.Application) {
     router.use(express.json({ limit: '8kb' }));
     // Enrollment errors deliberately reveal no token validity details.
     router.post('/:id/enroll', async (req, res) => {
+        res.setHeader('Cache-Control', 'no-store');
+        const now = Date.now();
+        for (const [address, bucket] of enrollmentAttempts) if (bucket.until <= now) enrollmentAttempts.delete(address);
+        // Use the peer address rather than trusting caller-supplied forwarding headers.
+        const peer = req.socket.remoteAddress || 'unknown';
+        const bucket = enrollmentAttempts.get(peer) || { until: now + 60000, count: 0 };
+        if (bucket.count >= 30 || (!enrollmentAttempts.has(peer) && enrollmentAttempts.size >= 10000)) {
+            res.setHeader('Retry-After', '60'); res.status(429).json({ error: 'Enrollment rate limit' }); return;
+        }
+        bucket.count++; enrollmentAttempts.set(peer, bucket);
         try {
             if (!NODE_ID.test(req.params.id)) throw new Error();
             const result = await store.enroll(req.params.id, req.body?.token);

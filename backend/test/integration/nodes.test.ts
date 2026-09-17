@@ -60,7 +60,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         assert.ok(!JSON.stringify(await ok(panel+'/api/servers')).includes('CI remote nginx'));
         gameContainer=docker('ps','-q','--filter',`label=gamepanel.node=${nodeId}`,'--filter',`label=gamepanel.serverId=${id}`).trim();assert.ok(gameContainer);
         await waitFor(async()=>(await fetch('http://127.0.0.1:32280')).ok,'published game port');
-        await ok(runtime+`/api/servers/${id}/files/touch`,'POST',{path:'/agent-test.txt'});
+        await ok(runtime+`/api/servers/${id}/files/touch`,'POST',{path:'/',name:'agent-test.txt'});
         await ok(runtime+`/api/servers/${id}/file?path=%2Fagent-test.txt`,'PUT',{content:'remote file persists'});
         const content=await ok(runtime+`/api/servers/${id}/file?path=%2Fagent-test.txt`);assert.ok(JSON.stringify(content).includes('remote file persists'));
         const download=await ok(runtime+`/api/servers/${id}/files/download-token`,'POST',{path:'/agent-test.txt'});

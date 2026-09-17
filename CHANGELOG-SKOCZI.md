@@ -4,6 +4,11 @@ This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records 
 
 ## Unreleased
 
+- Added personal drag-and-drop server ordering, including keyboard and touch handles.
+- Added game/type and status filters, game/type groups, name/type/location/status sorting and reset controls.
+- Remembered layout per account in the current browser without changing node placement or other users' views.
+- Added catalogue identifiers to fleet metadata, preserving registry identities and existing access assignments.
+
 ## 1.5.0-skoczi.8 — server workspace and delegated access — 2026-09-17
 
 - Added one Game Servers workspace across locations. Users see assigned servers and location labels, without node switching or host administration.

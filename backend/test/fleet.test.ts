@@ -34,6 +34,27 @@ const scope = {
     permissions: ['server.power'],
 };
 
+test('fleet catalogue metadata upgrades an existing registry without changing identity or access', async () => {
+    const { native, db } = database();
+    const store = new FleetStore(db);
+    await store.initialize();
+    const item = { id: 1, runtimeKey: instance, name: 'Arena', provider: 'ovhcloud', status: 'running' };
+    await store.observe('node-a', [item]);
+    const original = (await store.list())[0];
+    await store.grant(original.id, 2, ['server.power'], 1);
+    await store.initialize();
+    await store.observe('node-a', [{ ...item, catalogId: 'counter-strike-2' }]);
+    const updated = (await store.list())[0];
+    assert.equal(updated.id, original.id);
+    assert.equal(updated.catalog_id, 'counter-strike-2');
+    assert.deepEqual(await store.permissions(original.id, 2), ['server.power']);
+    await assert.rejects(store.observe('node-a', [{ ...item, catalogId: 42 as any }]));
+    assert.equal((await store.get(original.id))!.catalog_id, 'counter-strike-2');
+    await store.observe('node-a', [item]);
+    assert.equal((await store.get(original.id))!.catalog_id, null);
+    native.close();
+});
+
 test('fleet IDs and user grants distinguish identical runtime IDs on different nodes', async () => {
     const { native, db } = database();
     const store = new FleetStore(db);

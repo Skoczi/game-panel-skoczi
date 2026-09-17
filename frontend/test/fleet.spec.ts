@@ -15,12 +15,126 @@ const servers = [
     id: 'cccccccc-cccc-4ccc-cccc-cccccccccccc',
     name: 'Survival World',
     provider: 'linuxgsm',
+    catalogId: 'mcserver',
     status: 'unknown',
     available: false,
     observedAt: Date.now() - 90000,
     node: { name: 'North-02', location: 'Helsinki, FI' },
   },
 ];
+test('view filters, grouping and sort persist per account and can be reset', async ({ page }) => {
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('combobox', { name: 'Group servers' }).selectOption('type');
+  await expect(page.getByRole('heading', { name: 'Custom image', exact: false })).toBeVisible();
+  await page
+    .getByRole('combobox', { name: 'Filter by game type' })
+    .selectOption('linuxgsm:mcserver');
+  await expect(page.getByRole('heading', { name: 'Community Arena', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Survival World', exact: true })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Sort servers' }).selectOption('name');
+  await expect(page.getByRole('button', { name: 'Reorder Survival World' })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toHaveValue(
+    'linuxgsm:mcserver'
+  );
+  await expect(page.getByRole('combobox', { name: 'Group servers' })).toHaveValue('type');
+  await page.evaluate(() => sessionStorage.setItem('test-user', '3'));
+  await page.reload();
+  await expect(page.getByRole('article')).toHaveCount(2);
+  await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toHaveValue('');
+  await page.evaluate(() => sessionStorage.setItem('test-user', '2'));
+  await page.reload();
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(page.getByRole('article')).toHaveCount(2);
+});
+
+test('keyboard and pointer reorder cards and retain custom order after reload', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto('/test/fleet.fixture.html');
+  const headings = page.locator('.gp-fleet-card h3');
+  await expect(headings).toHaveText(['Community Arena', 'Survival World']);
+  const handle = page.getByRole('button', { name: 'Reorder Community Arena' });
+  await handle.focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('.gp-fleet-card.is-dragging')).toHaveCount(1);
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  );
+  await page.keyboard.press('ArrowRight');
+  await expect(
+    page.locator('[role="status"]').filter({ hasText: 'Over server Survival World.' })
+  ).toHaveCount(1);
+  await page.keyboard.press('Space');
+  await expect(headings).toHaveText(['Survival World', 'Community Arena']);
+  await page.reload();
+  await expect(headings).toHaveText(['Survival World', 'Community Arena']);
+  const from = (await page.getByRole('button', { name: 'Reorder Survival World' }).boundingBox())!;
+  const to = (await page.getByRole('button', { name: 'Reorder Community Arena' }).boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 15 });
+  await page.mouse.up();
+  await expect(headings).toHaveText(['Community Arena', 'Survival World']);
+});
+
+test('damaged preferences and unavailable stored filters remain recoverable', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('gamepanel_fleet_layout_v1:2', '{broken'));
+  await page.goto('/test/fleet.fixture.html');
+  await expect(page.getByRole('article')).toHaveCount(2);
+  await page.getByRole('combobox', { name: 'Filter by status' }).selectOption('running');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('blocked', 'QuotaExceededError');
+    };
+  });
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(page.getByRole('alert')).toContainText('Browser storage is unavailable');
+  await expect(page.getByRole('article')).toHaveCount(2);
+});
+
+test('touch handle reorders cards on mobile without a desktop pointer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.goto('/test/fleet.fixture.html');
+  const handles = page.getByRole('button', { name: /^Reorder / });
+  await expect(handles).toHaveCount(2);
+  await handles.first().scrollIntoViewIfNeeded();
+  const from = (await handles.first().boundingBox())!,
+    to = (await handles.nth(1).boundingBox())!;
+  const cdp = await page.context().newCDPSession(page);
+  const x = from.x + from.width / 2,
+    y = from.y + from.height / 2;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 12; i++)
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x, y: y + ((to.y - from.y) * i) / 12 }],
+    });
+  await expect(page.locator('.gp-fleet-card.is-dragging')).toHaveCount(1);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(page.locator('.gp-fleet-card h3')).toHaveText(['Survival World', 'Community Arena']);
+  await cdp.detach();
+});
+
+test('long catalogue identifiers and empty filters fit narrow grouped layouts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.route('**/api/fleet', (r) =>
+    r.fulfill({ json: { servers: [{ ...servers[0], catalogId: 'a'.repeat(256) }] } })
+  );
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('combobox', { name: 'Group servers' }).selectOption('type');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.getByRole('textbox', { name: 'Search servers and locations' }).fill('no such game');
+  await expect(page.getByRole('heading', { name: 'No matching servers' })).toBeVisible();
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(page.getByRole('article')).toHaveCount(1);
+});
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/branding', (r) =>
     r.fulfill({ json: { siteName: 'Arena', showFollowUs: false, showTrustpilot: false } })

@@ -4,6 +4,92 @@
   --fleet-surface: #fff;
   --fleet-muted: #5c6b83;
 }
+.gp-fleet-view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.gp-fleet-view-controls label {
+  display: flex;
+  flex: 1 1 145px;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fleet-muted);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+}
+.gp-fleet-view-controls select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--fleet-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--fleet-surface);
+  color: inherit;
+  font-size: 13px;
+}
+.gp-fleet-layout-hint {
+  color: var(--fleet-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0 24px;
+}
+.gp-fleet-group {
+  margin-top: 24px;
+}
+.gp-fleet-group-title {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 650;
+  margin-bottom: 14px;
+}
+.gp-fleet-group-title span {
+  padding: 2px 8px;
+  border: 1px solid var(--fleet-border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--fleet-muted);
+}
+.gp-fleet-card {
+  position: relative;
+}
+.gp-fleet-card.is-dragging {
+  z-index: 10;
+  box-shadow: 0 12px 32px #0c1a3c45;
+  border-color: #789eff;
+}
+.gp-fleet-drag {
+  position: absolute;
+  top: 17px;
+  right: 12px;
+  touch-action: none;
+  padding: 5px;
+  color: var(--fleet-muted);
+  cursor: grab;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+.gp-fleet-drag:active {
+  cursor: grabbing;
+}
+.gp-fleet-drag:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.gp-fleet-drag:focus-visible {
+  outline: 3px solid #789eff;
+  outline-offset: 2px;
+}
+.gp-fleet-card-top {
+  padding-right: 28px;
+}
 .dark .gp-fleet {
   color: #e8eef8;
   --fleet-border: #2d3b53;
@@ -122,7 +208,7 @@
   display: flex;
   flex-direction: column;
 }
-.gp-fleet-card h2 {
+.gp-fleet-card h3 {
   font-size: 21px;
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -152,6 +238,8 @@
   color: #c08a29;
 }
 .gp-fleet-provider {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 11px;
   color: var(--fleet-muted);
   border: 1px solid var(--fleet-border);

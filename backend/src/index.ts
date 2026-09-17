@@ -27,13 +27,17 @@ import { startDownloadTokenCleanupJob } from './services/downloadTokens.js';
 import { startScheduledTaskRunner } from './services/scheduledTasks.js';
 import { reconcileStalePanelUpdate } from './services/panelUpdates.js';
 import { nowIso } from './utils/time.js';
+import { isAgent } from './agent/identity.js';
+import { agentGate, agentIdempotency, authorizeAgent, initializeAgent, startAgentHeartbeat } from './agent/runtime.js';
+import { createNodeWebSocketRouter, initializeNodes, mountNodeControl } from './nodes/control.js';
 
 const { port, frontendUrl, trustProxy } = getConfig();
 const API_BODY_LIMIT = '2mb';
 
 const app: Application = express();
 const httpServer = createServer(app);
-const wss = new WebSocketServer({ server: httpServer });
+const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
+const closeNodeSockets = createNodeWebSocketRouter(httpServer, wss, isAgent() ? authorizeAgent : undefined);
 
 function toOrigin(value: string): string | null {
   try {
@@ -55,6 +59,7 @@ let linuxGsmRefreshJob: { stop: () => void } | null = null;
 let fileTransferCleanupJob: { stop: () => void } | null = null;
 let downloadTokenCleanupJob: { stop: () => void } | null = null;
 let scheduledTaskRunner: { stop: () => void } | null = null;
+let agentHeartbeat: { stop: () => void } | null = null;
 
 const corsOptions: CorsOptions = {
   origin(origin, callback) {
@@ -76,6 +81,10 @@ app.set('trust proxy', trustProxy);
 
 app.use(helmet());
 
+// Agent gate and remote proxy precede parsers so uploads remain streaming.
+if (isAgent()) app.use(agentGate);
+else mountNodeControl(app);
+
 // CORS + preflight
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
@@ -83,6 +92,7 @@ app.options('*', cors(corsOptions));
 // Body parsers
 app.use(express.json({ limit: API_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: API_BODY_LIMIT }));
+if (isAgent()) app.use((req, res, next) => { void agentIdempotency(req, res, next).catch(next); });
 
 // /api/auth
 app.use('/api/auth', authRoutes);
@@ -133,6 +143,8 @@ async function startServer(): Promise<void> {
     await initializeDatabase();
     await initializeGlobalSettings();
     await ensureRootUserExists();
+    if (isAgent()) { await initializeAgent(); agentHeartbeat = startAgentHeartbeat(); }
+    else await initializeNodes();
     logInfo('APP', 'Database initialized');
 
     // Sync current Docker health -> DB once at boot
@@ -183,6 +195,8 @@ function setupGracefulShutdown(): void {
       fileTransferCleanupJob?.stop();
       downloadTokenCleanupJob?.stop();
       scheduledTaskRunner?.stop();
+      agentHeartbeat?.stop();
+      closeNodeSockets();
 
       // 2) Close WebSocket clients then server
       wss.clients.forEach((ws) => {

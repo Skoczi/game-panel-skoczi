@@ -1,4 +1,5 @@
 import { docker } from './client.js';
+import { ownsContainer, runtimeLabels, runtimeNodeId, NODE_LABEL } from './ownership.js';
 import { getConfig } from '../../config.js';
 import { logError, logInfo, logWarn } from '../logger.js';
 
@@ -17,19 +18,22 @@ export async function ensureGamesNetwork(): Promise<string | null> {
     const { gamesNetwork } = getConfig();
 
     const existing = await findNetworkByName(gamesNetwork);
-    if (existing) return existing.Id;
+    if (existing) {
+        if (runtimeNodeId() && existing.Labels?.[NODE_LABEL] !== runtimeNodeId()) throw new Error('Game network belongs to another runtime');
+        return existing.Id;
+    }
 
     try {
         const created = await docker.createNetwork({
             Name: gamesNetwork,
             Driver: 'bridge',
-            Labels: { 'gamepanel.managed': 'true' },
+            Labels: { 'gamepanel.managed': 'true', ...runtimeLabels() },
         });
         logInfo('DOCKER:NETWORK', `Created network ${gamesNetwork}`);
         return created.id;
     } catch (error) {
         const raced = await findNetworkByName(gamesNetwork);
-        if (raced) return raced.Id;
+        if (raced && (!runtimeNodeId() || raced.Labels?.[NODE_LABEL] === runtimeNodeId())) return raced.Id;
 
         logError('DOCKER:NETWORK:ENSURE', error, { network: gamesNetwork });
         return null;
@@ -43,6 +47,7 @@ async function attachServerContainers(networkName: string, networkId: string): P
     });
 
     for (const container of containers) {
+        if (!ownsContainer(container.Labels)) continue;
         const serverId = Number(container.Labels?.[SERVER_ID_LABEL]);
         if (!Number.isInteger(serverId) || serverId <= 0) continue;
 

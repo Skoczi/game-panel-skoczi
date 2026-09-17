@@ -1,8 +1,10 @@
 # Game Panel · Skoczi Edition
 
-Fork [OVHcloud Game Panel](https://github.com/ovh/game-panel) 1.5.0. Aktualne wydanie: **1.5.0-skoczi.6 (preview)**, w stopce **v1.5.0 · Revision 6**. Nie jest to oficjalne wydanie OVHcloud. Skoczi jest autorem zmian forka, nie projektu bazowego.
+Fork [OVHcloud Game Panel](https://github.com/ovh/game-panel) 1.5.0. Aktualne wydanie: **1.5.0-skoczi.7 (preview)**, w stopce **v1.5.0 · Revision 7**. Nie jest to oficjalne wydanie OVHcloud. Skoczi jest autorem zmian forka, nie projektu bazowego.
 
 ## Co zmieniłem?
+
+- **Nodes**: rejestracja zdalnych agentów, osobne środowiska wykonawcze, pliki i alokacje IP/portów. Wersja dla administratorów root; bez automatycznej migracji. [Instalacja i ograniczenia](NODES.md).
 
 - Wybór IPv4 hosta przy każdym mapowaniu TCP/UDP.
 - Osobne zakresy dozwolonych portów TCP i UDP dla każdego IP.

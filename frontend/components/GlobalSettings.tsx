@@ -3,13 +3,14 @@ import { Network, Pencil, Plus, Save, Settings2, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/api';
 import type { Allocation, Assignment, GlobalSettings as Settings } from '../types/globalSettings';
 import { PanelBrand } from './PanelBrand';
+import { nodesRequest } from '../utils/nodesApi';
 
 const blank: Allocation = { ip: '', alias: '', tcp: '', udp: '' };
 const field = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-[#0f1723] dark:text-white';
 const card = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-[#111827]';
 const button = 'rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-100 disabled:opacity-50 dark:border-gray-600 dark:hover:bg-gray-800';
 
-export function GlobalSettings() {
+export function GlobalSettings({ nodeId, nodeName }: { nodeId?: string; nodeName?: string } = {}) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [dirty, setDirty] = useState(false);
@@ -22,7 +23,9 @@ export function GlobalSettings() {
   async function load() {
     setBusy(true); setError('');
     try {
-      const { assignments: used, ...value } = await apiClient.getGlobalSettings();
+      const { assignments: used, ...value } = nodeId
+        ? await nodesRequest<Settings & { assignments: Assignment[] }>(`/api/nodes/${nodeId}/runtime/api/system/settings`)
+        : await apiClient.getGlobalSettings();
       setSettings(value); setAssignments(used); setDirty(false); setDraft(blank); setEditing(null);
     } catch { setError('Cannot load settings. Root administrator access is required.'); }
     finally { setBusy(false); }
@@ -49,9 +52,9 @@ export function GlobalSettings() {
     if (!settings) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      const saved = await apiClient.saveGlobalSettings(settings);
+      const saved = nodeId ? await nodesRequest<Settings>(`/api/nodes/${nodeId}/runtime/api/system/settings`, settings, 'PUT') : await apiClient.saveGlobalSettings(settings);
       setSettings(saved); setDirty(false); setNotice('Settings saved. Changes are active.');
-      window.dispatchEvent(new Event('panel-settings-changed'));
+      if (!nodeId) window.dispatchEvent(new Event('panel-settings-changed'));
     } catch (reason) {
       const message = (reason as { response?: { data?: { error?: string } } }).response?.data?.error;
       setError(message || 'Cannot save settings. Your changes remain in the form.');
@@ -71,7 +74,7 @@ export function GlobalSettings() {
 
   return <div className="space-y-6 text-gray-900 dark:text-gray-100">
     <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-2xl font-semibold">Settings</h1><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Host allocations and panel appearance</p></div>
+      <div><h1 className="text-2xl font-semibold">{nodeId ? `${nodeName || 'Node'} · Allocations` : 'Settings'}</h1><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{nodeId ? 'IP and port policy for this node only' : 'Local host allocations and central panel appearance'}</p></div>
       <div className="flex items-center gap-2">
         {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">Unsaved changes</span>}
         <button className={button} disabled={busy} onClick={() => { if (!dirty || window.confirm('Discard unsaved changes and reload?')) { setNotice(''); void load(); } }}>Reload</button>
@@ -82,7 +85,7 @@ export function GlobalSettings() {
     {notice && <div role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950 dark:text-green-200">{notice}</div>}
     {!settings && !error && <p>Loading settings…</p>}
     {settings && <fieldset disabled={busy} className="min-w-0 space-y-6">
-      <section className={card}>
+      {!nodeId && <><section className={card}>
         <h2 className="flex items-center gap-2 text-lg font-semibold"><Settings2 size={20} />Appearance</h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Visibility for all users. Disabling announcements also stops their browser requests. Legal notices remain available.</p>
         <div className="mt-4 flex flex-wrap gap-6">
@@ -118,6 +121,7 @@ export function GlobalSettings() {
           </div>
         </div>
       </section>
+      </>}
       <section className="space-y-4">
         <div><h2 className="flex items-center gap-2 text-lg font-semibold"><Network size={20} />IP allocations</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">IPs must already exist on the host. Adding one here does not create an interface or firewall rule.</p></div>
         <div className={card}>

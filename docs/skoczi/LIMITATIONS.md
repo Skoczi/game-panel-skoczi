@@ -1,6 +1,14 @@
 # Limitations and operational boundaries
 
-The fork currently changes IPv4/port allocation and release defaults.
+The fork adds IPv4/port allocation, branding and an administrator multi-node preview.
+
+## Remote nodes
+- Root administrators only; no remote per-user delegation, automatic placement or migration.
+- Node-local databases and IDs; no single fleet-wide server table. Node selection clears browser runtime state.
+- The panel still has its Local runtime and Docker dependency. Agents reuse the upstream runtime and provider support matrix.
+- HTTPS origins, enrollment and explicit IP allocations are required. The agent installer does not configure host networking, TLS or firewalls.
+- Durable JSON admission does not mean exactly-once external effects. Interrupted operations can be uncertain. Terminal input and binary transfers are not covered by that journal.
+- See [Nodes](NODES.md) for deployment, revocation, retention and outage behavior.
 
 ## Networking
 - IPv4 selectors only; no IP provisioning, interface management or provider automation.

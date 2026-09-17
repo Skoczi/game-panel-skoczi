@@ -5,15 +5,17 @@ import * as stream from 'node:stream';
 import { loadWithMocks } from './loadWithMocks.js';
 import { buildPortMaps } from '../src/utils/docker/portBindings.js';
 import * as portPolicy from '../src/utils/portPolicy.js';
+import * as ownership from '../src/utils/docker/ownership.js';
 
 test('Docker inspection retains HostIp and respects edited-container exclusions', async () => {
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        './ownership.js': ownership,
         './portBindings.js': { buildPortMaps },
         '../portPolicy.js': portPolicy,
         './client.js': { docker: {
             listContainers: async () => [{ Id: 'other' }, { Id: 'edited' }],
             getContainer: (id: string) => ({ inspect: async () => ({
-                Name: id, Config: { Labels: { 'gamepanel.serverId': id === 'edited' ? '7' : '8' } },
+                Name: id, Config: { Labels: { 'gamepanel.managed': 'true', 'gamepanel.serverId': id === 'edited' ? '7' : '8' } },
                 HostConfig: { PortBindings: { '27015/udp': [
                     { HostIp: '192.0.2.10', HostPort: '27015' },
                     { HostIp: '192.0.2.11', HostPort: '27015' },
@@ -35,6 +37,7 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
     let starts = 0, restarts = 0;
     let binding: any = { NetworkMode: 'bridge', PortBindings: { '8080/tcp': [{ HostIp: '192.0.2.10', HostPort: '8080' }] } };
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        './ownership.js': ownership,
         './portBindings.js': { buildPortMaps },
         '../portPolicy.js': { ...portPolicy, configuredPortPolicy: () => portPolicy.configuredPortPolicy('{"192.0.2.10":{"tcp":"27015"}}') },
         './client.js': { docker: { getContainer: () => ({

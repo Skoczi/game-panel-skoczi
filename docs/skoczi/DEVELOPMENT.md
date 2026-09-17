@@ -49,6 +49,14 @@ GAMEPANEL_DOCKER_TEST=1 npm run test:docker
 Without the environment opt-in it skips. GitHub Actions runs this test on its isolated runner. If port 28080 is occupied, use a clean runner; do not stop production containers.
 
 ## Manual acceptance before deployment
+
+### Multi-node CI
+
+On a disposable Linux runner, build `docker build -f backend/Dockerfile -t gamepanel-agent:ci .`, then run `GAMEPANEL_NODE_DOCKER_TEST=1 npx tsx --test test/integration/nodes.test.ts` from `backend`. This opt-in test uses two empty databases and a real nginx test container, never production data. It reserves loopback ports 32181, 32182 and 32280. CI is the default environment for this test.
+
+Unit tests also cover node credential encryption, audience/method/path binding, replay rejection, enrollment races, operation-journal recovery and streamed HTTP responses. Browser fixtures cover enrollment token handling, selected-node routing and disabled/mobile states. They do not replace acceptance of each actual game provider on the destination host.
+
+### Operator acceptance
 1. Install on a fresh VM using your own test credentials.
 2. Add two assigned host IPs to the allowlist and confirm both selectors.
 3. Create two disposable servers with the same host port, different IPs.

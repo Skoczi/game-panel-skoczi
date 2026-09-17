@@ -56,3 +56,5 @@ Thumbs.db
 /deploy/compose.yaml
 test-results/
 playwright-report/
+__pycache__/
+*.pyc

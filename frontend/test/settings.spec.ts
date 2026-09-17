@@ -12,6 +12,7 @@ test('display revisions remain separate from technical package versions', () => 
 
 const initial = () => ({ revision: 1, appearance: { ...DEFAULT_APPEARANCE }, network: { restrictPorts: true, allocations: [{ ip: '192.0.2.10', alias: 'Game node', tcp: '27015-27030', udp: '27015-27030' }] }, assignments: [{ serverId: 1, serverName: 'Test game', ip: '192.0.2.10', port: 27015, protocol: 'udp' }] });
 async function mock(page: Page, conflict = false) {
+  await page.route('**/api/nodes', route => route.fulfill({ json: { nodes: [] } }));
   let state = initial();
   await page.route('**/api/system/update/check', (route) => route.fulfill({ json: { updateAvailable: false } }));
   await page.route('**/api/system/appearance', (route) => route.fulfill({ json: state.appearance }));
@@ -93,11 +94,11 @@ test('root edits allocations, saves appearance and sees changes in the sidebar',
   const footerName = page.locator('aside').getByText('Game Panel · Skoczi Edition', { exact: true });
   const revision = page.getByTestId('panel-revision');
   await expect(footerName).toBeVisible();
-  await expect(revision).toHaveText('v1.5.0 · Revision 6');
+  await expect(revision).toHaveText('v1.5.0 · Revision 7');
   const upstream = page.getByRole('link', { name: 'Based on OVHcloud Game Panel' });
   await expect(upstream).toHaveAttribute('href', 'https://github.com/ovh/game-panel');
   await expect(upstream).toHaveAttribute('rel', 'noopener noreferrer');
-  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.6/);
+  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.7/);
   await expect(page.getByRole('link', { name: 'Bug or feature?' })).toHaveAttribute('href', 'https://github.com/Skoczi/game-panel-skoczi/issues');
   const nameBox = await footerName.boundingBox(); const revisionBox = await revision.boundingBox();
   expect(revisionBox!.y).toBeGreaterThanOrEqual(nameBox!.y + nameBox!.height);
@@ -119,7 +120,7 @@ test('conflicting save preserves edits and offers reload', async ({ page }) => {
 test('non-root menu has no global Settings entry', async ({ page }) => {
   await mock(page); await page.goto('/test/settings.fixture.html?nonroot');
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
-  await expect(page.getByTestId('panel-revision')).toHaveText('v1.5.0 · Revision 6');
+  await expect(page.getByTestId('panel-revision')).toHaveText('v1.5.0 · Revision 7');
   await expect(page.getByRole('link', { name: 'Based on OVHcloud Game Panel' })).toBeVisible();
 });
 

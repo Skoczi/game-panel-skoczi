@@ -40,12 +40,21 @@ Connection display and copy actions use the allocation IP
 Fresh-install telemetry is opt-in. Release metadata points to the fork; automatic updates and upstream updater image pulls are disabled in the preview. UI branding distinguishes the fork. Apache attribution and original changelog remain. Tests and documentation accompany the change.
 
 ## Intentionally unchanged
-Runtime architecture, authentication model, Docker socket access, permissions, catalogue/providers and general backup implementation are upstream-derived.
-No per-user IP ownership, quotas or authentication changes.
+Game-specific runtime adapters, local user authentication, Docker socket access, catalogue/providers and general backup implementation remain upstream-derived. Revision 7 adds the agent boundary described below; local user permissions are not rewritten.
+No per-user IP ownership or quotas.
 
 ## Review the diff
 ```bash
-git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.3 -- backend frontend deploy
+git diff d0cbfcf19210ef44428c00656a6bbb599fd23861..v1.5.0-skoczi.7 -- backend frontend deploy
 ```
 
 See [limitations](LIMITATIONS.md) and the [release history](../../CHANGELOG-SKOCZI.md).
+
+## Multi-node additions in Revision 7
+
+- `backend/src/nodes/`: registry, encrypted credentials, one-time enrollment, request signatures, HTTP/WebSocket routing and download capabilities.
+- `backend/src/agent/`: enrolled runtime identity and durable JSON mutation admission. Reuses existing OVHcloud runtime providers instead of reimplementing game adapters.
+- `backend/src/utils/docker/ownership.ts`: node-specific labels; container/network reconciliation respects ownership.
+- `frontend/components/Nodes.tsx`, `NodeSelector.tsx`: registration, status, enable/revoke actions, node allocations and explicit per-tab selection.
+- `deploy/agent/agent.py`: scoped build, install, re-enrollment and upgrade; no host proxy/firewall/SSH changes.
+- `docs/skoczi/NODES.md`: installation, trust boundaries, failure behavior and preview limitations.

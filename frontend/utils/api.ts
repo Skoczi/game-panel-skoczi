@@ -1,5 +1,6 @@
 // Modified by Skoczi: host IP allowlist API and per-port IPv4 payloads.
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { runtimeUrl } from './nodeContext';
 import type { GlobalSettings, Appearance, Assignment } from '../types/globalSettings';
 import type {
   ReleaseConfigFileDefinition,
@@ -95,6 +96,14 @@ class ApiClient {
       },
     });
 
+    this.client.interceptors.request.use((request) => {
+      request.url = runtimeUrl(request.url || '');
+      if (['post', 'put', 'patch', 'delete'].includes(request.method || '') && !request.headers.has('Idempotency-Key')) {
+        request.headers.set('Idempotency-Key', crypto.randomUUID());
+      }
+      return request;
+    });
+
     this.token = getStoredToken();
     if (this.token) {
       this.setAuthToken(this.token);
@@ -107,7 +116,7 @@ class ApiClient {
         const requestUrl = String(error.config?.url || '').toLowerCase();
         const isAuthLoginRequest = requestUrl.includes('/api/auth/login');
 
-        if (status === 401 && !isAuthLoginRequest) {
+        if (status === 401 && !isAuthLoginRequest && !requestUrl.includes('/runtime/')) {
           this.clearAuth();
           if (this.unauthorizedHandler) {
             this.unauthorizedHandler();

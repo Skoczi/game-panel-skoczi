@@ -17,7 +17,7 @@ Review the script first. On the **fresh test host**:
 ```bash
 sudo apt update
 sudo apt install git
-git clone --branch v1.5.0-skoczi.6 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v1.5.0-skoczi.7 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh --telemetry-disabled
 ```

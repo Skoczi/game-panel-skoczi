@@ -1,4 +1,5 @@
 import { docker } from '../utils/docker/client.js';
+import { ownsContainer } from '../utils/docker/ownership.js';
 import { serverRepository } from '../database/index.js';
 import type { ServerStatus } from '../types/gameServer.js';
 import { inspectContainerRuntime } from '../utils/docker.js';
@@ -107,6 +108,7 @@ export async function reconcileDockerHealthToDb(): Promise<void> {
     for (const c of containers) {
         const containerId = c.Id;
         const labels = c.Labels ?? {};
+        if (!ownsContainer(labels)) continue;
         if (labels['gamepanel.oneshot'] === 'true') continue;
 
         const serverIdStr = labels['gamepanel.serverId'];
@@ -152,6 +154,7 @@ export function startDockerHealthEventListener(): { stop: () => void } {
 
                     const action = evt.Action; // e.g. "health_status: healthy"
                     const attrs = evt.Actor?.Attributes ?? {};
+                    if (!ownsContainer(attrs)) continue;
                     if (attrs['gamepanel.oneshot'] === 'true') continue;
 
                     const serverIdStr = attrs['gamepanel.serverId'];

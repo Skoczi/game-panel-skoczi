@@ -13,7 +13,7 @@ export function NodeSelector() {
     refresh(); const timer = setInterval(refresh, 20000);
     return () => { active = false; clearInterval(timer); };
   }, []);
-  return <div className="border-b border-white/15 px-3 py-3 text-white">
+  return <div className="gp-node-selector border-b border-white/15 px-3 py-3 text-white">
     <label className="block text-[10px] font-semibold uppercase tracking-widest text-blue-200" htmlFor="active-node">Execution node</label>
     <select id="active-node" value={ACTIVE_NODE} className="mt-2 w-full rounded-lg border border-white/20 bg-[#071b70] p-2 text-xs text-white"
       onChange={event => { if (window.confirm('Switch execution node? Open consoles and unsaved forms will close.')) selectNode(event.target.value); }}>

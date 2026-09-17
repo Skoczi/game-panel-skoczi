@@ -35,7 +35,7 @@ export function Nodes() {
       <p className="text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400">Infrastructure</p>
       <h1 className="mt-1 text-3xl font-semibold">Nodes</h1><p className="mt-2 text-sm text-slate-500">One control panel. Separate runtimes, files and IP allocations.</p>
     </div><div className="flex gap-2"><button className={button} onClick={() => void refresh()} disabled={busy}><RefreshCw size={16} />Refresh</button>
-      <button className={`${button} bg-blue-700 text-white hover:bg-blue-800`} onClick={() => setShowCreate(!showCreate)}><Plus size={16} />Add node</button></div></header>
+      <button className={`${button} gp-node-primary bg-blue-700 text-white hover:bg-blue-800`} onClick={() => setShowCreate(!showCreate)}><Plus size={16} />Add node</button></div></header>
     {error && <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
     <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100"><Shield className="shrink-0" size={20} /><p>Node administration grants control over the host Docker runtime. Remote access is restricted to panel root administrators in this preview. Existing local servers stay where they are.</p></div>
     {showCreate && <form className={`${card} grid gap-4 md:grid-cols-3`} onSubmit={event => { event.preventDefault(); void action(async () => {

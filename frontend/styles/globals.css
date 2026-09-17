@@ -2,6 +2,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Node controls use a dark accent surface in both themes. */
+.gp-node-selector, .gp-node-primary { --gp-text-white: #fff; }
+.gp-node-selector select { color: #fff !important; -webkit-text-fill-color: #fff; }
+
 /* Markdown rendering (release notes, etc.) — theme-agnostic: colours are inherited
    or use neutral rgba, so it reads well on both light and dark backgrounds. */
 .gp-markdown { font-size: 0.8125rem; line-height: 1.5; word-break: break-word; }

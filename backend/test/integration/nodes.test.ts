@@ -47,7 +47,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         const runtime=panel+`/api/nodes/${nodeId}/runtime`;
         const settings=await ok(runtime+'/api/system/settings');
         assert.equal(settings.network.restrictPorts,true);
-        await ok(runtime+'/api/system/settings','PUT',{...settings,network:{restrictPorts:true,allocations:[{ip:'127.0.0.1',alias:'CI',tcp:'32280',udp:''}]}});
+        await ok(runtime+'/api/system/settings','PUT',{revision:settings.revision,appearance:settings.appearance,network:{restrictPorts:true,allocations:[{ip:'127.0.0.1',alias:'CI',tcp:'32280',udp:''}]}});
         const spec={name:'CI remote nginx',provider:'external',dockerImage:'nginx:alpine',runtimeIdentity:{user:'root',uid:0,gid:0},mounts:[],ports:{tcp:[{host:32280,container:80,hostIp:'127.0.0.1'}],udp:[]}};
         const forbidden=await request(runtime+'/api/servers/install','POST',{...spec,ports:{tcp:[{host:8080,container:80,hostIp:'127.0.0.1'}],udp:[]}});
         assert.equal(forbidden.status,400);

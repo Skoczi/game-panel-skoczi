@@ -14,7 +14,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
 },async()=>{
     assert.equal(process.platform,'linux','Run only in the disposable Linux CI job');
     const root=mkdtempSync(path.join(tmpdir(),'gamepanel-node-ci-'));
-    const suffix=randomUUID().slice(0,8), panelName=`gp-ci-panel-${suffix}`, agentName=`gp-ci-agent-${suffix}`;
+    const suffix=randomUUID().slice(0,8), panelName=`gp-ci-panel-${suffix}`, agentName=`gp-ci-agent-${suffix}`, sentinelName=`gp-ci-foreign-${suffix}`;
     const image=process.env.GAMEPANEL_NODE_TEST_IMAGE || 'gamepanel-agent:ci';
     const password=randomBytes(24).toString('base64url'), master=randomBytes(48).toString('base64url');
     const panel='http://127.0.0.1:32181',agent='http://127.0.0.1:32182';
@@ -39,7 +39,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         const identity=await ok(panel+`/api/nodes/${nodeId}/enroll`,'POST',{token:created.enrollmentToken});
         assert.equal((await request(panel+`/api/nodes/${nodeId}/enroll`,'POST',{token:created.enrollmentToken})).status,401);
         writeFileSync(root+'/agent-identity/agent.json',JSON.stringify({...identity,panel}),{mode:0o600});
-        docker('run','-d','--name',agentName,...common,'-e','PORT=32182','-e',`GAMEPANEL_APP_ROOT=${root}/agent-app`,'-e','GAMEPANEL_AGENT_CONFIG=/identity/agent.json','-e','GAMEPANEL_IP_PORTS={}','-v',`${root}/agent-data:/data`,'-v',`${root}/agent-identity:/identity:ro`,'-v',`${root}/agent-app/servers:${root}/agent-app/servers`,image);
+        docker('run','-d','--name',agentName,...common,'--read-only','--cap-drop=ALL','--cap-add=CHOWN','--cap-add=FOWNER','--cap-add=DAC_OVERRIDE','--security-opt=no-new-privileges:true','--tmpfs','/tmp:rw,nosuid,nodev,size=256m','-e','PORT=32182','-e',`GAMEPANEL_APP_ROOT=${root}/agent-app`,'-e','GAMEPANEL_AGENT_CONFIG=/identity/agent.json','-e','GAMEPANEL_IP_PORTS={}','-v',`${root}/agent-data:/data`,'-v',`${root}/agent-identity:/identity:ro`,'-v',`${root}/agent-app/servers:${root}/agent-app/servers`,image);
         await waitFor(async()=>(await fetch(agent+'/api/health')).ok,'agent startup');
         assert.equal((await request(agent+'/api/servers')).status,401);
         assert.equal((await request(agent+'/api/auth/login','POST',{username:'ciadmin',password})).status,404);
@@ -48,7 +48,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         const settings=await ok(runtime+'/api/system/settings');
         assert.equal(settings.network.restrictPorts,true);
         await ok(runtime+'/api/system/settings','PUT',{revision:settings.revision,appearance:settings.appearance,network:{restrictPorts:true,allocations:[{ip:'127.0.0.1',alias:'CI',tcp:'32280',udp:''}]}});
-        const spec={name:'CI remote nginx',provider:'external',dockerImage:'nginx:alpine',runtimeIdentity:{user:'root',uid:0,gid:0},mounts:[],ports:{tcp:[{host:32280,container:80,hostIp:'127.0.0.1'}],udp:[]}};
+        const spec={name:'CI remote nginx',provider:'external',dockerImage:'nginx:alpine',runtimeIdentity:{user:'root',uid:0,gid:0},mounts:[{key:'data',containerPath:'/test-data'}],ports:{tcp:[{host:32280,container:80,hostIp:'127.0.0.1'}],udp:[]}};
         const forbidden=await request(runtime+'/api/servers/install','POST',{...spec,ports:{tcp:[{host:8080,container:80,hostIp:'127.0.0.1'}],udp:[]}});
         assert.equal(forbidden.status,400);
         const operation=randomUUID();const installed=await ok(runtime+'/api/servers/install','POST',spec,operation);
@@ -60,6 +60,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         assert.ok(!JSON.stringify(await ok(panel+'/api/servers')).includes('CI remote nginx'));
         gameContainer=docker('ps','-q','--filter',`label=gamepanel.node=${nodeId}`,'--filter',`label=gamepanel.serverId=${id}`).trim();assert.ok(gameContainer);
         await waitFor(async()=>(await fetch('http://127.0.0.1:32280')).ok,'published game port');
+        docker('run','-d','--name',sentinelName,'--label','gamepanel.managed=true','--label',`gamepanel.serverId=${id}`,'nginx:alpine');
         await ok(runtime+`/api/servers/${id}/files/touch`,'POST',{path:'/',name:'agent-test.txt'});
         await ok(runtime+`/api/servers/${id}/file?path=%2Fagent-test.txt`,'PUT',{content:'remote file persists'});
         const content=await ok(runtime+`/api/servers/${id}/file?path=%2Fagent-test.txt`);assert.ok(JSON.stringify(content).includes('remote file persists'));
@@ -73,9 +74,15 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         await waitFor(async()=>frames.some(f=>f.type==='auth:success'),'remote websocket authentication');
         socket.send(JSON.stringify({type:'subscribe:servers'}));
         await waitFor(async()=>frames.some(f=>f.type==='servers:snapshot'&&JSON.stringify(f).includes('CI remote nginx')),'remote websocket snapshot');
+        const terminal=await ok(runtime+`/api/servers/${id}/terminal/container/sessions`,'POST');
+        socket.send(JSON.stringify({type:'terminal:attach',sessionId:terminal.sessionId,serverId:id}));
+        await waitFor(async()=>frames.some(f=>f.type==='terminal:attached'),'remote terminal attach');
+        socket.send(JSON.stringify({type:'terminal:input',sessionId:terminal.sessionId,serverId:id,dataB64:Buffer.from("printf 'node-terminal-%s\\n' verified\n").toString('base64')}));
+        await waitFor(async()=>frames.filter(f=>f.type==='terminal:output').map(f=>Buffer.from(f.dataB64,'base64').toString()).join('').includes('node-terminal-verified'),'remote terminal output');
         await ok(runtime+`/api/servers/${id}/stop`,'POST');await ok(runtime+`/api/servers/${id}/start`,'POST');
         docker('restart',agentName);await waitFor(async()=>(await fetch(agent+'/api/health')).ok,'agent restart');
         assert.equal(JSON.parse(docker('inspect',gameContainer))[0].State.Running,true);
+        assert.equal(JSON.parse(docker('inspect',sentinelName))[0].State.Running,true,'foreign same-ID container must survive reconciliation');
         assert.equal((await ok(runtime+'/api/operations/'+operation)).state,'completed');
         docker('stop',panelName);assert.equal(JSON.parse(docker('inspect',gameContainer))[0].State.Running,true);
         docker('start',panelName);await waitFor(async()=>(await fetch(panel+'/api/health')).ok,'panel restart');
@@ -86,6 +93,8 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         assert.equal((await request(runtime+'/api/servers')).status,503);
         assert.equal(JSON.parse(docker('inspect',gameContainer))[0].State.Running,true);
         await ok(panel+`/api/nodes/${nodeId}`,'PATCH',{enabled:true});
+        await ok(runtime+`/api/servers/${id}`,'DELETE');
+        assert.equal(JSON.parse(docker('inspect',sentinelName))[0].State.Running,true,'foreign same-ID container must survive remote deletion');
         await ok(panel+`/api/nodes/${nodeId}/credentials`,'POST',{});
         assert.equal((await request(runtime+'/api/servers')).status,503);
         console.log('Real node lifecycle, files, replay, WebSocket and outage checks passed');
@@ -94,7 +103,7 @@ test('real central + agent: enroll, isolated install, HTTP/files/WS, replay, res
         throw error;
     }finally{
         socket?.terminate();
-        for(const name of [panelName,agentName])try{docker('rm','-f',name);}catch{}
+        for(const name of [panelName,agentName,sentinelName])try{docker('rm','-f',name);}catch{}
         if(nodeId){for(const id of docker('ps','-aq','--filter',`label=gamepanel.node=${nodeId}`).trim().split('\n').filter(Boolean))try{docker('rm','-f',id);}catch{}
             try{docker('network','rm',`gp-${nodeId}-games`);}catch{}}
         try{docker('network','rm',`gp-ci-local-${suffix}`);}catch{}

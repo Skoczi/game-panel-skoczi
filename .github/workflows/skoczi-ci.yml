@@ -34,7 +34,7 @@ jobs:
         working-directory: frontend
       - name: Validate deployment shell syntax
         run: find deploy -name '*.sh' -exec bash -n {} \;
-      - run: python3 -m py_compile deploy/agent/agent.py
+      - run: python3 -B deploy/agent/test_agent.py
   nodes:
     runs-on: ubuntu-latest
     timeout-minutes: 20

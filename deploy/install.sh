@@ -454,6 +454,7 @@ ADMIN_PASSWORD=$(escape_env_value "$ADMIN_PASSWORD")
 GAMEPANEL_APP_ROOT=$(escape_env_value "$APP_ROOT")
 GAMEPANEL_REPOSITORY_URL=https://github.com/Skoczi/game-panel-skoczi.git
 GAMEPANEL_BIND_IPS=
+GAMEPANEL_IP_PORTS=
 DOCKER_SOCKET=/var/run/docker.sock
 TRUST_PROXY=$(escape_env_value "1")
 APP_INSTANCE_ID=$(escape_env_value "$instance_id")

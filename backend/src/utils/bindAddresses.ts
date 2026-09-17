@@ -1,7 +1,13 @@
 // Skoczi fork: explicit, operator-managed IPv4 allocations. No host network mutations.
 import { isIPv4 } from 'node:net';
+import { configuredPortPolicy } from './portPolicy.js';
 
-export function configuredBindAddresses(raw = process.env.GAMEPANEL_BIND_IPS ?? ''): string[] {
+export function configuredBindAddresses(raw?: string): string[] {
+    if (raw === undefined) {
+        const policy = configuredPortPolicy();
+        if (policy !== null) return Object.keys(policy);
+        raw = process.env.GAMEPANEL_BIND_IPS ?? '';
+    }
     if (!raw.trim()) return [];
     const addresses = raw.split(',').map((address) => address.trim());
     if (addresses.some((address) => !isIPv4(address) || address === '0.0.0.0' || Number(address.split('.')[0]) >= 224)) {
@@ -14,7 +20,7 @@ export function normalizeBindAddress(value: unknown): string | undefined {
     if (value === undefined || value === '') return undefined; // Legacy Docker default, not a concrete allocation.
     if (typeof value !== 'string' || !isIPv4(value.trim())) throw new Error('hostIp must be an allowed IPv4 address');
     const address = value.trim();
-    if (!configuredBindAddresses().includes(address)) throw new Error(`hostIp ${address} is not in GAMEPANEL_BIND_IPS`);
+    if (!configuredBindAddresses().includes(address)) throw new Error(`hostIp ${address} is not configured`);
     return address;
 }
 

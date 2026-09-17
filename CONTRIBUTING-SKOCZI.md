@@ -1,6 +1,6 @@
 # Contributing to the Skoczi fork
 
-Thanks for improving this independent community edition.
+Open an issue for bugs or a pull request with tests for code changes.
 
 1. Open an issue describing the behavior, expected outcome and sanitized reproduction.
 2. Branch from this fork's main branch.

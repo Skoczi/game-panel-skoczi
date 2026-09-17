@@ -2,7 +2,7 @@
 
 ## Before you begin
 
-**Preview: use a fresh test VM.** No supported automatic migration from Pterodactyl or a custom Nginx deployment.
+**Preview: use a fresh test VM.** The standard installer does not integrate with an existing reverse proxy.
 
 The inherited standard installer requires root on systemd-based Debian/Ubuntu, installs Docker/Compose, creates a local `gamepanel` user with Docker group membership (host-admin-equivalent), deploys Traefik on **80/443**, and builds backend/frontend from source. Default installation root: `/opt/gamepanel`.
 
@@ -17,7 +17,7 @@ Review the script first. On the **fresh test host**:
 ```bash
 sudo apt update
 sudo apt install git
-git clone --branch v1.5.0-skoczi.1 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v1.5.0-skoczi.2 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh --telemetry-disabled
 ```
@@ -31,7 +31,7 @@ sudo docker compose -f /opt/gamepanel/deploy/compose.yml logs --tail 50 backend 
 
 Sign in and create one disposable server. Check start/stop, restart, persistence and a real client connection. [Configure additional IPs](ADDITIONAL-IPS.md).
 
-CI covers builds and Docker IP publishing, **not the full root installer, ACME lifecycle or every game**. Passing CI is not production certification.
+CI tests builds and Docker IP publishing. Test certificate renewal and your chosen games on the target environment.
 
 ## Manual upgrades
 
@@ -46,7 +46,7 @@ For a future reviewed release:
 
 The inherited updater creates an update backup, rebuilds and regenerates Compose. **Do not use it blindly for a custom reverse proxy or side-by-side deployment.** Those require a reviewed deployment-specific procedure.
 
-Preserve `GAMEPANEL_BIND_IPS`. Do not repoint `GAMEPANEL_REPOSITORY_URL` to upstream while depending on fork features. Explicit existing telemetry settings are preserved; review them.
+Preserve `GAMEPANEL_BIND_IPS` and `GAMEPANEL_IP_PORTS`. Do not repoint `GAMEPANEL_REPOSITORY_URL` to upstream while depending on fork features. Explicit existing telemetry settings are preserved; review them.
 
 ## Rollback
 

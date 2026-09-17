@@ -2,6 +2,17 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 1.5.0-skoczi.2 — preview — 2026-09-17
+
+- Added `GAMEPANEL_IP_PORTS`: separate allowed TCP/UDP host port ranges per IPv4.
+- Restricted configurations require a concrete IP for every binding; missing protocols deny publishing.
+- Backend validates install/edit mappings, Docker creation, panel start/restart and recreation. Recreation checks run before stopping the old container.
+- IP selectors show allowed ranges and flag invalid host ports. Saved addresses are not silently changed.
+- Added policy parser, bypass, lifecycle, recreation and browser tests. Docker integration now runs with a restricted policy.
+- Shortened descriptions and updated English/Polish setup documentation.
+
+Unset `GAMEPANEL_IP_PORTS` preserves the previous allowlist/default behavior. Existing running containers are not stopped when policy changes; direct Docker operations and Docker-managed restarts are outside panel enforcement. No production deployment or database migration is included.
+
 ## 1.5.0-skoczi.1 — preview — 2026-09-17
 
 Base: OVHcloud Game Panel **1.5.0**, commit `d0cbfcf19210ef44428c00656a6bbb599fd23861`.
@@ -28,6 +39,6 @@ Base: OVHcloud Game Panel **1.5.0**, commit `d0cbfcf19210ef44428c00656a6bbb599fd
 
 ### Compatibility
 No database schema migration. Missing hostIp preserves legacy Docker default behavior.
-IPv4 only; no automatic host networking, IP quotas, outbound source-IP policy or Pterodactyl migration.
+IPv4 only; no automatic host networking, IP quotas or outbound source-IP policy.
 Preflight does not replace Docker/kernel checks or scan every host process.
 Fresh-host installation and game/client acceptance must precede production deployment.

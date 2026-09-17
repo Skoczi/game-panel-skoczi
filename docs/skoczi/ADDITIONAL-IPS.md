@@ -1,85 +1,95 @@
-# Additional IPv4 addresses
+# Host IPs and allowed ports
 
-## Scope
+Each TCP/UDP mapping selects a host IPv4 and host port. The container port is independent. Addresses must already be configured on the Docker host, including persistent interfaces and provider routing. The panel does not provision IPs or firewall rules.
 
-Each TCP/UDP mapping can select a host IPv4 independently of the panel's domain. Docker publishes the port on that address.
+## Configure per-IP ranges
 
-IPs must **already exist on the Docker host**, including persistence, provider routing/virtual MAC requirements and firewall rules. The backend container cannot reliably discover host interfaces, so the operator maintains an allowlist.
+On a standard installation, edit `/opt/gamepanel/deploy/.env`:
 
-This feature does not configure MACVLANs, netplan/networkd, firewalls, provider IP assignments, outbound routing or source IPs.
+```dotenv
+GAMEPANEL_IP_PORTS='{"192.0.2.10":{"tcp":"27015-27030,28015","udp":"27015-27030"},"192.0.2.11":{"udp":"28015-28020"}}'
+```
 
-## Configure
+Replace documentation addresses with assigned host IPs. Each protocol accepts comma-separated ports and inclusive ranges within **1025–65535**.
 
-Examples use reserved documentation addresses. Substitute your assigned host IPs.
+- First IP: TCP 27015–27030 and 28015; UDP 27015–27030.
+- Second IP: UDP 28015–28020; no TCP publishing.
+- Host port 8080 is refused on both. A permitted host port can still map to container port 8080.
 
-1. Verify them on the host with `ip -br address`.
-2. Use `sudoedit /opt/gamepanel/deploy/.env`:
-   ```dotenv
-   GAMEPANEL_BIND_IPS=192.0.2.10,192.0.2.11
-   ```
-3. Apply the backend environment:
-   ```bash
-   sudo docker compose -f /opt/gamepanel/deploy/compose.yml up -d --no-deps --no-build backend
-   ```
-4. Reload the page, then open installation or **Container configuration → Ports → Host IPv4**.
-5. Select IPs for both protocols as required. Save and follow the existing recreation confirmation: changing bindings can interrupt a running game.
+Apply the environment and reload the panel:
 
-Custom deployments must pass the variable into the **backend container**, not merely the host shell. Do not edit generated Compose output.
+```bash
+sudo docker compose -f /opt/gamepanel/deploy/compose.yml up -d --no-deps --no-build backend
+```
 
-## Rules
+The Compose file must contain the new variable (new installs and the fork updater render it). For custom deployments, pass `GAMEPANEL_IP_PORTS` into the **backend container**. Setting it only in the host shell has no effect.
 
-| Existing | Requested | Result |
-|---|---|---|
-| 192.0.2.10:27015 UDP | 192.0.2.11:27015 UDP | Allowed |
-| 192.0.2.10:27015 UDP | 192.0.2.10:27015 UDP | Conflict |
-| 192.0.2.10:27015 UDP | 192.0.2.10:27015 TCP | Allowed |
-| Wildcard:27015 UDP | 192.0.2.11:27015 UDP | Conflict |
-| 192.0.2.10:27015 UDP | Wildcard:27015 UDP | Conflict |
+Open installation or **Container configuration → Ports → Host IPv4**. Select an IP for each mapping. The UI shows allowed ports for that protocol; the backend rejects invalid requests even if the UI is bypassed.
 
-Saved allocations (including stopped servers) and inspected Docker bindings are checked, excluding the edited server. Host-network containers and arbitrary host processes are not fully scanned. Docker/kernel remain authoritative, including concurrent request races.
+## Policy rules
 
-**Docker default** omits HostIp, preserving legacy behavior: usually all interfaces, subject to Docker/network defaults. Preflight conservatively treats missing IP, `0.0.0.0`, `::` and IPv4-mapped IPv6 as overlaps. IPv6 selection is not supported.
+| Configuration | Result |
+|---|---|
+| `GAMEPANEL_IP_PORTS` is unset or blank | Legacy behavior: optional IP from `GAMEPANEL_BIND_IPS`; no per-IP range restrictions |
+| Valid JSON policy | Its keys replace `GAMEPANEL_BIND_IPS`; explicit IP required on every published port |
+| Missing protocol or empty string | That protocol is denied on the IP |
+| `{}` | No port publishing allowed |
+| Invalid JSON, address or range | Validation fails; no unrestricted fallback |
 
-The allowlist is global, not per-user allocation/quota enforcement. Users with install/edit permissions can select any allowed IP or the legacy default. This is not untrusted-tenant network isolation.
+Wildcards, IPv6, CIDRs, hostnames, reversed ranges, noninteger ports and unknown protocol keys are rejected. IP/port rules are shared across panel users; there are no per-user allocations.
+
+Checks apply to install/edit mappings, Docker container creation, recreation, and panel start/restart. Recreation validates before stopping the old container. **Changing policy does not stop existing running containers.** Correct old bindings before their next panel start/restart or recreation. Direct Docker commands and Docker-managed automatic restarts do not pass through panel validation. Use host firewall rules if network-level enforcement is required.
+
+Without the new policy, legacy **Docker default** remains available and usually binds all interfaces. Use `GAMEPANEL_IP_PORTS` to prohibit that option. No database migration is required; addresses are stored in existing port JSON.
+
+## Conflicts
+
+The same port can be used on two distinct IPs, and TCP and UDP are independent. A duplicate IP/protocol/port or overlapping wildcard is refused. Saved allocations, including stopped servers, and inspected Docker bindings are checked; the edited server is excluded.
+
+Host-network containers and arbitrary host processes are not fully scanned. Docker/kernel checks still handle actual bind conflicts and concurrent requests.
 
 ## API
 
-Existing authenticated create/edit APIs accept this ports fragment:
+The authenticated create/edit APIs accept:
 
 ```json
 {
   "ports": {
-    "tcp": [{ "hostIp": "192.0.2.10", "host": 27015, "container": 27015, "label": "Game TCP" }],
+    "tcp": [{ "hostIp": "192.0.2.10", "host": 27015, "container": 8080, "label": "Game TCP" }],
     "udp": [{ "hostIp": "192.0.2.10", "host": 27015, "container": 27015, "label": "Game UDP" }]
   }
 }
 ```
 
-Omit hostIp or use an empty string for legacy behavior. Arbitrary IPs, wildcard strings, CIDRs, hostnames and IPv6 are rejected. Host ports still must exceed 1024.
+`GET /api/system/bind-addresses` requires authentication and returns parsed rules:
 
-Authenticated `GET /api/system/bind-addresses` returns:
 ```json
-{ "addresses": ["192.0.2.10", "192.0.2.11"] }
+{
+  "addresses": ["192.0.2.10"],
+  "requireExplicitIp": true,
+  "portsByIp": {
+    "192.0.2.10": {
+      "tcp": [{ "from": 27015, "to": 27030 }],
+      "udp": []
+    }
+  }
+}
 ```
 
-No schema migration is needed. Removing an allowlisted address does not revoke existing bindings; the UI retains the saved address, and attempts to resave it fail until corrected.
+In legacy mode, `requireExplicitIp` is `false` and `portsByIp` is `null`.
 
-## Verify
+## Verify and troubleshoot
 
-For the exact game container:
+Inspect the exact container, then test with a real client from another machine:
 
 ```bash
 sudo docker inspect CONTAINER_NAME --format '{{json .HostConfig.PortBindings}}'
 ```
 
-Check HostIp for TCP and UDP. Test from another machine with the actual game client. Inspection alone does not verify routing, firewall or game readiness.
-
-## Troubleshooting
-
-- **No options:** check the backend environment, recreate backend, reload UI.
-- **Not configured:** restore the saved IP to the allowlist or explicitly choose a valid IP.
-- **Unexpected conflict:** a wildcard or stopped server may reserve the allocation.
-- **Cannot assign requested address:** an allowlist entry does not provision the IP on the host.
-- **Game unreachable:** check provider routing, persistent addresses and firewall. Games normally listen on container interfaces/0.0.0.0, not host public IPs.
-- **CDN:** ordinary HTTP proxying does not carry arbitrary game TCP/UDP. Explicit allocations show direct game IPs; legacy bindings retain hostname fallback.
-- **Conservative suggested port:** upstream automatic suggestions remain global. After choosing a different IP, manually enter the desired port; the backend check is address-aware.
+- **No addresses:** check the backend environment, recreate the backend and reload the page.
+- **Not configured:** restore the saved IP to the policy or select a permitted one. The UI never silently replaces it.
+- **Port outside range:** check the host port and protocol, not the container port. Automatic port suggestions are not policy-aware; enter a permitted port manually.
+- **Conflict:** a stopped server or wildcard binding may reserve the allocation.
+- **Cannot assign address:** adding an IP to the policy does not configure it on the host.
+- **Unreachable game:** check provider routing, persistent addresses and firewall. Games normally listen on container interfaces, not the host's public IP.
+- **CDN:** an ordinary HTTP proxy does not carry arbitrary game TCP/UDP traffic.

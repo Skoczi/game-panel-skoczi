@@ -219,7 +219,7 @@ export function Sidebar({
                 setLogoClickCount(next);
               }
             }}
-          >OVH Game Panel<span className="block text-xs font-normal">by Skoczi · Community fork</span></button>
+          >OVH Game Panel<span className="block text-xs font-normal">by Skoczi</span></button>
         </div>
       </div>
 
@@ -393,7 +393,7 @@ export function Sidebar({
           <AppModalBody className="max-h-[85vh] overflow-y-auto p-0">
             <div className="px-6 py-6">
               <p className="mb-6 rounded border border-gray-600 p-3 text-sm">
-                Independent community fork maintained by Skoczi, not an official OVHcloud service.
+                Maintained by Skoczi. Not an official OVHcloud release.
                 The notices below are inherited from the original project. Operators must provide
                 their own deployment terms and privacy information. Fork modifications are documented
                 at github.com/Skoczi/game-panel-skoczi.

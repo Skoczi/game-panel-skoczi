@@ -911,7 +911,11 @@ class ApiClient {
     this.realtime.subscribeServers();
   }
 
-  async getBindAddresses(): Promise<{ addresses: string[] }> {
+  async getBindAddresses(): Promise<{
+    addresses: string[];
+    requireExplicitIp?: boolean;
+    portsByIp?: Record<string, { tcp: Array<{ from: number; to: number }>; udp: Array<{ from: number; to: number }> }> | null;
+  }> {
     const response = await this.client.get('/api/system/bind-addresses');
     return response.data;
   }

@@ -1,5 +1,6 @@
 // Modified by Skoczi: preserve explicit HostIp and multiple bindings per container port.
 import { buildPortMaps } from './portBindings.js';
+import { assertPortPolicy, configuredPortPolicy } from '../portPolicy.js';
 import { docker } from './client.js';
 import { buildServerNetworkAlias } from './networks.js';
 import { getConfig } from '../../config.js';
@@ -321,7 +322,24 @@ export async function runOneShotContainer(
     }
 }
 
+async function assertContainerPortPolicy(containerId: string): Promise<void> {
+    const policy = configuredPortPolicy();
+    if (policy === null) return;
+    const info = await docker.getContainer(containerId).inspect();
+    if (info.HostConfig.NetworkMode === 'host' || info.HostConfig.PublishAllPorts) {
+        throw new Error('Host networking and automatic port publishing are not allowed with GAMEPANEL_IP_PORTS');
+    }
+    const published = (info.HostConfig.PortBindings ?? {}) as Record<string, Array<{ HostPort: string; HostIp?: string }> | null>;
+    for (const [key, bindings] of Object.entries(published)) {
+        const protocol = key.split('/')[1];
+        if (protocol !== 'tcp' && protocol !== 'udp') throw new Error(`Unsupported port protocol: ${protocol}`);
+        const ports = { tcp: [], udp: [], [protocol]: (bindings ?? []).map((binding) => ({ host: Number(binding.HostPort), hostIp: binding.HostIp })) };
+        assertPortPolicy(ports, policy);
+    }
+}
+
 export async function startContainer(containerId: string): Promise<void> {
+    await assertContainerPortPolicy(containerId);
     await docker.getContainer(containerId).start();
 }
 
@@ -330,6 +348,7 @@ export async function stopContainer(containerId: string, timeoutSeconds = 30): P
 }
 
 export async function restartContainer(containerId: string, timeoutSeconds = 30): Promise<void> {
+    await assertContainerPortPolicy(containerId);
     await docker.getContainer(containerId).restart({ t: timeoutSeconds });
 }
 

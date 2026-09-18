@@ -17,6 +17,7 @@ import { getLinuxGsmGames, type LinuxGsmGame } from '../utils/linuxGsmCatalog';
 import { OVHCLOUD_IMAGES } from '../utils/ovhcloudCatalog';
 import { selectNode } from '../utils/nodeContext';
 import { NativeLifecycleEditor } from './NativeLifecycleEditor';
+import { TemplatePortBindings, bindingSignature, type PublicBinding } from './TemplatePortBindings';
 
 const card =
   'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-[#111827]';
@@ -294,33 +295,40 @@ export function GameTemplates() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Template sections">
-            {['general', 'runtime', 'lifecycle', 'network', 'variables', 'storage', 'versions', 'json'].map(
-              (t) => (
-                <button
-                  key={t}
-                  role="tab"
-                  aria-selected={tab === t}
-                  className={tab === t ? primary : button}
-                  onClick={() => {
-                    if (tab === 'json' && t !== 'json') {
-                      void run(async () => {
-                        const result = await nodesRequest<{ document: GameTemplate }>(
-                          '/api/game-templates/validate',
-                          { document: JSON.parse(json) }
-                        );
-                        setDraft(result.document);
-                        setJson(JSON.stringify(result.document, null, 2));
-                        setTab(t);
-                      });
-                      return;
-                    } else if (t === 'json') setJson(JSON.stringify(draft, null, 2));
-                    setTab(t);
-                  }}
-                >
-                  {t[0].toUpperCase() + t.slice(1)}
-                </button>
-              )
-            )}
+            {[
+              'general',
+              'runtime',
+              'lifecycle',
+              'network',
+              'variables',
+              'storage',
+              'versions',
+              'json',
+            ].map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                className={tab === t ? primary : button}
+                onClick={() => {
+                  if (tab === 'json' && t !== 'json') {
+                    void run(async () => {
+                      const result = await nodesRequest<{ document: GameTemplate }>(
+                        '/api/game-templates/validate',
+                        { document: JSON.parse(json) }
+                      );
+                      setDraft(result.document);
+                      setJson(JSON.stringify(result.document, null, 2));
+                      setTab(t);
+                    });
+                    return;
+                  } else if (t === 'json') setJson(JSON.stringify(draft, null, 2));
+                  setTab(t);
+                }}
+              >
+                {t[0].toUpperCase() + t.slice(1)}
+              </button>
+            ))}
           </div>
           <div className={`${card} space-y-5`}>
             <p className="text-xs text-slate-500">
@@ -358,7 +366,10 @@ export function GameTemplates() {
                 <Choice
                   label="Provider"
                   value={draft.runtime.provider}
-                  options={(draft.schemaVersion === 2 ? ['external'] : ['linuxgsm', 'ovhcloud', 'external']).map((value) => ({
+                  options={(draft.schemaVersion === 2
+                    ? ['external']
+                    : ['linuxgsm', 'ovhcloud', 'external']
+                  ).map((value) => ({
                     value,
                     label: draft.schemaVersion === 2 ? 'Native Runtime (local image)' : value,
                   }))}
@@ -550,7 +561,9 @@ export function GameTemplates() {
                   ))}
                 </div>
                 <p className="text-sm text-slate-500">
-                  {draft.schemaVersion === 2 ? 'Installation and startup use the commands in Lifecycle. The node must have the reviewed image loaded locally; its exact image ID is pinned at installation.' : 'Installation, start and stop use the selected provider/image. Use the Lifecycle tab to create a native recipe instead.'}
+                  {draft.schemaVersion === 2
+                    ? 'Installation and startup use the commands in Lifecycle. The node must have the reviewed image loaded locally; its exact image ID is pinned at installation.'
+                    : 'Installation, start and stop use the selected provider/image. Use the Lifecycle tab to create a native recipe instead.'}
                 </p>
               </>
             )}
@@ -857,8 +870,8 @@ export function GameTemplates() {
             {tab === 'json' && (
               <>
                 <p className="text-sm text-slate-500">
-                  Game Templates schema v1/v2. Imported documents are validated and saved as drafts. Do
-                  not put infrastructure addresses or credentials in descriptions/default values.
+                  Game Templates schema v1/v2. Imported documents are validated and saved as drafts.
+                  Do not put infrastructure addresses or credentials in descriptions/default values.
                 </p>
                 <textarea
                   aria-label="Template JSON"
@@ -965,9 +978,11 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
   const [allocations, setAllocations] = useState<
     Array<{ ip: string; alias: string; tcp: string; udp: string }>
   >([]);
-  const [bindings, setBindings] = useState(
-    row.document.ports.map((p) => ({ key: p.key, hostIp: '', host: p.suggested }))
+  const [bindings, setBindings] = useState<PublicBinding[]>(
+    row.document.ports.map((p) => ({ key: p.key, hostIp: '', host: 'auto' }))
   );
+  const [portRefresh, setPortRefresh] = useState(0);
+  const [portValidation, setPortValidation] = useState({ signature: '', valid: false });
   const [variables, setVariables] = useState<Record<string, string>>({});
   const [name, setName] = useState(row.document.name);
   const [memory, setMemory] = useState('1024');
@@ -987,7 +1002,7 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
     setLoading(true);
     setError('');
     setAllocations([]);
-    setBindings(row.document.ports.map((p) => ({ key: p.key, hostIp: '', host: p.suggested })));
+    setBindings(row.document.ports.map((p) => ({ key: p.key, hostIp: '', host: 'auto' })));
     nodesRequest<{ network: { allocations: typeof allocations } }>(
       `/api/nodes/${nodeId}/allocations`
     )
@@ -1010,37 +1025,57 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
     let dispatched = false;
     try {
       const base = nodeId === 'local' ? '' : `/api/nodes/${nodeId}/runtime`;
-      const health = await nodesRequest<{ templatesProtocol?: number; nativeRuntimeProtocol?: number }>(`${base}/api/health`);
+      const health = await nodesRequest<{
+        templatesProtocol?: number;
+        nativeRuntimeProtocol?: number;
+      }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
           'Update this node agent before using Game Templates. No installation was sent.'
         );
       if (row.document.schemaVersion === 2 && health.nativeRuntimeProtocol !== 1)
-        throw new Error('This node does not support Native Runtime. Update its agent first. No installation was sent.');
+        throw new Error(
+          'This node does not support Native Runtime. Update its agent first. No installation was sent.'
+        );
       const { ticket } = await nodesRequest<{ ticket: string }>(
         `/api/game-templates/${row.id}/${row.version}/prepare`,
         { nodeId }
       );
       dispatched = true;
-      const response = await nodesRequest<{ server: { id: number } }>(
-        `${base}/api/servers/install`,
-        {
-          templateTicket: ticket,
-          name,
-          bindings,
-          variables,
-          resourceLimits: {
-            ...(memory ? { memoryMb: Number(memory) } : {}),
-            ...(cpu ? { cpu: Number(cpu) } : {}),
-          },
-        }
-      );
+      const response = await nodesRequest<{
+        server: {
+          id: number;
+          ports?: {
+            tcp: Array<{ hostIp?: string; host: number }>;
+            udp: Array<{ hostIp?: string; host: number }>;
+          };
+        };
+      }>(`${base}/api/servers/install`, {
+        templateTicket: ticket,
+        name,
+        bindings,
+        variables,
+        resourceLimits: {
+          ...(memory ? { memoryMb: Number(memory) } : {}),
+          ...(cpu ? { cpu: Number(cpu) } : {}),
+        },
+      });
       setVariables({});
+      const assigned = response.server.ports
+        ? [
+            ...new Set(
+              [...response.server.ports.tcp, ...response.server.ports.udp].map(
+                (p) => `${p.hostIp}:${p.host}`
+              )
+            ),
+          ].join(', ')
+        : '';
       setResult(
-        `Server #${response.server.id} created. Installation is running on ${nodeId === 'local' ? 'Local' : nodes.find((n) => n.id === nodeId)?.name}. Check its logs for completion.`
+        `Server #${response.server.id} created.${assigned ? ` Connection: ${assigned}.` : ''} Installation is running on ${nodeId === 'local' ? 'Local' : nodes.find((n) => n.id === nodeId)?.name}. Check its logs for completion.`
       );
     } catch (e) {
       const status = (e as { status?: number }).status;
+      if (status === 409) setPortRefresh((v) => v + 1);
       if (dispatched && (!status || status >= 500)) setUncertain(true);
       setError(e instanceof Error ? e.message : 'Installation failed');
     } finally {
@@ -1101,37 +1136,16 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
           {loading ? (
             <p>Loading node allocations…</p>
           ) : (
-            row.document.ports.map((p, i) => (
-              <div
-                key={p.key}
-                className="grid gap-4 rounded-xl border border-slate-300 p-4 dark:border-slate-700 md:grid-cols-2"
-              >
-                <Choice
-                  label={`${p.label} · ${p.protocol.toUpperCase()} · Host IP`}
-                  value={bindings[i].hostIp}
-                  options={[
-                    { value: '', label: 'Select an allocated address', disabled: true },
-                    ...allocations
-                      .filter((a) => !!a[p.protocol])
-                      .map((a) => ({
-                        value: a.ip,
-                        label: `${a.alias || a.ip} · ${a.ip} · ${a[p.protocol]}`,
-                      })),
-                  ]}
-                  onChange={(hostIp) =>
-                    setBindings(bindings.map((b, n) => (n === i ? { ...b, hostIp } : b)))
-                  }
-                />
-                <Field
-                  label={`Host port → container ${p.container}`}
-                  type="number"
-                  value={bindings[i].host}
-                  onChange={(v) =>
-                    setBindings(bindings.map((b, n) => (n === i ? { ...b, host: Number(v) } : b)))
-                  }
-                />
-              </div>
-            ))
+            <TemplatePortBindings
+              nodeId={nodeId}
+              ports={row.document.ports}
+              allocations={allocations}
+              bindings={bindings}
+              onChange={setBindings}
+              refresh={portRefresh}
+              onRefresh={() => setPortRefresh((v) => v + 1)}
+              onValidation={setPortValidation}
+            />
           )}
           {!loading && row.document.ports.length > 0 && allocations.length === 0 && (
             <p>Add IP allocations in this node’s settings before installing.</p>
@@ -1145,13 +1159,15 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
               onChange={(value) => setVariables({ ...variables, [v.key]: value })}
             />
           ))}
-          <p className="text-sm text-slate-500">
-            The runtime validates address ownership, allowed ranges and port conflicts. The template
-            uses the container port for its startup configuration; the public port may differ.
-          </p>
           <button
             className={primary}
-            disabled={busy || loading || bindings.some((b) => !b.hostIp) || !name.trim()}
+            disabled={
+              busy ||
+              loading ||
+              !portValidation.valid ||
+              portValidation.signature !== bindingSignature(nodeId, bindings, portRefresh) ||
+              !name.trim()
+            }
             onClick={() => void install()}
           >
             {busy ? 'Submitting…' : 'Create server'}

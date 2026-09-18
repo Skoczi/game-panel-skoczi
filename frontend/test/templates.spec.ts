@@ -63,6 +63,9 @@ async function mock(page: import('@playwright/test').Page, status = 'draft') {
       },
     })
   );
+  await page.route('**/api/servers/available-ports?*', (r) =>
+    r.fulfill({ json: { ports: [27015, 27017, 27020] } })
+  );
 }
 test('editor changes create a new draft and block publishing unsaved changes', async ({ page }) => {
   await mock(page);
@@ -83,13 +86,17 @@ test('editor changes create a new draft and block publishing unsaved changes', a
   expect(body.baseVersion).toBe(1);
   expect(body.document.ports).toHaveLength(1);
 });
-test('native lifecycle editor upgrades only the draft and preserves literal startup arguments', async ({ page }) => {
+test('native lifecycle editor upgrades only the draft and preserves literal startup arguments', async ({
+  page,
+}) => {
   await mock(page);
   await page.goto('/test/templates.fixture.html');
   await page.getByRole('button', { name: 'Manage', exact: true }).click();
   await page.getByRole('tab', { name: 'Lifecycle', exact: true }).click();
   await page.getByRole('button', { name: 'Use Native Runtime in this draft' }).click();
-  await page.getByLabel('Startup arguments', { exact: true }).fill('/data/server\n--name\n{{SERVER_NAME}}');
+  await page
+    .getByLabel('Startup arguments', { exact: true })
+    .fill('/data/server\n--name\n{{SERVER_NAME}}');
   await page.getByRole('button', { name: 'Add install step', exact: true }).click();
   await expect(page.getByLabel('Step name', { exact: true })).toHaveValue('New step');
   await page.getByRole('tab', { name: 'Json', exact: true }).click();
@@ -121,13 +128,13 @@ test('remote installation sends a signed ticket and explicit bindings, never a c
   await page.getByRole('button', { name: 'Install server' }).click();
   await page.getByRole('combobox', { name: 'Execution node' }).click();
   await page.getByRole('option', { name: 'Test node · Test location' }).click();
-  await page.getByRole('combobox', { name: /Host IP/ }).click();
+  await page.getByRole('combobox', { name: /Public IP/ }).click();
   await page.getByRole('option', { name: /Game IP/ }).click();
   await page.getByRole('button', { name: 'Create server', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Server #7 created');
   expect(prepared.nodeId).toBe('test-node');
   expect(body.templateTicket).toBe('test-ticket');
-  expect(body.bindings).toEqual([{ key: 'game', host: 27015, hostIp: '192.0.2.10' }]);
+  expect(body.bindings).toEqual([{ key: 'game', host: 'auto', hostIp: '192.0.2.10' }]);
   expect(body.dockerImage).toBeUndefined();
 });
 test('old agents are rejected before submitting an installation', async ({ page }) => {
@@ -140,7 +147,7 @@ test('old agents are rejected before submitting an installation', async ({ page 
   });
   await page.goto('/test/templates.fixture.html');
   await page.getByRole('button', { name: 'Install server' }).click();
-  await page.getByRole('combobox', { name: /Host IP/ }).click();
+  await page.getByRole('combobox', { name: /Public IP/ }).click();
   await page.getByRole('option', { name: /Game IP/ }).click();
   await page.getByRole('button', { name: 'Create server', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Update this node agent');
@@ -171,4 +178,141 @@ test('invalid advanced JSON does not crash the editor or get published', async (
   await expect(page.getByRole('alert')).toContainText('Unsupported template schema');
   await expect(page.getByLabel('Template JSON')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Publish v1', exact: true })).toBeDisabled();
+});
+
+async function openNetwork(page: import('@playwright/test').Page) {
+  await page.goto('/test/templates.fixture.html');
+  await page.getByRole('button', { name: 'Install server' }).click();
+  await page.getByRole('combobox', { name: /Public IP/ }).click();
+  await page.getByRole('option', { name: /Game IP/ }).click();
+}
+
+test('public port dropdown excludes unavailable ports, hides container details and submits manual selection', async ({
+  page,
+}) => {
+  await mock(page, 'published');
+  let body: any;
+  await page.route('**/api/health', (r) => r.fulfill({ json: { templatesProtocol: 1 } }));
+  await page.route('**/prepare', (r) => r.fulfill({ json: { ticket: 'ticket' } }));
+  await page.route('**/api/servers/install', (r) => {
+    body = r.request().postDataJSON();
+    return r.fulfill({
+      status: 201,
+      json: { server: { id: 9, ports: { tcp: [], udp: [{ hostIp: '192.0.2.10', host: 27020 }] } } },
+    });
+  });
+  await openNetwork(page);
+  await expect(page.getByText('192.0.2.10:27015', { exact: true })).toBeVisible();
+  await expect(page.getByText(/container port|Host port → container/i)).toHaveCount(0);
+  await page.getByRole('combobox', { name: /Public port/ }).click();
+  await expect(page.getByRole('option', { name: '27016', exact: true })).toHaveCount(0);
+  await page.getByRole('option', { name: '27020', exact: true }).click();
+  await expect(page.getByText('192.0.2.10:27020', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Create server', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Connection: 192.0.2.10:27020');
+  expect(body.bindings).toEqual([{ key: 'game', hostIp: '192.0.2.10', host: 27020 }]);
+});
+
+test('occupied selection refreshes on 409 and requires a fresh selection, without automatic resubmission', async ({
+  page,
+}) => {
+  await mock(page, 'published');
+  let busy = false,
+    sends = 0;
+  await page.route('**/api/servers/available-ports?*', (r) =>
+    r.fulfill({ json: { ports: busy ? [27020] : [27015, 27020] } })
+  );
+  await page.route('**/api/health', (r) => r.fulfill({ json: { templatesProtocol: 1 } }));
+  await page.route('**/prepare', (r) => r.fulfill({ json: { ticket: 'ticket' } }));
+  await page.route('**/api/servers/install', (r) => {
+    busy = true;
+    sends++;
+    return r.fulfill({ status: 409, json: { error: 'Port already reserved' } });
+  });
+  await openNetwork(page);
+  await page.getByRole('combobox', { name: /Public port/ }).click();
+  await page.getByRole('option', { name: '27015', exact: true }).click();
+  await page.getByRole('button', { name: 'Create server', exact: true }).click();
+  await expect(
+    page.getByText('Selected port is no longer available. Choose another port.')
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeDisabled();
+  expect(sends).toBe(1);
+  await page.getByRole('combobox', { name: /Public port/ }).click();
+  await page.getByRole('option', { name: '27020', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeEnabled();
+});
+
+test('empty pools and failed checks block installation; refresh recovers', async ({ page }) => {
+  await mock(page, 'published');
+  let state = 0;
+  await page.route('**/api/servers/available-ports?*', (r) =>
+    state === 0
+      ? r.fulfill({ json: { ports: [] } })
+      : state === 1
+        ? r.fulfill({ status: 503, json: { error: 'Node unavailable' } })
+        : r.fulfill({ json: { ports: [27020] } })
+  );
+  await openNetwork(page);
+  await expect(page.getByText(/No free ports in this pool/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeDisabled();
+  state = 1;
+  await page.getByRole('button', { name: 'Refresh ports' }).click();
+  await expect(page.getByRole('alert')).toContainText('Node unavailable');
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeDisabled();
+  state = 2;
+  await page.getByRole('button', { name: 'Refresh ports' }).click();
+  await expect(page.getByText('192.0.2.10:27020', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeEnabled();
+});
+
+test('large pools use bounded custom options with search and fit a dark mobile viewport', async ({
+  page,
+}) => {
+  await mock(page, 'published');
+  await page.route('**/api/servers/available-ports?*', (r) =>
+    r.fulfill({ json: { ports: Array.from({ length: 64511 }, (_, i) => i + 1025) } })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openNetwork(page);
+  await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await page.getByRole('combobox', { name: /Public port/ }).click();
+  expect(await page.getByRole('option').count()).toBeLessThanOrEqual(51);
+  await page.keyboard.press('Escape');
+  await page.getByLabel(/Find port/).fill('65535');
+  await page.getByRole('combobox', { name: /Public port/ }).click();
+  await page.getByRole('option', { name: '65535', exact: true }).click();
+  await expect(page.getByText('192.0.2.10:65535', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/public-ports-dark-mobile.png', fullPage: true });
+});
+
+test('late local response cannot overwrite remote node availability', async ({ page }) => {
+  await mock(page, 'published');
+  let finish!: () => void;
+  const gate = new Promise<void>((r) => {
+    finish = r;
+  });
+  let started!: () => void;
+  const pending = new Promise<void>((r) => {
+    started = r;
+  });
+  await page.route('**/api/servers/available-ports?*', async (r) => {
+    if (r.request().url().includes('/test-node/runtime/'))
+      return r.fulfill({ json: { ports: [27020] } });
+    started();
+    await gate;
+    await r.fulfill({ json: { ports: [27015] } });
+  });
+  await openNetwork(page);
+  await pending;
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeDisabled();
+  await page.getByRole('combobox', { name: 'Execution node' }).click();
+  await page.getByRole('option', { name: 'Test node · Test location' }).click();
+  await page.getByRole('combobox', { name: /Public IP/ }).click();
+  await page.getByRole('option', { name: /Game IP/ }).click();
+  await expect(page.getByText('192.0.2.10:27020', { exact: true })).toBeVisible();
+  finish();
+  await expect(page.getByText('192.0.2.10:27015', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeEnabled();
 });

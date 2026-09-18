@@ -267,7 +267,9 @@ test(
             await ok(templatePath + '/status', 'POST', { status: 'published' });
             const authorization = await ok(templatePath + '/prepare', 'POST', { nodeId });
             const spec = { name: legacySpec.name, templateTicket: authorization.ticket,
-                bindings: [{ key: 'http', hostIp: '127.0.0.1', host: 32280 }], variables: {} };
+                bindings: [{ key: 'http', hostIp: '127.0.0.1', host: 'auto' }], variables: {} };
+            const availabilityUrl = runtime + '/api/servers/available-ports?ip=127.0.0.1&protocol=tcp';
+            assert.deepEqual((await ok(availabilityUrl)).ports, [32280]);
             assert.equal((await request(panel + '/api/servers/install', 'POST', spec)).status, 409,
                 'A remote template ticket cannot create a server on Local');
             const forbidden = await request(
@@ -288,6 +290,10 @@ test(
             );
             const id = installed.server.id;
             assert.ok(id);
+            assert.equal(installed.server.ports.tcp[0].host, 32280);
+            assert.equal(installed.server.ports.tcp[0].container, 8080);
+            assert.deepEqual((await ok(availabilityUrl)).ports, [], 'Persistent reservation immediately removes the selected port');
+            assert.equal((await request(runtime + '/api/servers/install', 'POST', { ...spec, name: 'Conflicting automatic install' })).status, 409);
             assert.equal(
                 (
                     await ok(
@@ -346,6 +352,7 @@ test(
             assert.equal((await request(runtime + `/api/servers/${id}/native-update`, 'POST', { confirm: true })).status, 409);
             await ok(runtime + `/api/servers/${id}/stop`, 'POST', {});
             await waitFor(async () => (await ok(runtime + `/api/servers/${id}`)).server.status === 'stopped', 'native stop');
+            assert.deepEqual((await ok(availabilityUrl)).ports, [], 'Stopping a server must not release its allocation');
             await ok(runtime + `/api/servers/${id}/native-update`, 'POST', { confirm: true });
             await waitFor(async () => {
                 const s = (await ok(runtime + `/api/servers/${id}`)).server;

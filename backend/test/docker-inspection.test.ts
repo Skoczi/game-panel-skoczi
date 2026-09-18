@@ -61,3 +61,20 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
     await assert.rejects(module.startContainer('test'), /automatic port/);
     assert.equal(starts + restarts, 2);
 });
+
+test('port inventory ignores deleted containers only; inspection errors fail closed', async () => {
+    let statusCode = 503;
+    const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        './ownership.js': ownership, './hostname.js': hostname, './portBindings.js': { buildPortMaps },
+        '../portPolicy.js': portPolicy,
+        './client.js': { docker: {
+            listContainers: async () => [{ Id: 'unreadable' }],
+            getContainer: () => ({ inspect: async () => { throw Object.assign(new Error('Cannot inspect'), { statusCode }); } }),
+        } },
+        './networks.js': {}, '../../config.js': {}, 'node:crypto': crypto,
+        '../logger.js': {}, '../resourceLimits.js': {}, stream,
+    });
+    await assert.rejects(module.listPublishedHostPorts(), /Cannot inspect/);
+    statusCode = 404;
+    assert.equal((await module.listPublishedHostPorts()).length, 0);
+});

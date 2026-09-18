@@ -14,19 +14,23 @@ import * as validation from '../src/utils/httpValidation.js';
 import * as providerTypes from '../src/providers/types.js';
 import * as permissions from '../src/permissions.js';
 import { setManagedPortPolicy } from '../src/utils/portPolicy.js';
+import * as allocationLock from '../src/services/portAllocationLock.js';
 
 test('actual install route verifies target authorization before persistence and preserves trusted snapshot', async () => {
     setManagedPortPolicy({ '192.0.2.10': { tcp: [], udp: [{ from: 27015, to: 27030 }] } });
     let remote = false; let created: any; let installed: any; let checkedPorts: any;
+    let beforeCreate: (() => Promise<void>) | undefined;
     const key = 'test-runtime-ticket-key';
     const module = loadWithMocks('../src/routes/servers/install.ts', {
+        '../../services/portAllocationLock.js': allocationLock,
+        '../../services/templatePortAllocation.js': { resolveTemplateBindings: async (_template: unknown, bindings: unknown) => bindings },
         '../../templates/nativeContract.js': nativeContract,
         express,
         '../../agent/identity.js': { isAgent: () => remote, agentIdentity: () => ({ key, nodeId: 'node-test' }) },
         '../../config.js': { getConfig: () => ({ jwtSecret: key }) }, '../../templates/tickets.js': tickets,
         '../../middleware/auth.js': { requireGlobalPermission: () => (_req: any, _res: any, next: any) => next() },
         '../../database/index.js': {
-            serverRepository: { findByName: async () => undefined, create: async (data: any) => { created = data; return 17; } },
+            serverRepository: { findByName: async () => undefined, create: async (data: any) => { await beforeCreate?.(); created = data; return 17; } },
             installProgressRepository: { create: async () => {} }, userRepository: { findById: async () => ({ is_root: 1 }) }, serverMemberRepository: {},
         },
         '../../realtime/bus.js': { bus: { emit: () => {} } },
@@ -63,5 +67,17 @@ test('actual install route verifies target authorization before persistence and 
         assert.equal((await request({ ...input, templateTicket: localTicket })).status, 409); assert.equal(created, undefined);
         assert.equal((await request({ ...input, templateTicket: tickets.issueTemplateTicket(s, key, 'node-test') })).status, 201);
         assert.equal(created.providerMetadata.template.version, 1);
+        let reached!: () => void; const entered = new Promise<void>(r => { reached = r; });
+        let finish!: () => void; const gate = new Promise<void>(r => { finish = r; });
+        beforeCreate = async () => { reached(); await gate; };
+        const remoteTicket = tickets.issueTemplateTicket(s, key, 'node-test');
+        const first = request({ ...input, templateTicket: remoteTicket });
+        await entered;
+        try {
+            const second = await request({ ...input, templateTicket: remoteTicket });
+            assert.equal(second.status, 409);
+            assert.match((await second.json()).error, /allocation change/);
+        } finally { finish(); }
+        assert.equal((await first).status, 201);
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); setManagedPortPolicy(null); }
 });

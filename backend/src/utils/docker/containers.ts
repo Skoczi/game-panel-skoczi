@@ -418,8 +418,11 @@ export async function listPublishedHostPorts(params?: {
             let info: any;
             try {
                 info = await docker.getContainer(containerSummary.Id).inspect();
-            } catch {
-                return;
+            } catch (error) {
+                // A container may have been deleted since listing. Other inspection
+                // failures must not turn occupied ports into apparently free ports.
+                if ((error as { statusCode?: number }).statusCode === 404) return;
+                throw error;
             }
 
             const labels = (info?.Config?.Labels ?? {}) as Record<string, string>;

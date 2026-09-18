@@ -7,11 +7,23 @@ Game Templates is the fork's central, root-administrator-only installation catal
 1. Update the panel backend/frontend and the target agent together. The target must advertise `templatesProtocol: 1` on its health endpoint. Older agents are rejected before an installation is submitted.
 2. In **Nodes → Node settings → IP allocations**, configure addresses and allowed port ranges that already exist on that host. Enable port restrictions for enforcement. No host interfaces or firewall rules are created.
 3. Open **Game Templates**. The bundled **Counter-Strike 1.6** definition starts as a draft; review it before publishing.
-4. Publish the saved version. Select **Install server**, choose the node, an allocated IPv4 address and a host port. Adjust memory/CPU limits for the game; the form starts at 1024 MiB and one CPU, not a universal game recommendation.
+4. Publish the saved version. Select **Install server**, choose the node, an allocated public IPv4 address and an available public port, or leave **Assign automatically** selected. The form previews the connection address; automatic assignment is finalized on creation. Adjust memory/CPU limits for the game; the form starts at 1024 MiB and one CPU, not a universal game recommendation.
 5. Open the node's server workspace to follow installation logs. “Server created” means the asynchronous installation was accepted, not that the game is ready.
 6. Verify an actual client connection, query, RCON if configured, stop/start and data persistence before using the server for players.
 
 Nothing in these steps migrates or restarts an existing server. Legacy installation remains available during this transition.
+
+## Available public ports
+
+The custom port selector queries the selected runtime's administrator-only `GET /api/servers/available-ports?ip=…&protocol=tcp|udp` endpoint (through the signed node gateway for remote nodes). Update **both the panel and agents** before use; an unavailable or old agent cannot silently fall back to Local. Results are uncached snapshots, not reservations. Refresh rechecks the node; large pools use search with at most 50 matching options plus the current selection.
+
+Each template binding submits `{key, hostIp, host}` where `host` is an integer or `"auto"`. The runtime resolves automatic assignments to the lowest available public port, protecting explicit selections in the same request first. It checks allocated address ownership and protocol-specific ranges, even when unrestricted legacy installs are enabled. Empty ranges provide no ports. Container ports stay in the template's Network editor; public selection never changes them.
+
+Saved reservations include stopped, creating and failed servers until they are deleted or explicitly reconfigured. Docker inventory also includes stopped and foreign containers, respecting protocol and wildcard bindings. An inspection failure blocks the check instead of treating unknown bindings as free. **Host services outside Docker, firewall rules and actual Internet reachability are not inspected.** Docker can still reject a start if an external process takes the port after the check.
+
+The supported deployment has one runtime process per node/database. A shared runtime allocation lock covers install check/resolution through database reservation, explicit port reconfiguration, and allocation-policy saves. Concurrent allocation writes receive HTTP 409 and must be retried; existing persistent server rows preserve reservations across restarts. Do not run multiple runtime writers against one node database. This lock cannot coordinate unrelated Docker clients or system services.
+
+On HTTP 409 the form refreshes availability without automatically resubmitting. An unavailable manual selection must be changed; automatic previews may move to another free port. The successful response shows the actual assigned address. Lost/uncertain install responses still require checking the server list before retrying.
 
 ## Editor
 
@@ -69,7 +81,7 @@ Not included yet:
 
 - Direct egg import or compatibility with another panel's install/startup scripts.
 - Arbitrary shell install scripts, custom lifecycle hooks or custom healthcheck editing. Existing providers/images still own lifecycle and readiness behavior.
-- Automatic selection of free allocations or automatic placement across nodes.
+- Automatic placement across nodes (automatic public-port selection within the chosen node is supported).
 - Bulk migration/adoption of legacy servers into templates, template upgrade jobs or automatic rollback of game files.
 - Central fleet-wide template usage counts; snapshots live with the runtime's server records.
 - A packaged ReHLDS image or every provider's specialized installer dialog. Games requiring Steam account credentials or advanced provider-specific setup should continue through the existing installer until those inputs have a reviewed template adapter.

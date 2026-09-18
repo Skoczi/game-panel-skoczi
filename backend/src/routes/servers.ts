@@ -17,6 +17,7 @@ import { createServerReadRoutes } from './servers/read.js';
 import { buildServerVisibility, type AuthenticatedRequest } from '../middleware/auth.js';
 import { enterServerMutation } from '../services/nativeOperationLock.js';
 import { createNativeUpdateRoutes } from './servers/nativeUpdate.js';
+import { createAvailablePortRoutes } from './servers/availablePorts.js';
 
 const router = Router();
 // Check membership before reporting mutation conflicts or acquiring locks.
@@ -61,6 +62,7 @@ router.use('/:id/scheduled-tasks', scheduledTasksRoutes);
 router.use('/', createServerMetricsRoutes());
 
 // /api/servers
+router.use('/', createAvailablePortRoutes());
 router.use('/', createServerReadRoutes());
 // POST /api/servers/install
 router.use('/', createServerInstallRoutes());

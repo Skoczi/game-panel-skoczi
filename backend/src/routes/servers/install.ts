@@ -3,6 +3,8 @@ import { agentIdentity, isAgent } from '../../agent/identity.js';
 import { getConfig } from '../../config.js';
 import { materializeTemplate, readTemplateTicket } from '../../templates/tickets.js';
 import { nativeContainerOptions, nativeTemplate } from '../../templates/nativeContract.js';
+import { enterPortAllocationMutation } from '../../services/portAllocationLock.js';
+import { resolveTemplateBindings } from '../../services/templatePortAllocation.js';
 import {
     type AuthenticatedRequest,
     requireGlobalPermission,
@@ -56,12 +58,15 @@ export function createServerInstallRoutes(): Router {
         '/install',
         requireGlobalPermission(PERMISSIONS.server.install),
         async (req: AuthenticatedRequest, res: Response) => {
+            let releaseAllocation: (() => void) | undefined;
             try {
                 let body = requireBodyObject(req.body);
+                releaseAllocation = enterPortAllocationMutation();
                 if (body.templateTicket !== undefined) {
                     if (!req.user?.isRoot) return res.status(403).json({ error: 'Template installation requires root administrator access' });
                     const identity = isAgent() ? agentIdentity() : null;
                     const snapshot = readTemplateTicket(body.templateTicket, identity?.key ?? getConfig().jwtSecret, identity?.nodeId ?? 'local');
+                    body = { ...body, bindings: await resolveTemplateBindings(snapshot.document, body.bindings) };
                     body = materializeTemplate(snapshot, body);
                 } else if (body.templateSnapshot !== undefined || body.templateLinuxgsmConfig !== undefined) {
                     return res.status(400).json({ error: 'A signed template authorization is required' });
@@ -193,6 +198,8 @@ export function createServerInstallRoutes(): Router {
                     initialStatus: 'creating',
                     desiredState: 'running',
                 });
+                // Persistent reservations survive process restarts and stopped/failed installs.
+                releaseAllocation();
 
                 await installProgressRepository.create(serverId);
 
@@ -222,6 +229,8 @@ export function createServerInstallRoutes(): Router {
                     route: 'ROUTE:SERVERS:INSTALL',
                     fallbackMessage: 'Failed to create server',
                 });
+            } finally {
+                releaseAllocation?.();
             }
         }
     );

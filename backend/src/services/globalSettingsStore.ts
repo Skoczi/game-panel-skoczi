@@ -1,4 +1,5 @@
 // Skoczi: persisted, revision-checked panel settings. No host network mutations.
+import { enterPortAllocationMutation } from './portAllocationLock.js';
 import type { Database } from 'sqlite';
 import { assertPortPolicy, configuredPortPolicy, isUnicastIPv4 } from '../utils/portPolicy.js';
 
@@ -131,23 +132,26 @@ export class GlobalSettingsStore {
     }
 
     async save(input: unknown, revision: unknown): Promise<SettingsSnapshot> {
-        if (!Number.isSafeInteger(revision) || revision !== this.snapshot().revision) invalid('Settings changed. Reload before saving.', 409);
-        const next = validateGlobalSettings(input);
-        if (JSON.stringify(next.network) !== JSON.stringify(this.current!.network)) {
-            const policy = allocationPolicy(next.network);
-            const ips = new Set(next.network.allocations.map((entry) => entry.ip));
-            for (const used of await this.assignments()) {
-                try {
-                    if (used.ip && !ips.has(used.ip)) throw new Error('IP removed');
-                    assertPortPolicy({ tcp: [], udp: [], [used.protocol]: [{ hostIp: used.ip, host: used.port }] }, policy);
-                } catch { invalid(`Allocation in use by ${used.serverName}: ${used.ip || 'Docker default'}:${used.port}/${used.protocol}. Change the server binding first.`, 409); }
+        const release = enterPortAllocationMutation();
+        try {
+            if (!Number.isSafeInteger(revision) || revision !== this.snapshot().revision) invalid('Settings changed. Reload before saving.', 409);
+            const next = validateGlobalSettings(input);
+            if (JSON.stringify(next.network) !== JSON.stringify(this.current!.network)) {
+                const policy = allocationPolicy(next.network);
+                const ips = new Set(next.network.allocations.map((entry) => entry.ip));
+                for (const used of await this.assignments()) {
+                    try {
+                        if (used.ip && !ips.has(used.ip)) throw new Error('IP removed');
+                        assertPortPolicy({ tcp: [], udp: [], [used.protocol]: [{ hostIp: used.ip, host: used.port }] }, policy);
+                    } catch { invalid(`Allocation in use by ${used.serverName}: ${used.ip || 'Docker default'}:${used.port}/${used.protocol}. Change the server binding first.`, 409); }
+                }
             }
-        }
-        const updated = await this.db.run('UPDATE panel_settings SET settings_json=?, revision=revision+1 WHERE id=1 AND revision=?', JSON.stringify(next), revision);
-        if (updated.changes !== 1) invalid('Settings changed. Reload before saving.', 409);
-        // No await between updating the snapshot and applying policy.
-        this.current = { ...next, revision: Number(revision) + 1 };
-        this.apply(next);
-        return this.snapshot();
+            const updated = await this.db.run('UPDATE panel_settings SET settings_json=?, revision=revision+1 WHERE id=1 AND revision=?', JSON.stringify(next), revision);
+            if (updated.changes !== 1) invalid('Settings changed. Reload before saving.', 409);
+            // No await between updating the snapshot and applying policy.
+            this.current = { ...next, revision: Number(revision) + 1 };
+            this.apply(next);
+            return this.snapshot();
+        } finally { release(); }
     }
 }

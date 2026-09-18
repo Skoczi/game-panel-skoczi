@@ -251,8 +251,10 @@ test(
             };
             assert.equal((await ok(runtime + '/api/health')).templatesProtocol, 1);
             assert.equal((await ok(runtime + '/api/health')).nativeRuntimeProtocol, 1);
+            assert.equal((await ok(runtime + '/api/health')).templateScriptsProtocol, 1);
             // Operator preloads the reviewed image; Native Runtime never pulls during install.
             docker('pull', 'nginxinc/nginx-unprivileged:stable-alpine');
+            docker('pull', 'debian:bookworm-slim');
             const template = await ok(panel + '/api/game-templates', 'POST', { document: {
                 schemaVersion: 2, name: 'CI HTTP runtime', description: '', author: 'CI', source: '',
                 runtime: { provider: 'external', image: 'nginxinc/nginx-unprivileged:stable-alpine',
@@ -260,8 +262,9 @@ test(
                 ports: [{ key: 'http', label: 'HTTP', protocol: 'tcp', container: 8080, suggested: 32280, env: '', linuxgsmKey: '' }],
                 variables: [], mounts: [{ key: 'data', containerPath: '/test-data' }],
                 lifecycle: { startup: ['/usr/sbin/nginx', '-g', 'daemon off;'], workdir: '/test-data', stopSignal: 'SIGTERM', stopTimeoutSeconds: 10,
-                    install: [{ name: 'Create install marker', argv: ['/bin/sh', '-c', 'printf installed > /test-data/native-marker'], timeoutSeconds: 30 }],
-                    update: [{ name: 'Update marker', argv: ['/bin/sh', '-c', 'printf updated > /test-data/native-marker'], timeoutSeconds: 30 }] },
+                    installerImage: 'debian:bookworm-slim',
+                    install: [{ name: 'Create install marker', script: 'test "$(id -u)" = 101\nprintf installed > /test-data/native-marker', timeoutSeconds: 30 }],
+                    update: [{ name: 'Update marker', script: 'test "$(id -u)" = 101\nprintf updated > /test-data/native-marker', timeoutSeconds: 30 }] },
             } });
             const templatePath = panel + `/api/game-templates/${template.id}/${template.version}`;
             await ok(templatePath + '/status', 'POST', { status: 'published' });

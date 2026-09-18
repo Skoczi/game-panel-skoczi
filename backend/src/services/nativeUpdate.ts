@@ -6,6 +6,7 @@ import { nativeTemplate, nativeEnvironment } from '../templates/nativeContract.j
 import { acquireNativeOperation } from './nativeOperationLock.js';
 import { NativeCleanupError, runNativeSteps } from './nativeRuntime.js';
 import { logError } from '../utils/logger.js';
+import { inspectNativeImage } from './nativeImages.js';
 
 export async function startNativeUpdate(id: number, actor: string) {
     const release = acquireNativeOperation(id, true);
@@ -17,11 +18,13 @@ export async function startNativeUpdate(id: number, actor: string) {
         if (!['stopped', 'failed'].includes(server.status) || server.desired_state !== 'stopped' || !server.docker_container_id) throw Object.assign(new Error('Stop the server before updating'), { statusCode: 409 });
         const container = await docker.getContainer(server.docker_container_id).inspect();
         if (!['exited', 'created'].includes(container.State.Status)) throw Object.assign(new Error('Game container must be stopped'), { statusCode: 409 });
-        // Use the exact image of the stopped game container, not a potentially moved tag.
-        const image = container.Image;
+        const runtime = JSON.parse(server.runtime_config_json || '{}');
+        // New installs retain the installer ID as well. Never resolve a moved installer tag on update.
+        if (template.lifecycle.installerImage && !runtime.nativeInstallerImage) throw Object.assign(new Error('Pinned installer image is missing from this server. Do not update with a different image.'), { statusCode: 409 });
+        const image = runtime.nativeInstallerImage
+            ? await inspectNativeImage(runtime.nativeInstallerImage, 'Pinned installer') : container.Image;
         const env = nativeEnvironment(template, parseStoredEnv(server), parseStoredPorts(server));
         const mounts = await ensureServerMountDirs(id, parseStoredMounts(server), template.runtime.identity);
-        const runtime = JSON.parse(server.runtime_config_json || '{}');
         await serverRepository.update(id, { runtime_config_json: JSON.stringify({ ...runtime, nativeOperation: 'update' }) });
         await actionsRepository.create(id, 'info', 'Native update requested; existing files may be changed. Server will remain stopped.', actor);
         void (async () => {

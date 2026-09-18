@@ -5,6 +5,7 @@ import { serverRepository, actionsRepository, installProgressRepository } from '
 import type { ServerMountPath } from '../utils/storage.js';
 import type { GameTemplate } from '../templates/types.js';
 import { renderNativeArgv } from '../templates/nativeContract.js';
+import { nativeScriptArchive } from './nativeScript.js';
 
 export class NativeCleanupError extends Error {}
 
@@ -17,11 +18,15 @@ export async function runNativeSteps(params: {
     for (const [index, step] of t.lifecycle![phase].entries()) {
         if (!(await serverRepository.findById(serverId))) throw new Error('Native operation cancelled: server no longer exists');
         await actionsRepository.create(serverId, 'info', `Native ${phase}: step ${index + 1} · ${step.name}`, '');
+        const scriptName = `gamepanel-script-${randomUUID()}.sh`;
+        const scripted = step.script !== undefined;
         const container = await docker.createContainer({
             Image: params.image,
             name: `gp-native-${phase}-${randomUUID()}`,
             Entrypoint: [],
-            Cmd: renderNativeArgv(step.argv, params.env),
+            Cmd: scripted
+                ? ['/bin/bash', '--noprofile', '--norc', '-e', '-u', '-o', 'pipefail', `/tmp/${scriptName}`]
+                : renderNativeArgv(step.argv!, params.env),
             Env: Object.entries(params.env).map(([key, value]) => `${key}=${value}`),
             User: `${identity.uid}:${identity.gid}`,
             WorkingDir: t.lifecycle!.workdir,
@@ -40,7 +45,14 @@ export async function runNativeSteps(params: {
                 timer = setTimeout(() => reject(new Error(`Native ${phase} step ${index + 1} timed out after ${step.timeoutSeconds}s`)), step.timeoutSeconds * 1000);
             });
             const result = await Promise.race([
-                (async () => { await container.start(); return container.wait(); })(),
+                (async () => {
+                    if (scripted) {
+                        const archive = await nativeScriptArchive(scriptName, step.script!, identity.uid, identity.gid);
+                        await container.putArchive(archive, { path: '/tmp' });
+                    }
+                    await container.start();
+                    return container.wait();
+                })().catch(() => { throw new Error(`Native ${phase} step ${index + 1} could not execute. Check the installer image, Bash and node Docker service.`); }),
                 expired,
             ]);
             if (Number(result.StatusCode) !== 0) throw new Error(`Native ${phase} step ${index + 1} failed (exit ${Number(result.StatusCode)})`);

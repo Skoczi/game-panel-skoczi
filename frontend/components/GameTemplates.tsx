@@ -1028,6 +1028,7 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
       const health = await nodesRequest<{
         templatesProtocol?: number;
         nativeRuntimeProtocol?: number;
+        templateScriptsProtocol?: number;
       }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
@@ -1037,6 +1038,9 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
         throw new Error(
           'This node does not support Native Runtime. Update its agent first. No installation was sent.'
         );
+      const lifecycle = row.document.lifecycle;
+      if (lifecycle && (lifecycle.installerImage || [...lifecycle.install, ...lifecycle.update].some(step => step.script !== undefined)) && health.templateScriptsProtocol !== 1)
+        throw new Error('This node does not support template scripts and installer images. Update its agent first. No installation was sent.');
       const { ticket } = await nodesRequest<{ ticket: string }>(
         `/api/game-templates/${row.id}/${row.version}/prepare`,
         { nodeId }

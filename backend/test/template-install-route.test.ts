@@ -15,14 +15,20 @@ import * as providerTypes from '../src/providers/types.js';
 import * as permissions from '../src/permissions.js';
 import { setManagedPortPolicy } from '../src/utils/portPolicy.js';
 import * as allocationLock from '../src/services/portAllocationLock.js';
+import { NATIVE_CS16_TEMPLATE } from '../src/templates/nativeCs16.js';
 
 test('actual install route verifies target authorization before persistence and preserves trusted snapshot', async () => {
     setManagedPortPolicy({ '192.0.2.10': { tcp: [], udp: [{ from: 27015, to: 27030 }] } });
     let remote = false; let created: any; let installed: any; let checkedPorts: any;
     let beforeCreate: (() => Promise<void>) | undefined;
+    let missingImage = false;
     const key = 'test-runtime-ticket-key';
     const module = loadWithMocks('../src/routes/servers/install.ts', {
         '../../services/portAllocationLock.js': allocationLock,
+        '../../services/nativeImages.js': { resolveNativeImages: async () => {
+            if (missingImage) throw Object.assign(new Error('Installer image is missing'), { statusCode: 409 });
+            return { nativeRuntimeImage: 'sha256:runtime', nativeInstallerImage: 'sha256:installer' };
+        } },
         '../../services/templatePortAllocation.js': { resolveTemplateBindings: async (_template: unknown, bindings: unknown) => bindings },
         '../../templates/nativeContract.js': nativeContract,
         express,
@@ -79,5 +85,18 @@ test('actual install route verifies target authorization before persistence and 
             assert.match((await second.json()).error, /allocation change/);
         } finally { finish(); }
         assert.equal((await first).status, 201);
+        beforeCreate = undefined; created = undefined;
+        const native = validateTemplate({ ...structuredClone(NATIVE_CS16_TEMPLATE), runtime: { ...NATIVE_CS16_TEMPLATE.runtime, architectures: ['x64', 'arm64'] } });
+        native.lifecycle!.installerImage = 'reviewed:installer';
+        native.lifecycle!.install = [{ name: 'Script', script: 'echo installed', timeoutSeconds: 30 }];
+        const canonical = validateTemplate(native);
+        const nativeTicket = tickets.issueTemplateTicket({ id: 'native', version: 1, document: canonical, hash: templateHash(canonical) }, key, 'node-test');
+        missingImage = true;
+        const missing = await request({ ...input, templateTicket: nativeTicket });
+        assert.equal(missing.status, 409); assert.equal(created, undefined, 'Missing image must not create a server or reserve ports');
+        missingImage = false;
+        assert.equal((await request({ ...input, templateTicket: nativeTicket })).status, 201);
+        assert.equal(created.runtimeConfig.nativeInstallerImage, 'sha256:installer');
+        assert.equal(installed.runtimeConfig.nativeRuntimeImage, 'sha256:runtime');
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); setManagedPortPolicy(null); }
 });

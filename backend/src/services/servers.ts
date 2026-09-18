@@ -121,6 +121,7 @@ export async function installServerAsync(
 
         let image = spec.dockerImage;
         if (native) {
+            image = String(spec.runtimeConfig.nativeRuntimeImage || image);
             if (!(await dockerUtils.imageExists(image))) throw new Error('Native runtime image is missing. Build or load the reviewed runtime image on this node first.');
             image = (await docker.getImage(image).inspect()).Id;
             // Pin the exact local image for every step, future restarts and container recreation.
@@ -134,7 +135,7 @@ export async function installServerAsync(
             uid: spec.runtimeIdentity.uid,
             gid: spec.runtimeIdentity.gid,
         });
-        if (native) await runNativeSteps({ serverId, image, template: native, phase: 'install', env: nativeEnvironment(native, spec.env, spec.ports), mounts: resolvedMounts });
+        if (native) await runNativeSteps({ serverId, image: String(spec.runtimeConfig.nativeInstallerImage || image), template: native, phase: 'install', env: nativeEnvironment(native, spec.env, spec.ports), mounts: resolvedMounts });
         await assertServerExistsDuringInstall(serverId);
 
         await installProgressRepository.update(serverId, 50, 'creating_container');

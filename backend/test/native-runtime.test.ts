@@ -8,8 +8,19 @@ import { nativeTemplate, nativeContainerOptions, renderNativeArgv } from '../src
 import { acquireNativeOperation, enterServerMutation } from '../src/services/nativeOperationLock.js';
 import { loadWithMocks } from './loadWithMocks.js';
 import { ownsContainer } from '../src/utils/docker/ownership.js';
+import { nativeScriptArchive } from '../src/services/nativeScript.js';
+import tar from 'tar-stream';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const recipe = () => validateTemplate(structuredClone(NATIVE_CS16_TEMPLATE));
+test('legacy schema-2 command snapshot canonical ordering remains unchanged', () => {
+    const t = recipe();
+    const legacy = structuredClone(t);
+    for (const phase of ['install', 'update'] as const) legacy.lifecycle![phase] = t.lifecycle![phase].map(s => ({ name: s.name, argv: s.argv!, timeoutSeconds: s.timeoutSeconds }));
+    assert.equal(JSON.stringify(t), JSON.stringify(legacy));
+    assert.equal(templateHash(validateTemplate(legacy)), templateHash(legacy));
+});
 test('native recipe is signed, node-bound, local and renders argv without a shell', () => {
     const document = recipe();
     const s = { id: 'native-test', version: 1, document, hash: templateHash(document) };
@@ -57,17 +68,18 @@ test('native maintenance and regular mutations are mutually exclusive, with expl
     nextRequest();
 });
 
-function runtimeHarness(mode: 'success' | 'failure' | 'timeout' | 'cleanup' = 'success') {
+function runtimeHarness(mode: 'success' | 'failure' | 'timeout' | 'cleanup' | 'upload' = 'success', template = recipe()) {
     const calls: any[] = [];
-    const container = { start: async () => calls.push('start'), wait: async () => mode === 'timeout' ? new Promise(() => {}) : { StatusCode: mode === 'failure' ? 3 : 0 }, remove: async () => { calls.push('remove'); if (mode === 'cleanup') throw new Error('Docker unavailable'); } };
+    const container = { putArchive: async (archive: Buffer, opts: any) => { calls.push({ archive, opts }); if (mode === 'upload') throw new Error('DO-NOT-LEAK secret'); }, start: async () => calls.push('start'), wait: async () => mode === 'timeout' ? new Promise(() => {}) : { StatusCode: mode === 'failure' ? 3 : 0 }, remove: async () => { calls.push('remove'); if (mode === 'cleanup') throw new Error('Docker unavailable'); } };
     const module = loadWithMocks('../src/services/nativeRuntime.ts', {
         'node:crypto': { randomUUID },
         '../utils/docker/client.js': { docker: { createContainer: async (spec: any) => { calls.push(spec); return container; } } },
         '../utils/docker/ownership.js': {},
         '../database/index.js': { serverRepository: { findById: async () => ({ id: 1 }) }, actionsRepository: { create: async () => {} } },
         '../templates/nativeContract.js': { renderNativeArgv },
+        './nativeScript.js': { nativeScriptArchive },
     }, { setTimeout: (fn: () => void) => setTimeout(fn, 10), clearTimeout });
-    return { calls, module, run: () => module.runNativeSteps({ serverId: 1, image: 'sha256:fixed', template: recipe(), phase: 'install', env: { MAP: 'de_dust2', MAX_PLAYERS: '16', SERVER_PORT: '27015' }, mounts: [{ hostPath: '/owned/data', containerPath: '/data' }] }) };
+    return { calls, module, run: () => module.runNativeSteps({ serverId: 1, image: 'sha256:fixed', template, phase: 'install', env: { MAP: 'de_dust2', MAX_PLAYERS: '16', SERVER_PORT: '27015' }, mounts: [{ hostPath: '/owned/data', containerPath: '/data' }] }) };
 }
 test('native installer uses isolated non-root container, pinned image and no inherited entrypoint', async () => {
     const h = runtimeHarness(); await h.run();
@@ -105,6 +117,7 @@ test('boot recovery stops only owned maintenance, preserves data and blocks auto
             actionsRepository: { create: async () => calls.push('audit') }, installProgressRepository: { update: async () => {} },
         },
         '../templates/nativeContract.js': { renderNativeArgv },
+        './nativeScript.js': { nativeScriptArchive },
     });
     await module.recoverNativeOperations();
     assert.deepEqual(calls, ['remove:owned-step', 'stop:owned-game', 'failed', 'audit']);
@@ -126,6 +139,7 @@ test('explicit update uses the installed image, locks power/data mutations and l
         './nativeOperationLock.js': { acquireNativeOperation },
         './nativeRuntime.js': { runNativeSteps: async (input: any) => { stepInput = input; await pending; }, NativeCleanupError: class extends Error {} },
         '../utils/logger.js': { logError: () => { throw new Error('unexpected logging'); } },
+        './nativeImages.js': { inspectNativeImage: async () => { throw new Error('Legacy templates must retain original update image'); } },
     });
     await module.startNativeUpdate(42, 'admin');
     assert.equal(stepInput.image, 'sha256:installed-image');
@@ -139,4 +153,95 @@ test('explicit update uses the installed image, locks power/data mutations and l
     assert.equal(JSON.parse(server.runtime_config_json).nativeInterrupted, false);
     assert.equal(JSON.parse(server.runtime_config_json).nativeOperation, undefined);
     enterServerMutation(42)();
+});
+
+test('scripts preserve literal source, are signed and reject ambiguous or unsafe schema fields', () => {
+    const t = recipe();
+    t.lifecycle!.installerImage = 'gamepanel-installer:steamcmd-v1';
+    t.lifecycle!.install = [{ name: 'Install', script: '#!/bin/bash\nprintf "%s" "${MAP}"\n# {{MAP}} is literal source\n', timeoutSeconds: 30 }];
+    const valid = validateTemplate(t);
+    assert.equal(valid.lifecycle!.install[0].script, t.lifecycle!.install[0].script);
+    assert.equal(valid.lifecycle!.installerImage, 'gamepanel-installer:steamcmd-v1');
+    const snapshot = { id: 'scripted', version: 1, hash: templateHash(valid), document: valid };
+    assert.equal(readTemplateTicket(issueTemplateTicket(snapshot, 'key', 'local'), 'key', 'local').hash, snapshot.hash);
+    const tampered = structuredClone(valid); tampered.lifecycle!.install[0].script += '# changed';
+    assert.throws(() => nativeTemplate({ template: { ...snapshot, document: tampered } }), /checksum/);
+    for (const mutation of [
+        (v: any) => { v.lifecycle.install[0].argv = ['/bin/true']; },
+        (v: any) => { v.lifecycle.install[0].script = ''; },
+        (v: any) => { v.lifecycle.install[0].script = 'x\u0000'; },
+        (v: any) => { v.lifecycle.install[0].script = 'x\r\n'; },
+        (v: any) => { v.lifecycle.install[0].script = 'x'.repeat(16385); },
+        (v: any) => { v.lifecycle.install[0].script = 'ą'.repeat(9000); },
+        (v: any) => { v.lifecycle.install[0].user = 'root'; },
+        (v: any) => { v.lifecycle.installerImage = 'bad image'; },
+        (v: any) => { v.variables.push({ key: 'BASH_ENV', label: 'Bad', default: '', type: 'string', secret: false, required: false }); },
+    ]) { const invalid = structuredClone(valid); mutation(invalid); assert.throws(() => validateTemplate(invalid)); }
+});
+
+test('Bash source is uploaded as a non-root owned file, never interpolated or placed in argv', async () => {
+    const t = recipe();
+    const script = '#!/bin/bash\nprintf "%s" "${MAP}"\n# {{MAP}}';
+    t.lifecycle!.install = [{ name: 'Script', script, timeoutSeconds: 10 }];
+    const h = runtimeHarness('success', t); await h.run();
+    const spec = h.calls[0];
+    assert.equal(spec.Cmd[0], '/bin/bash');
+    assert.ok(spec.Cmd.includes('pipefail'));
+    assert.ok(!spec.Cmd.includes(script));
+    assert.equal(h.calls[1].opts.path, '/tmp');
+    const extract = tar.extract();
+    const parsed = new Promise<void>((resolve, reject) => {
+        extract.on('entry', (header, stream, next) => {
+            assert.equal(header.name, spec.Cmd.at(-1).slice('/tmp/'.length));
+            assert.equal(header.uid, 1000); assert.equal(header.gid, 1000); assert.equal(header.mode, 0o400);
+            const chunks: Buffer[] = []; stream.on('data', chunk => chunks.push(chunk));
+            stream.on('end', () => { assert.equal(Buffer.concat(chunks).toString(), script); next(); });
+        });
+        extract.on('finish', resolve); extract.on('error', reject);
+    });
+    extract.end(h.calls[1].archive); await parsed;
+    assert.equal(h.calls[2], 'start');
+    const failed = runtimeHarness('upload', t);
+    await assert.rejects(failed.run(), /could not execute/);
+    assert.ok(!failed.calls.includes('start')); assert.equal(failed.calls.at(-1), 'remove');
+    const timeout = runtimeHarness('timeout', t); await assert.rejects(timeout.run(), /timed out/); assert.equal(timeout.calls.at(-1), 'remove');
+});
+
+test('shared HLDS example validates and Bash scripts have valid syntax without execution', () => {
+    const document = validateTemplate(JSON.parse(readFileSync(new URL('../../examples/game-templates/cs16-scripted.json', import.meta.url), 'utf8')));
+    assert.equal(document.lifecycle!.installerImage, 'gamepanel-installer:steamcmd-v1');
+    assert.notEqual(document.runtime.image, document.lifecycle!.installerImage);
+    for (const step of [...document.lifecycle!.install, ...document.lifecycle!.update]) {
+        assert.ok(step.script);
+        execFileSync('/bin/bash', ['-n'], { input: step.script });
+    }
+});
+
+test('updates use the saved installer ID and reject lost pins before scheduling work', async () => {
+    const template = recipe(); template.lifecycle!.installerImage = 'shared-installer:mutable-tag';
+    const document = validateTemplate(template);
+    let server: any = { id: 97, status: 'stopped', desired_state: 'stopped', docker_container_id: 'game', runtime_config_json: '{"nativeInstallerImage":"sha256:saved-installer"}', provider_metadata_json: JSON.stringify({ template: { document, hash: templateHash(document) } }) };
+    let runImage = ''; let inspected = '';
+    let unavailable = false;
+    const module = loadWithMocks('../src/services/nativeUpdate.ts', {
+        '../database/index.js': { serverRepository: { findById: async () => server, update: async (_id: number, patch: any) => { server = { ...server, ...patch }; } }, actionsRepository: { create: async () => {} } },
+        '../utils/docker/client.js': { docker: { getContainer: () => ({ inspect: async () => ({ State: { Status: 'exited' }, Image: 'sha256:game' }) }) } },
+        '../providers/runtimeConfig.js': { parseStoredEnv: () => [], parseStoredMounts: () => [], parseStoredPorts: () => ({ tcp: [], udp: [] }) },
+        '../utils/storage.js': { ensureServerMountDirs: async () => [] },
+        '../templates/nativeContract.js': { nativeTemplate, nativeEnvironment: () => ({}) },
+        './nativeOperationLock.js': { acquireNativeOperation },
+        './nativeRuntime.js': { runNativeSteps: async (input: any) => { runImage = input.image; }, NativeCleanupError: class extends Error {} },
+        './nativeImages.js': { inspectNativeImage: async (image: string) => { inspected = image; if (unavailable) throw new Error('Missing pinned image'); return image; } },
+        '../utils/logger.js': { logError: () => { throw new Error('Unexpected background failure'); } },
+    });
+    await module.startNativeUpdate(97, 'admin');
+    await new Promise<void>(r => setImmediate(r));
+    assert.equal(runImage, 'sha256:saved-installer'); assert.equal(inspected, runImage);
+    assert.equal(JSON.parse(server.runtime_config_json).nativeInstallerImage, runImage);
+    unavailable = true; runImage = '';
+    await assert.rejects(module.startNativeUpdate(97, 'admin'), /Missing pinned image/);
+    assert.equal(runImage, ''); enterServerMutation(97)();
+    server.runtime_config_json = '{}';
+    await assert.rejects(module.startNativeUpdate(97, 'admin'), /Pinned installer image is missing/);
+    enterServerMutation(97)();
 });

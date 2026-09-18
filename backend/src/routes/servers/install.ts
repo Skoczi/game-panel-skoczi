@@ -5,6 +5,7 @@ import { materializeTemplate, readTemplateTicket } from '../../templates/tickets
 import { nativeContainerOptions, nativeTemplate } from '../../templates/nativeContract.js';
 import { enterPortAllocationMutation } from '../../services/portAllocationLock.js';
 import { resolveTemplateBindings } from '../../services/templatePortAllocation.js';
+import { resolveNativeImages } from '../../services/nativeImages.js';
 import {
     type AuthenticatedRequest,
     requireGlobalPermission,
@@ -175,7 +176,8 @@ export function createServerInstallRoutes(): Router {
                         const native = nativeTemplate(installSpec.providerMetadata);
                         if (native) {
                             const options = nativeContainerOptions(native, installSpec.env, installSpec.ports);
-                            installSpec.runtimeConfig = { ...installSpec.runtimeConfig, terminalUser: options.user, execUser: options.user, terminalWorkdir: options.workdir, execWorkdir: options.workdir, nativeOperation: 'install' };
+                            const images = await resolveNativeImages(native);
+                            installSpec.runtimeConfig = { ...installSpec.runtimeConfig, ...images, terminalUser: options.user, execUser: options.user, terminalWorkdir: options.workdir, execWorkdir: options.workdir, nativeOperation: 'install' };
                         }
                     }
                 } catch (e: any) {

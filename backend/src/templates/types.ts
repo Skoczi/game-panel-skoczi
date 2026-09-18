@@ -13,9 +13,14 @@ export type GameTemplate = {
 };
 export type NativeLifecycle = {
     startup: string[];
-    install: Array<{ name: string; argv: string[]; timeoutSeconds: number }>;
-    update: Array<{ name: string; argv: string[]; timeoutSeconds: number }>;
+    // Optional shared installer image; defaults to the game runtime for older templates.
+    installerImage?: string;
+    install: NativeStep[];
+    update: NativeStep[];
     workdir: string;
     stopSignal: 'SIGTERM' | 'SIGINT';
     stopTimeoutSeconds: number;
 };
+export type NativeStep = { name: string; timeoutSeconds: number } & (
+    { argv: string[]; script?: never } | { script: string; argv?: never }
+);

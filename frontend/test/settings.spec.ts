@@ -231,11 +231,11 @@ test('global settings only edits appearance and preserves Local allocations', as
     .getByText('Game Panel · Skoczi Edition', { exact: true });
   const revision = page.getByTestId('panel-revision');
   await expect(footerName).toBeVisible();
-  await expect(revision).toHaveText('v1.5.0 · Revision 12');
+  await expect(revision).toHaveText('v1.5.0 · Revision 13');
   const upstream = page.getByRole('link', { name: 'Based on OVHcloud Game Panel' });
   await expect(upstream).toHaveAttribute('href', 'https://github.com/ovh/game-panel');
   await expect(upstream).toHaveAttribute('rel', 'noopener noreferrer');
-  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.12/);
+  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.13/);
   await expect(page.getByRole('link', { name: 'Bug or feature?' })).toHaveAttribute(
     'href',
     'https://github.com/Skoczi/game-panel-skoczi/issues'
@@ -311,7 +311,7 @@ test('non-root menu has no global Settings entry', async ({ page }) => {
   await mock(page);
   await page.goto('/test/settings.fixture.html?nonroot');
   await expect(page.getByRole('button', { name: 'Panel Settings', exact: true })).toHaveCount(0);
-  await expect(page.getByTestId('panel-revision')).toHaveText('v1.5.0 · Revision 12');
+  await expect(page.getByTestId('panel-revision')).toHaveText('v1.5.0 · Revision 13');
   await expect(page.getByRole('link', { name: 'Based on OVHcloud Game Panel' })).toBeVisible();
 });
 

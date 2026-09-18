@@ -109,6 +109,48 @@ test('native lifecycle editor upgrades only the draft and preserves literal star
   expect(document.ports[0].linuxgsmKey).toBe('');
   await expect(page.getByRole('button', { name: 'Publish v1', exact: true })).toBeDisabled();
 });
+
+test('script editor stores installer image and literal source in a new version, including on mobile', async ({ page }) => {
+  await mock(page);
+  let saved: any;
+  await page.route('**/api/game-templates/builtin-cs16/versions', async r => {
+    saved = r.request().postDataJSON().document;
+    return r.fulfill({ json: { ...row, version: 2, document: saved } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/test/templates.fixture.html');
+  await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await page.getByRole('button', { name: 'Manage', exact: true }).click();
+  await page.getByRole('tab', { name: 'Lifecycle', exact: true }).click();
+  await page.getByRole('button', { name: 'Use Native Runtime in this draft' }).click();
+  await page.getByLabel('Installer image (optional)', { exact: true }).fill('gamepanel-installer:steamcmd-v1');
+  await page.getByRole('button', { name: 'Add install script', exact: true }).click();
+  const source = '#!/bin/bash\nprintf "%s" "${MAP}"\n# {{MAP}} is not replaced\n';
+  await page.getByLabel('install script 1', { exact: true }).fill(source);
+  await expect(page.getByRole('button', { name: 'Publish v1', exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/template-scripts-dark-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Save new draft version' }).click();
+  await expect(page.getByRole('status')).toContainText('Draft v2 saved');
+  expect(saved.lifecycle.installerImage).toBe('gamepanel-installer:steamcmd-v1');
+  expect(saved.lifecycle.install[0].script).toBe(source);
+  expect(saved.lifecycle.install[0].argv).toBeUndefined();
+});
+
+test('scripted templates reject older native agents before authorization or installation', async ({ page }) => {
+  await mock(page, 'published');
+  const document = { ...definition, schemaVersion: 2, runtime: { ...definition.runtime, provider: 'external' }, lifecycle: {
+    startup: ['/data/server'], workdir: '/data', install: [{ name: 'Install', script: 'echo install', timeoutSeconds: 30 }], update: [], stopSignal: 'SIGTERM', stopTimeoutSeconds: 30,
+  } };
+  await page.route('**/api/game-templates', r => r.fulfill({ json: { templates: [{ ...row, status: 'published', document }] } }));
+  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1 } }));
+  let sends = 0;
+  await page.route('**/prepare', r => { sends++; return r.fulfill({ json: {} }); });
+  await openNetwork(page);
+  await page.getByRole('button', { name: 'Create server', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('does not support template scripts');
+  expect(sends).toBe(0);
+});
 test('remote installation sends a signed ticket and explicit bindings, never a client-supplied image', async ({
   page,
 }) => {

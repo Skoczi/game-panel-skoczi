@@ -152,7 +152,7 @@ app.use('/api/system', authMiddleware, systemRoutes);
 
 // GET /api/health
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1, portAllocationProtocol: 1 });
+  res.json({ status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, portAllocationProtocol: 1 });
 });
 
 // GET /api/version

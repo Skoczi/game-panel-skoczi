@@ -86,7 +86,12 @@ export function validateTemplate(input: unknown): GameTemplate {
     let lifecycle: GameTemplate['lifecycle'];
     if (v.schemaVersion === 2) {
         if (provider !== 'external') throw new TemplateError('Native lifecycle uses the external image provider, not a legacy adapter');
-        const l = object(v.lifecycle, ['startup', 'install', 'update', 'workdir', 'stopSignal', 'stopTimeoutSeconds']);
+        const l = object(v.lifecycle, ['startup', 'install', 'update', 'workdir', 'stopSignal', 'stopTimeoutSeconds', 'installerImage']);
+        let installerImage: string | undefined;
+        if (l.installerImage !== undefined) {
+            installerImage = text(l.installerImage, 255);
+            if (!/^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$/.test(installerImage)) throw new TemplateError('Invalid installer Docker image');
+        }
         const keys = new Set([...variables.map(v => v.key), ...ports.filter(p => p.env).map(p => p.env)]);
         const argv = (raw: unknown): string[] => {
             const args = list(raw, 64).map(arg => text(arg, 2048, true));
@@ -105,13 +110,24 @@ export function validateTemplate(input: unknown): GameTemplate {
             if (!Number.isInteger(n) || Number(n) < 1 || Number(n) > max) throw new TemplateError(`Timeout must be 1–${max} seconds`);
             return Number(n);
         };
-        const steps = (raw: unknown) => list(raw, 8).map(s => {
-            const step = object(s, ['name', 'argv', 'timeoutSeconds']);
-            return { name: text(step.name, 80), argv: argv(step.argv), timeoutSeconds: bounded(step.timeoutSeconds, 3600) };
+        const steps = (raw: unknown): NonNullable<GameTemplate['lifecycle']>['install'] => list(raw, 8).map(s => {
+            const step = object(s, ['name', 'argv', 'script', 'timeoutSeconds']);
+            const base = { name: text(step.name, 80), timeoutSeconds: bounded(step.timeoutSeconds, 3600) };
+            if (step.script !== undefined) {
+                if (step.argv !== undefined) throw new TemplateError('Choose either script or command arguments for a step');
+                const script = text(step.script, 16384);
+                if (Buffer.byteLength(script, 'utf8') > 16384) throw new TemplateError('Script exceeds 16 KiB');
+                if (script.includes('\r')) throw new TemplateError('Use LF line endings in scripts');
+                if (variables.some(v => /^(?:BASH_ENV|ENV|SHELLOPTS|BASHOPTS|PATH|LD_.*)$/.test(v.key))) throw new TemplateError('Script templates cannot override shell or loader environment controls');
+                // Script source is immutable administrator code. Never interpolate user values into it.
+                return { name: base.name, script, timeoutSeconds: base.timeoutSeconds };
+            }
+            // Preserve legacy canonical key order: stored schema-2 snapshots are hash-checked.
+            return { name: base.name, argv: argv(step.argv), timeoutSeconds: base.timeoutSeconds };
         });
         const workdir = text(l.workdir, 160);
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
-        lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120) };
+        lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}) };
     }
     return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}) };
 }

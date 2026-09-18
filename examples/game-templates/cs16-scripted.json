@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "name": "Counter-Strike 1.6 · Scripted HLDS",
+  "description": "Draft example: Valve HLDS with panel-owned Bash install/update scripts and shared base images. Not ReHLDS. Requires preloaded gamepanel-runtime:linux-v1 and gamepanel-installer:steamcmd-v1. Verify a disposable installation before publishing.",
+  "author": "Skoczi",
+  "source": "Valve SteamCMD / HLDS; panel-owned installation recipe",
+  "runtime": {
+    "provider": "external",
+    "image": "gamepanel-runtime:linux-v1",
+    "catalogId": "",
+    "gameServerName": "",
+    "architectures": ["x64"],
+    "identity": { "user": "1000", "uid": 1000, "gid": 1000 }
+  },
+  "ports": [{ "key": "game", "label": "Game / Query / RCON", "protocol": "udp", "container": 27015, "suggested": 27015, "env": "SERVER_PORT", "linuxgsmKey": "" }],
+  "variables": [
+    { "key": "MAP", "label": "Starting map", "type": "string", "required": true, "secret": false, "default": "de_dust2" },
+    { "key": "MAX_PLAYERS", "label": "Maximum players (1–32)", "type": "integer", "required": true, "secret": false, "default": "16" }
+  ],
+  "mounts": [{ "key": "data", "containerPath": "/data" }],
+  "lifecycle": {
+    "installerImage": "gamepanel-installer:steamcmd-v1",
+    "workdir": "/data",
+    "startup": ["/data/hlds_linux", "-console", "-game", "cstrike", "-ip", "0.0.0.0", "-port", "{{SERVER_PORT}}", "-strictportbind", "+maxplayers", "{{MAX_PLAYERS}}", "+map", "{{MAP}}"],
+    "stopSignal": "SIGINT",
+    "stopTimeoutSeconds": 30,
+    "install": [{
+      "name": "Download and verify Valve HLDS",
+      "timeoutSeconds": 1800,
+      "script": "#!/bin/bash\n[[ \"$MAX_PLAYERS\" =~ ^[0-9]{1,2}$ ]] && (( MAX_PLAYERS >= 1 && MAX_PLAYERS <= 32 )) || { echo 'Invalid player limit'; exit 2; }\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid map'; exit 2; }\ncd /opt/steamcmd\nfor attempt in 1 2 3; do\n  if ./linux32/steamcmd +force_install_dir /data +login anonymous +app_set_config 90 mod cstrike +app_update 90 validate +quit; then\n    if [[ -x /data/hlds_linux && -s /data/cstrike/dlls/cs.so && -s /data/cstrike/maps/de_dust2.bsp ]]; then\n      mkdir -p /data/.steam/sdk32\n      cp linux32/steamclient.so /data/.steam/sdk32/steamclient.so\n      echo 'HLDS files verified'\n      exit 0\n    fi\n  fi\n  echo \"Incomplete HLDS download, attempt $attempt\"\ndone\necho 'HLDS installation incomplete; no game files deleted'\nexit 1\n"
+    }],
+    "update": [{
+      "name": "Update HLDS without validate (backup first)",
+      "timeoutSeconds": 1800,
+      "script": "#!/bin/bash\n# Explicit update only. Publisher updates can replace files: back up first.\ntest -x /data/hlds_linux\ncd /opt/steamcmd\n./linux32/steamcmd +force_install_dir /data +login anonymous +app_set_config 90 mod cstrike +app_update 90 +quit\ntest -x /data/hlds_linux\ntest -s /data/cstrike/dlls/cs.so\ntest -s /data/cstrike/maps/de_dust2.bsp\nmkdir -p /data/.steam/sdk32\ncp linux32/steamclient.so /data/.steam/sdk32/steamclient.so\necho 'HLDS update verified'\n"
+    }]
+  }
+}

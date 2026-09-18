@@ -47,6 +47,7 @@ test('settings routes require root; appearance exposes no allocations', async ()
                 res.status(error.statusCode || 500).json({ error: error.message }),
         },
         '../utils/time.js': {},
+        '../agent/identity.js': { isAgent: () => false },
     });
     const app = express();
     app.use(express.json());
@@ -118,6 +119,11 @@ test('settings routes require root; appearance exposes no allocations', async ()
             ).status,
             400,
         );
+        assert.equal(saves, 0);
+        assert.equal((await fetch(`${url}/settings`, {
+            method: 'PUT', headers: { 'x-test-role': 'root', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...snapshot, network: { restrictPorts: false, allocations: [] } }),
+        })).status, 409);
         assert.equal(saves, 0);
         assert.equal(
             (

@@ -1,0 +1,52 @@
+.gp-login-theme {
+  color-scheme: light;
+  --login-background: linear-gradient(135deg, #000e9c 0%, #002dbe 100%);
+  --login-card: #fff;
+  --login-field: #f8fafc;
+  --login-border: #cbd5e1;
+  --login-text: #0f172a;
+  --login-label: #1e293b;
+  --login-focus: #0050d7;
+  --login-error-bg: #fff5f5;
+  --login-error-border: #fca5a5;
+  --login-error-title: #991b1b;
+  --login-error-text: #b91c1c;
+  background: var(--login-background);
+}
+.gp-login-theme[data-login-theme="dark"] {
+  color-scheme: dark;
+  --login-background: radial-gradient(ellipse at top, #182943 0%, #080f1c 70%);
+  --login-card: #111c2e;
+  --login-field: #0b1424;
+  --login-border: #34465e;
+  --login-text: #edf3fc;
+  --login-label: #dce6f5;
+  --login-focus: #80aaff;
+  --login-error-bg: #321922;
+  --login-error-border: #b8576a;
+  --login-error-title: #ffbdc5;
+  --login-error-text: #fda4af;
+}
+@media (prefers-color-scheme: dark) {
+  .gp-login-theme[data-login-theme="system"] {
+    color-scheme: dark;
+    --login-background: radial-gradient(ellipse at top, #182943 0%, #080f1c 70%);
+    --login-card: #111c2e;
+    --login-field: #0b1424;
+    --login-border: #34465e;
+    --login-text: #edf3fc;
+    --login-label: #dce6f5;
+    --login-focus: #80aaff;
+    --login-error-bg: #321922;
+    --login-error-border: #b8576a;
+    --login-error-title: #ffbdc5;
+    --login-error-text: #fda4af;
+  }
+}
+.gp-login-theme input::placeholder { color: #8595ac; opacity: 1; }
+.gp-login-theme input:autofill {
+  box-shadow: 0 0 0 1000px var(--login-field) inset;
+  -webkit-text-fill-color: var(--login-text);
+}
+.gp-login-preview-card { background: var(--login-card); }
+.gp-login-preview-field { background: var(--login-field); border: 1px solid var(--login-border); }

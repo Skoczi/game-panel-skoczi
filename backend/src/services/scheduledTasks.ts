@@ -1,4 +1,5 @@
 import { scheduledTaskRepository, serverRepository, actionsRepository } from '../database/index.js';
+import { enterServerMutation } from './nativeOperationLock.js';
 import type { ScheduledTaskRow } from '../types/database.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import { getRuntimeConfig } from '../providers/serverMetadata.js';
@@ -452,8 +453,10 @@ async function finishTask(row: ScheduledTaskRow, status: ScheduledTaskLastStatus
 async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
     if (runningTasks.has(row.id)) return;
     runningTasks.add(row.id);
+    let releaseMutation: (() => void) | undefined;
 
     try {
+        releaseMutation = enterServerMutation(row.server_id);
         const locked = await scheduledTaskRepository.lock(row.id, nowIso());
         if (!locked) return;
 
@@ -495,6 +498,7 @@ async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
         ).catch(() => undefined);
         await finishTask(row, 'failed', error).catch(() => undefined);
     } finally {
+        releaseMutation?.();
         runningTasks.delete(row.id);
     }
 }

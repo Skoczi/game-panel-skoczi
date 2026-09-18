@@ -464,6 +464,11 @@ class ApiClient {
     };
   }
 
+  async updateNativeServer(id: number) {
+    const response = await this.client.post(`/api/servers/${id}/native-update`, { confirm: true });
+    return response.data as { message: string };
+  }
+
   async listBackups(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/backups`);
     return response.data as {

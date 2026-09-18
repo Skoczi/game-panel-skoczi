@@ -4,7 +4,7 @@ Each TCP/UDP mapping selects a host IPv4 and host port. The container port is in
 
 ## Configure in Settings (recommended)
 
-Sign in as the root administrator and open **Settings → IP allocations**. Add an IPv4, optional alias, and separate TCP/UDP ranges. Enable **Restrict published ports to these allocations**, then **Save changes**. Changes apply immediately; no backend restart is needed.
+Sign in as the root administrator and open **Nodes → Node settings → IP allocations** for Local or the selected remote node. Add an IPv4, optional alias, and separate TCP/UDP ranges. Enable **Restrict published ports to these allocations**, then **Save changes**. Changes apply without a backend restart. The panel reserves each address for one node; see [cross-node ownership and pending saves](SETTINGS.md#cross-node-ownership).
 
 The page lists configured addresses and saved server assignments, including stopped servers. An IP or range cannot be removed while a saved server needs it. Reassign that server first. Aliases are labels only; they do not change DNS or connection addresses.
 

@@ -1,4 +1,8 @@
 import { Router, type Response } from 'express';
+import { agentIdentity, isAgent } from '../../agent/identity.js';
+import { getConfig } from '../../config.js';
+import { materializeTemplate, readTemplateTicket } from '../../templates/tickets.js';
+import { nativeContainerOptions, nativeTemplate } from '../../templates/nativeContract.js';
 import {
     type AuthenticatedRequest,
     requireGlobalPermission,
@@ -53,7 +57,15 @@ export function createServerInstallRoutes(): Router {
         requireGlobalPermission(PERMISSIONS.server.install),
         async (req: AuthenticatedRequest, res: Response) => {
             try {
-                const body = requireBodyObject(req.body);
+                let body = requireBodyObject(req.body);
+                if (body.templateTicket !== undefined) {
+                    if (!req.user?.isRoot) return res.status(403).json({ error: 'Template installation requires root administrator access' });
+                    const identity = isAgent() ? agentIdentity() : null;
+                    const snapshot = readTemplateTicket(body.templateTicket, identity?.key ?? getConfig().jwtSecret, identity?.nodeId ?? 'local');
+                    body = materializeTemplate(snapshot, body);
+                } else if (body.templateSnapshot !== undefined || body.templateLinuxgsmConfig !== undefined) {
+                    return res.status(400).json({ error: 'A signed template authorization is required' });
+                }
                 const rawProvider = typeof body.provider === 'string' ? body.provider : undefined;
                 const name = optionalTrimmedString(body.name);
                 const ports = body.ports as PortsPayload | undefined;
@@ -152,6 +164,15 @@ export function createServerInstallRoutes(): Router {
                         resourceLimits: normalizedResourceLimits,
                         steamCredentials: normalizedSteamCredentials,
                     });
+                    if (body.templateSnapshot) {
+                        installSpec.providerMetadata.template = body.templateSnapshot;
+                        installSpec.providerMetadata.templateLinuxgsmConfig = body.templateLinuxgsmConfig;
+                        const native = nativeTemplate(installSpec.providerMetadata);
+                        if (native) {
+                            const options = nativeContainerOptions(native, installSpec.env, installSpec.ports);
+                            installSpec.runtimeConfig = { ...installSpec.runtimeConfig, terminalUser: options.user, execUser: options.user, terminalWorkdir: options.workdir, execWorkdir: options.workdir, nativeOperation: 'install' };
+                        }
+                    }
                 } catch (e: any) {
                     const statusCode = getErrorStatusCode(e, 400);
                     return res.status(statusCode).json({ error: e instanceof Error ? e.message : 'Invalid install payload' });

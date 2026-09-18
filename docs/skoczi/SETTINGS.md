@@ -4,6 +4,8 @@
 
 ## IP allocations
 
+Open **Nodes → Node settings → IP allocations** for the chosen node. Local has the same entry; no extra agent is required. Global Settings now edits appearance only. Existing policies remain on their original runtime; this change does not move addresses, ports or game servers.
+
 1. Add the host IPv4 and an optional label.
 2. Enter comma-separated ports or inclusive ranges separately for TCP and UDP, e.g. `27015-27030,28015`.
 3. Click **Add to list** (or **Update entry** when editing).
@@ -16,18 +18,30 @@ The assigned-port table lists stored server bindings, including stopped servers.
 
 This is allocation management, not IP provisioning: configure interfaces, provider routing and firewall rules on the host separately. [Policy details](ADDITIONAL-IPS.md).
 
+### Cross-node ownership
+
+The panel reserves each configured IPv4 for one node, regardless of its TCP/UDP ranges. This is this panel's allocation policy, not a claim that all networks prohibit shared/overlapping addresses. Separate private address spaces, NAT/anycast and shared-IP multi-host setups are not modeled here.
+
+Before saving, the panel reads the existing allocations of Local and all previously enrolled nodes. If another node is unavailable or has revoked credentials, the save fails closed until its configuration can be verified. Never-enrolled nodes have no runtime to inspect. Existing duplicate configurations are reported, not silently rewritten.
+
+Updates are serialized by the single panel backend. SQLite tables `node_ip_claims` and `node_allocation_updates` retain ownership and the original pending request. An uncertain response keeps the old and requested addresses reserved. **Retry pending save** repeats the same operation ID against the agent's durable request journal; it does not issue a new request ID. A confirmed rejection releases only the attempted, unused addresses. An agent operation marked `uncertain` requires operator investigation; the panel does not force-clear it or assume failure. Node deletion is blocked while its allocation save is pending.
+
+Release an address in its original node and successfully save before assigning it elsewhere. Existing server bindings still prevent release or narrowing their port ranges. Direct root edits to agent databases/configuration are outside this coordination mechanism; manage allocations through this panel. Save never configures host interfaces, routing or firewalls.
+
 ## Appearance
 
 - **Show Follow Us** controls the sidebar social links.
 - **Show Trustpilot** controls the sidebar review badge.
 - **Show announcements** controls the news carousel. Disabled means no browser news request, not just a hidden banner.
-- Footer: **Game Panel · Skoczi Edition**, then **v1.5.0 · Revision 8**, followed by a **Based on OVHcloud Game Panel** link to the original repository. The version line separates the upstream base from the fork revision. The technical version (`1.5.0-skoczi.8`) remains in package metadata, tags, update checks and tooltips.
+- Footer: **Game Panel · Skoczi Edition**, then **v1.5.0 · Revision 9**, followed by a **Based on OVHcloud Game Panel** link to the original repository. The version line separates the upstream base from the fork revision. The technical version (`1.5.0-skoczi.9`) remains in package metadata, tags, update checks and tooltips.
 
 Fresh installations use **Skoczi Edition** as the subtitle and credit OVHcloud in the login footer. Upgrades preserve saved branding, including custom names, subtitles and footers; edit those in Settings if desired.
 
 Visibility updates after saving, on page reload or when another browser tab regains focus. Legal notices remain available. Both sections default to visible on upgrade.
 
 ## Branding & login page
+
+- **Login page theme** selects Light (the original blue background and white form), Dark, or System preference. The live preview follows the selection. System preference reacts to the visitor's OS theme, not the panel's saved theme. This does not change signed-in users' appearance preferences. Existing settings gain Light once on upgrade; all saved branding and allocations remain unchanged.
 
 - **Site name** (required, max. 80 characters) appears in the sidebar, login heading and browser tab title.
 - **Subtitle** (max. 120) appears below the name. Leave it blank to hide it.
@@ -52,22 +66,19 @@ When downgrading **.4 to .3**, restore the matching pre-upgrade database as well
 ## API
 
 - `GET /api/system/settings` — root only; returns revision, appearance, network and assignments.
-- `PUT /api/system/settings` — root only; accepts revision, appearance and network. Validation errors return 400; conflicts return 409.
+- `PUT /api/system/settings` — root only; on the panel, accepts revision, appearance and the unchanged network snapshot. Network changes must use the node endpoint. The agent's signed internal endpoint continues to accept its own policy updates.
+- `GET /api/nodes/:id/allocations` — root only; selected node's revision, network, assignments and pending-save flag. `:id` may be `local`.
+- `PUT /api/nodes/:id/allocations` — root only; accepts `{ "revision": 1, "network": { "restrictPorts": true, "allocations": [] } }`. Enforces cross-node ownership and preserves that runtime's appearance fields.
+- `POST /api/nodes/:id/allocations/retry` — root only; explicitly retries the previously persisted request with the same operation ID.
 - `GET /api/system/appearance` — authenticated users; appearance fields only.
 - `GET /api/branding` — public, `Cache-Control: no-store`; the same appearance fields for pre-login rendering. No network settings, assignments or revision.
 - `GET /api/system/bind-addresses` — authenticated users; current effective IP/port policy for game forms.
 
-Example save body (documentation address):
+Example node-allocation save body (documentation address):
 
 ```json
 {
   "revision": 1,
-  "appearance": {
-    "showFollowUs": false, "showTrustpilot": false, "showNews": false,
-    "siteName": "Example Games", "siteSubtitle": "Community servers", "logo": "",
-    "loginDescription": "Sign in to manage your servers",
-    "showLoginFooter": true, "loginFooter": "Example Games"
-  },
   "network": {
     "restrictPorts": true,
     "allocations": [

@@ -3,6 +3,10 @@
 Baseline: [OVHcloud 1.5.0](https://github.com/ovh/game-panel/tree/d0cbfcf19210ef44428c00656a6bbb599fd23861).
 Git ancestry is retained so changes can be reviewed.
 
+## Revision 11 — Native Runtime preview
+
+Schema 2 adds locally executed install/update steps and explicit startup arguments in Game Templates → Lifecycle. Native installs require a preloaded image and pin its exact local ID. Root administrators can update stopped servers explicitly; restarts do not reinstall or auto-update. Steps have timeouts, non-root execution, resource limits, node ownership and interruption recovery. A separate Valve HLDS / CS 1.6 draft and repository-owned runtime recipe are provided for testing. No LinuxGSM server is automatically migrated. See [Native Runtime](NATIVE-RUNTIME.md) for remaining external binary dependencies and preview limitations.
+
 ## Additional IPs, end to end
 
 ```text

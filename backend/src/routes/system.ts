@@ -8,6 +8,7 @@ import { checkPanelUpdate, getPanelUpdateStatus, startPanelUpdate } from '../ser
 import { requireBodyObject } from '../utils/httpValidation.js';
 import { sendRouteError } from '../utils/routeErrors.js';
 import { nowIso } from '../utils/time.js';
+import { isAgent } from '../agent/identity.js';
 
 const router = Router();
 
@@ -25,6 +26,8 @@ router.put('/settings', rootOnly, async (req, res) => {
       return res.status(400).json({ error: 'Invalid settings payload' });
     }
     const { revision, network, appearance } = req.body;
+    if (!isAgent() && JSON.stringify(network) !== JSON.stringify(globalSettings().snapshot().network))
+      return res.status(409).json({ error: 'IP allocations belong to a node. Open Nodes → Node settings to change them.' });
     res.json(await globalSettings().save({ network, appearance }, revision));
   } catch (error) { return sendRouteError(res, error, { route: 'SETTINGS:PUT', fallbackMessage: 'Cannot save settings' }); }
 });

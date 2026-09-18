@@ -1,6 +1,6 @@
 # Game Panel · Skoczi Edition
 
-Fork [OVHcloud Game Panel](https://github.com/ovh/game-panel) 1.5.0. Aktualne wydanie: **1.5.0-skoczi.8 (preview)**, w stopce **v1.5.0 · Revision 8**. Nie jest to oficjalne wydanie OVHcloud. Skoczi jest autorem zmian forka, nie projektu bazowego.
+Fork [OVHcloud Game Panel](https://github.com/ovh/game-panel) 1.5.0. Aktualna wersja kodu: **1.5.0-skoczi.9 (preview)**, w stopce **v1.5.0 · Revision 9**. Nie jest to oficjalne wydanie OVHcloud. Skoczi jest autorem zmian forka, nie projektu bazowego.
 
 ## Co zmieniłem?
 
@@ -21,7 +21,7 @@ Fork [OVHcloud Game Panel](https://github.com/ovh/game-panel) 1.5.0. Aktualne wy
 
 ## IP i porty
 
-Główny administrator ustawia reguły w **Settings → IP allocations**. Dodaj IP, alias i osobne zakresy TCP/UDP, włącz ograniczenie publikowanych portów i zapisz. Zajętego IP lub portu nie można usunąć z puli bez wcześniejszej zmiany przypisania serwera. Zapis działa od razu, bez restartu backendu.
+Główny administrator ustawia reguły w **Nodes → Node settings → IP allocations** przy wybranym node, również Local. Globalne Settings służy do wyglądu panelu i logowania. Dodaj IP, alias i osobne zakresy TCP/UDP, włącz ograniczenie publikowanych portów i zapisz. Ten sam adres jest rezerwowany tylko dla jednego node w panelu. Zajętego IP lub portu nie można usunąć z puli bez wcześniejszej zmiany przypisania serwera. Zapis działa bez restartu backendu. Brak potwierdzenia od agenta zachowuje rezerwacje; przycisk **Retry pending save** ponawia tę samą operację. Szczegóły i ograniczenia: [Settings](SETTINGS.md#cross-node-ownership).
 
 Przy pierwszym uruchomieniu nowej wersji reguły są importowane z `/opt/gamepanel/deploy/.env`. Później źródłem ustawień jest baza panelu — zmiana `.env` nie nadpisze zapisanych reguł. Przykład importu używa adresów dokumentacyjnych:
 
@@ -54,5 +54,7 @@ Oryginał: [ovh/game-panel](https://github.com/ovh/game-panel). Licencja Apache 
 ## Personalizacja w .4
 
 W **Settings → Branding & login page** zmienisz nazwę panelu, podtytuł, logo, opis logowania i stopkę. Logo można wgrać jako PNG/JPEG/WebP (do 256 KiB) lub podać link HTTPS. W **Appearance** wyłączysz aktualności, Follow Us i Trustpilot. Podgląd pokazuje zmiany przed zapisem; zapis nie wymaga przebudowy ani restartu.
+
+**Login page theme** ustawia jasny lub ciemny ekran logowania albo dopasowuje go do systemu odwiedzającego. Nie zmienia osobistego motywu panelu po zalogowaniu. Po aktualizacji pozostaje dotychczasowy jasny wariant, dopóki administrator nie wybierze innego.
 
 Te pola są publiczne również przed zalogowaniem. Nie wpisuj sekretów. Aktualizacja zachowuje wcześniejsze adresy, porty i przełączniki. Powrót z .4 do .3 wymaga również kopii bazy sprzed aktualizacji. [Szczegóły](SETTINGS.md).

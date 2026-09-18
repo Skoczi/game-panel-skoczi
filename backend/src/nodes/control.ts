@@ -7,13 +7,16 @@ import { getConfig } from '../config.js';
 import { authMiddleware, rootOnly, type AuthenticatedRequest } from '../middleware/auth.js';
 import { userRepository } from '../database/index.js';
 import { verifyToken } from '../utils/auth.js';
-import { NodeStore } from './store.js';
+import { NodeStore, NodeRemovalError } from './store.js';
 import { NODE_ID, RequestVerifier, runtimePath, signNodeRequest, secret } from './protocol.js';
 import { nodeTls, proxyRuntime } from './transport.js';
-import { serverDelegation } from '../fleet/control.js';
+import { serverDelegation, verifyNodeEmpty } from '../fleet/control.js';
 import { delegatedPath, type Delegation } from './delegation.js';
+import { NodeAllocations, AllocationError } from './allocations.js';
+import { allocationRuntime } from './allocationRuntime.js';
 
 let store: NodeStore;
+let allocations: NodeAllocations;
 const verifier = new RequestVerifier();
 const enrollmentAttempts = new Map<string, { until: number; count: number }>();
 const downloads = new Map<
@@ -35,6 +38,9 @@ export async function initializeNodes() {
         process.env.GAMEPANEL_TEST_LOOPBACK_NODES === '1',
     );
     await store.initialize();
+    const db = await getDatabase();
+    allocations = new NodeAllocations(db, allocationRuntime(db, store));
+    await allocations.initialize();
 }
 export const nodes = () => store;
 const safe =
@@ -88,6 +94,8 @@ export function mountNodeControl(app: express.Application) {
             const node = await store.get(req.params.nodeId);
             if (!node?.enabled || !node.key_encrypted)
                 return res.status(503).json({ error: 'Node disabled or not enrolled' });
+            if (req.method !== 'GET' && req.method !== 'HEAD' && req.path.replace(/\/+$/, '') === '/api/system/settings')
+                return res.status(409).json({ error: 'Manage IP allocations through Nodes → Node settings. Direct settings writes are disabled.' });
             let delegation: Delegation | undefined;
             if (!req.user!.isRoot || req.headers['x-gamepanel-server']) {
                 try {
@@ -145,7 +153,7 @@ export function mountNodeControl(app: express.Application) {
         }),
     );
     const router = express.Router();
-    router.use(express.json({ limit: '8kb' }));
+    router.use(express.json({ limit: '512kb' }));
     // Enrollment errors deliberately reveal no token validity details.
     router.post('/:id/enroll', async (req, res) => {
         res.setHeader('Cache-Control', 'no-store');
@@ -196,6 +204,22 @@ export function mountNodeControl(app: express.Application) {
         }
     });
     router.use(authMiddleware, rootOnly);
+    const allocationAction = (run: (req: AuthenticatedRequest) => Promise<unknown>) => safe(async (req, res) => {
+        if (req.params.id !== 'local' && !NODE_ID.test(req.params.id)) return res.status(400).json({ error: 'Invalid node' });
+        try { return res.json(await run(req)); }
+        catch (error) {
+            if (error instanceof AllocationError || (error as { statusCode?: number }).statusCode)
+                return res.status((error as { statusCode?: number }).statusCode || 409).json({ error: (error as Error).message });
+            return res.status(503).json({ error: 'Cannot read or confirm node allocations. Any outstanding IP reservations are retained.' });
+        }
+    });
+    router.get('/:id/allocations', allocationAction(req => allocations.read(req.params.id)));
+    router.put('/:id/allocations', allocationAction(req => {
+        if (!req.body || Object.keys(req.body).some(key => !['network', 'revision'].includes(key)))
+            throw new AllocationError('Expected network and revision only.', 400);
+        return allocations.save(req.params.id, req.body.network, req.body.revision);
+    }));
+    router.post('/:id/allocations/retry', allocationAction(req => allocations.retry(req.params.id)));
     router.get(
         '/',
         safe(async (_req, res) =>
@@ -224,6 +248,21 @@ export function mountNodeControl(app: express.Application) {
                 return res.status(400).json({ error: 'enabled must be boolean' });
             await store.setEnabled(req.params.id, req.body.enabled, req.user!.username);
             return res.json({ ok: true });
+        }),
+    );
+    router.delete(
+        '/:id',
+        safe(async (req, res) => {
+            try {
+                await allocations.removeNode(req.params.id, () => store.remove(req.params.id, req.body?.confirmationName, req.user!.username, verifyNodeEmpty));
+                return res.json({ ok: true });
+            } catch (error) {
+                if (error instanceof NodeRemovalError)
+                    return res.status(error.status).json({ error: error.message });
+                if (error instanceof AllocationError)
+                    return res.status(error.statusCode).json({ error: error.message });
+                throw error;
+            }
         }),
     );
     router.post(

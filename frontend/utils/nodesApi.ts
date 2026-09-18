@@ -15,7 +15,8 @@ export async function nodesRequest<T>(
   method = body === undefined ? 'GET' : 'POST'
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  // Allocation saves verify ownership across runtimes before the signed write/readback.
+  const timer = setTimeout(() => controller.abort(), /\/allocations(?:\/retry)?$/.test(path) ? 90000 : 15000);
   try {
     const response = await fetch(path, {
       method,

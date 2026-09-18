@@ -235,7 +235,7 @@ test('global settings only edits appearance and preserves Local allocations', as
   const upstream = page.getByRole('link', { name: 'Based on OVHcloud Game Panel' });
   await expect(upstream).toHaveAttribute('href', 'https://github.com/ovh/game-panel');
   await expect(upstream).toHaveAttribute('rel', 'noopener noreferrer');
-  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.11/);
+  await expect(revision.locator('..')).toHaveAttribute('title', /1\.5\.0-skoczi\.12/);
   await expect(page.getByRole('link', { name: 'Bug or feature?' })).toHaveAttribute(
     'href',
     'https://github.com/Skoczi/game-panel-skoczi/issues'

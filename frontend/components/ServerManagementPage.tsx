@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, Copy, Play, Square, RotateCw } from 'lucide-react';
+import {
+  ArrowLeft,
+  Copy,
+  Play,
+  Square,
+  RotateCw,
+  Cpu,
+  MemoryStick,
+  HardDrive,
+  Network,
+  Globe,
+} from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import type { GameServer } from '../types/gameServer';
 import type { AuthUser } from '../utils/permissions';
@@ -48,6 +59,45 @@ const labels: Record<ServerPageTab, string> = {
   terminal: 'Terminal',
   activity: 'Activity',
 };
+const metricLabels: Record<string, string> = {
+  cpuUsage: 'CPU usage',
+  memoryUsage: 'Memory usage',
+  networkIn: 'Inbound',
+  networkOut: 'Outbound',
+};
+function MetricTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ dataKey?: string | number; value?: number | string; color?: string }>;
+  label?: string | number;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="gp-metric-tooltip" role="status">
+      <time>{new Date(Number(label)).toLocaleTimeString()}</time>
+      {payload.map((entry) => {
+        const key = String(entry.dataKey);
+        const value = Number(entry.value);
+        return (
+          <div className="gp-metric-tooltip-row" key={key}>
+            <i style={{ background: entry.color }} aria-hidden="true" />
+            <span>{metricLabels[key] || key}</span>
+            <strong>
+              {!Number.isFinite(value)
+                ? '—'
+                : key.startsWith('network')
+                  ? formatNetworkSpeed(value)
+                  : `${value.toFixed(2)}%`}
+            </strong>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 export function ServerManagementPage({
   server,
   currentUser,
@@ -224,6 +274,7 @@ export function ServerManagementPage({
             </section>
             <aside className="gp-server-stats" aria-label="Server details">
               <div className="gp-server-stat">
+                <Globe className="gp-stat-icon" size={19} aria-hidden="true" />
                 <small>Connection address</small>
                 <strong className="gp-server-address">{address}</strong>
                 {server.port && (
@@ -241,18 +292,22 @@ export function ServerManagementPage({
                 )}
               </div>
               <div className="gp-server-stat">
+                <Cpu className="gp-stat-icon" size={19} aria-hidden="true" />
                 <small>CPU usage</small>
                 <strong>{formatMetricValue(server.status, server.cpuUsage)}</strong>
               </div>
               <div className="gp-server-stat">
+                <MemoryStick className="gp-stat-icon" size={19} aria-hidden="true" />
                 <small>Memory usage</small>
                 <strong>{formatMetricValue(server.status, server.memoryUsage)}</strong>
               </div>
               <div className="gp-server-stat">
+                <HardDrive className="gp-stat-icon" size={19} aria-hidden="true" />
                 <small>Disk usage</small>
                 <strong>{formatMetricValue(server.status, server.diskUsage)}</strong>
               </div>
               <div className="gp-server-stat">
+                <Network className="gp-stat-icon" size={19} aria-hidden="true" />
                 <small>Network · inbound / outbound</small>
                 <strong>
                   {formatNetworkSpeed(server.networkIn)} / {formatNetworkSpeed(server.networkOut)}
@@ -263,15 +318,24 @@ export function ServerManagementPage({
           <div className="gp-server-charts">
             {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
               <section className="gp-server-stat" key={metric}>
-                <h2>{['CPU (%)', 'Memory (%)', 'Network (B/s)'][index]}</h2>
+                <h2>{['CPU usage', 'Memory usage', 'Network traffic'][index]}</h2>
                 {metrics.length ? (
                   <div style={{ height: 180 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={metrics.slice(-120)}>
                         <XAxis dataKey="timestamp" hide />
-                        <YAxis width={42} tick={{ fontSize: 11 }} />
+                        <YAxis
+                          width={62}
+                          tick={{ fontSize: 11, fill: 'var(--gp-muted)' }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(value) =>
+                            index === 2 ? formatNetworkSpeed(Number(value)) : `${value}%`
+                          }
+                        />
                         <Tooltip
-                          labelFormatter={(value) => new Date(Number(value)).toLocaleTimeString()}
+                          content={<MetricTooltip />}
+                          cursor={{ stroke: 'var(--gp-muted)', strokeDasharray: '3 3' }}
                         />
                         <Area
                           type="monotone"

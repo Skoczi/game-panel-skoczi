@@ -1,5 +1,51 @@
 import { test, expect } from '@playwright/test';
 
+for (const theme of ['light', 'dark']) {
+  test(`metrics cards are compact and chart tooltips are readable in ${theme} mode`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 1100 });
+    await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+    await page.evaluate(
+      (dark) => document.documentElement.classList.toggle('dark', dark),
+      theme === 'dark'
+    );
+    const card = page.locator('.gp-server-stats .gp-server-stat').nth(1);
+    expect((await card.boundingBox())!.height).toBeLessThan(120);
+    for (const index of [0, 2]) {
+      const chart = page.locator('.gp-server-charts .recharts-wrapper').nth(index);
+      await chart.scrollIntoViewIfNeeded();
+      const box = (await chart.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      const tooltip = page.locator('.gp-metric-tooltip');
+      await expect(tooltip).toBeVisible();
+      await expect(tooltip).toContainText(index === 0 ? 'CPU usage' : 'Inbound');
+      await expect(tooltip).toContainText(index === 0 ? '%' : 'B/s');
+      if (index === 2) await expect(tooltip).toContainText('Outbound');
+      const contrast = await tooltip.evaluate((element) => {
+        const luminance = (color: string) => {
+          const rgb = color
+            .match(/[\d.]+/g)!
+            .slice(0, 3)
+            .map(Number)
+            .map((v) => {
+              const c = v / 255;
+              return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+            });
+          return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        };
+        const bg = luminance(getComputedStyle(element).backgroundColor);
+        return [...element.querySelectorAll('time, span, strong')].map((child) => {
+          const fg = luminance(getComputedStyle(child).color);
+          return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+        });
+      });
+      expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
+    }
+    await page.screenshot({ path: `test-results/server-metrics-${theme}.png`, fullPage: true });
+  });
+}
+
 for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
   for (const width of [1920, 390]) {
     test(`${tab} fills the page content at ${width}px`, async ({ page }) => {

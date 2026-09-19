@@ -10,6 +10,7 @@ import {
 import { getServerOrThrow } from './servers.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import { parseStoredMounts } from '../providers/runtimeConfig.js';
+import { nativeBackupDirectory } from './nativeBackups.js';
 
 type ListFilesResult = {
     root: string;
@@ -30,6 +31,9 @@ export async function getServerFsRoot(params: {
     root: ServerFsRoot;
 }): Promise<{ server: GameServerRow; root: string; rootDir: string; roots: FileRoot[] }> {
     const server = await getServerOrThrow(params.serverId);
+    if (params.root === 'native-backups') {
+        return { server, root: 'native-backups', rootDir: await nativeBackupDirectory(server), roots: [] };
+    }
     const mounts = parseStoredMounts(server);
     const roots = mounts.map((mount) => ({
         key: mount.key,

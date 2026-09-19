@@ -33,8 +33,10 @@ import {
 } from '../services/fileTransfers.js';
 import { createDownloadToken } from '../services/downloadTokens.js';
 import { serverRepository } from '../database/index.js';
+import { rejectPrivateFileRoots } from '../middleware/privateFileRoots.js';
 
 const router = Router({ mergeParams: true });
+router.use(rejectPrivateFileRoots);
 
 function getQueryRoot(value: unknown): string | undefined {
     return optionalQueryString(value as string | string[] | undefined);

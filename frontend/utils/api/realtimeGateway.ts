@@ -20,6 +20,7 @@ export class RealtimeGateway {
   private pendingLogsSubscriptions = new Set<number>();
   private logsHistoryLimitByServer = new Map<number, number>();
   private pendingActionsSubscriptions = new Set<number>();
+  private actionsOwners = new Map<number, Set<string>>();
   private pendingInstallSubscriptions = new Set<number>();
   private pendingSystemMetricsSubscription = false;
   private pendingSystemMetricsHistoryLimit: number | null = null;
@@ -34,6 +35,7 @@ export class RealtimeGateway {
     this.pendingLogsSubscriptions.clear();
     this.logsHistoryLimitByServer.clear();
     this.pendingActionsSubscriptions.clear();
+    this.actionsOwners.clear();
     this.pendingInstallSubscriptions.clear();
     this.pendingSystemMetricsSubscription = false;
     this.pendingSystemMetricsHistoryLimit = null;
@@ -317,7 +319,10 @@ export class RealtimeGateway {
     }
   }
 
-  subscribeActions(serverId: number, limit?: number) {
+  subscribeActions(serverId: number, limit?: number, owner = 'history') {
+    const owners = this.actionsOwners.get(serverId) ?? new Set<string>();
+    owners.add(owner);
+    this.actionsOwners.set(serverId, owners);
     this.pendingActionsSubscriptions.add(serverId);
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.wsAuthed) {
       this.ws.send(
@@ -330,7 +335,11 @@ export class RealtimeGateway {
     }
   }
 
-  unsubscribeActions(serverId: number) {
+  unsubscribeActions(serverId: number, owner = 'history') {
+    const owners = this.actionsOwners.get(serverId);
+    owners?.delete(owner);
+    if (owners?.size) return;
+    this.actionsOwners.delete(serverId);
     this.pendingActionsSubscriptions.delete(serverId);
     if (this.ws && this.ws.readyState === WebSocket.OPEN && this.wsAuthed) {
       this.ws.send(

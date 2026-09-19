@@ -14,6 +14,25 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const recipe = () => validateTemplate(structuredClone(NATIVE_CS16_TEMPLATE));
+test('native configuration links are validated, signed and keep old snapshots unchanged', () => {
+    const original = recipe();
+    assert.equal(Object.hasOwn(original, 'configFiles'), false);
+    const document = validateTemplate({ ...original, configFiles: [{ root: 'data', path: '/serverfiles/cstrike/server.cfg', label: 'Server configuration' }] });
+    assert.equal(document.configFiles?.[0].root, 'data');
+    assert.equal(templateHash(validateTemplate(document)), templateHash(document));
+    assert.notEqual(templateHash(document), templateHash(original));
+    for (const entry of [
+        { root: 'missing', path: '/server.cfg', label: 'Config' },
+        { root: 'data', path: '/../etc/passwd', label: 'Config' },
+        { root: 'data', path: '/foo/../server.cfg', label: 'Config' },
+        { root: 'data', path: 'server.cfg', label: 'Config' },
+        { root: 'data', path: '/foo/', label: 'Config' },
+    ]) assert.throws(() => validateTemplate({ ...original, configFiles: [entry] }));
+    assert.throws(() => validateTemplate({ ...document, configFiles: [...document.configFiles!, ...document.configFiles!] }));
+    const shipped = validateTemplate(JSON.parse(readFileSync(new URL('../../examples/game-templates/rehlds.json', import.meta.url), 'utf8')));
+    assert(shipped.lifecycle!.startup.join(' ').includes('/data/serverfiles'));
+    assert.equal(shipped.configFiles?.length, 4);
+});
 test('legacy schema-2 command snapshot canonical ordering remains unchanged', () => {
     const t = recipe();
     const legacy = structuredClone(t);

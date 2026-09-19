@@ -20,6 +20,7 @@ import { signNodeRequest, NODE_ID } from '../nodes/protocol.js';
 import { delegatedPath, type Delegation } from '../nodes/delegation.js';
 import { ASSIGNABLE_SERVER_PERMISSIONS } from '../permissions.js';
 import { FleetStore, type InventoryItem, type FleetRow } from './store.js';
+import { fleetDisplayIdentity } from './displayIdentity.js';
 
 let store: FleetStore;
 let refreshing: Promise<void> | undefined;
@@ -78,12 +79,11 @@ async function readInventory(id: string, deletionSnapshot?: NodeRow): Promise<In
                             throw new Error('Invalid inventory');
                         // Secrets, environment and host paths are never retained in the fleet database.
                         resolve(
-                            value.servers.map((s: InventoryItem) => ({
+                            value.servers.map((s: InventoryItem & { providerMetadata?: unknown }) => ({
                                 id: s.id,
                                 runtimeKey: s.runtimeKey,
                                 name: s.name,
-                                provider: s.provider,
-                                catalogId: s.catalogId,
+                                ...fleetDisplayIdentity(s.provider, s.catalogId, s.providerMetadata),
                                 status: s.status,
                             })),
                         );
@@ -121,8 +121,7 @@ export function refreshFleet(): Promise<void> {
                 id: s.id,
                 runtimeKey: s.runtime_uuid!,
                 name: s.name,
-                provider: s.provider,
-                catalogId: s.catalog_id,
+                ...fleetDisplayIdentity(s.provider, s.catalog_id, s.provider_metadata_json),
                 status: s.status,
             })),
         );

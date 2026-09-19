@@ -55,6 +55,33 @@ Startup directly executes `/data/hlds_linux`, not LinuxGSM or `hlds_run`. `MAP` 
 
 ## Trust and limits
 
+### Native settings contract (Revision 16)
+
+Native servers are first-class in Settings, Activity and Fleet. The stored generic
+provider identifier remains `external` for database compatibility; a validated
+schema-2 snapshot selects native behavior. Arbitrary custom images do not gain
+native command or backup capabilities merely by changing their display name.
+
+Templates may declare `configFiles: [{root, path, label}]`. Roots must reference
+declared mounts; paths are absolute within that mount and cannot traverse upward.
+The panel exposes these files through the existing permission-checked editor.
+Older snapshots without this field use bounded file discovery. Nodes advertise
+`nativeSettingsProtocol: 1`; templates with configuration links require this
+generic capability update once, not a new agent for each game.
+
+Native backups archive every persistent template mount while the game is stopped.
+Archives live outside game-accessible mounts in a private backup directory, use
+mode 0600 and do not follow symlinks. The Backups API retains its own read/create/
+download/delete/rename permissions; the general file API cannot access that root.
+Automatic restore and retention are not implemented. Download an off-node copy
+before deleting a server or making a destructive migration.
+
+The current ReHLDS recipe installs game files into `/data/serverfiles`, with
+configuration links under `/serverfiles/cstrike`. Existing flat installations
+retain their signed snapshot and continue to work; importing this recipe does not
+move their files. Migration requires an explicit stopped-server backup and matching
+startup/config paths. Runtime and installer images remain shared generic bases.
+
 Publishing a native template grants execution of its reviewed commands **inside that server's container**. This is administrator-controlled code, not a safe format for blindly importing untrusted recipes. Bash scripts are stored in the panel; command steps can still use helpers packaged in reviewed images. Review recipes before publishing, quote input values, pin artifact versions and checksums, and avoid fetching executable scripts from mutable remote URLs. Imported documents are always drafts and never execute at import time.
 
 Pterodactyl egg scripts are not drop-in compatible: change `/mnt/server` to the declared data mount, remove root-only ownership/package installation (put dependencies into the shared installer image), and replace blanket `chmod 777`, destructive cleanup and moving `latest` downloads. Startup variables stay in the runtime environment; sensitive values must be secret variables, never hardcoded script text. An explicit update must preserve existing configuration and secrets. Publisher download services such as Steam remain required for installation/update.

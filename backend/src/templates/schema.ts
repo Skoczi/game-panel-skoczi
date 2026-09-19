@@ -37,7 +37,7 @@ function unique(values: string[]) {
 }
 export function validateTemplate(input: unknown): GameTemplate {
     if (JSON.stringify(input)?.length > 32768) throw new TemplateError('Template exceeds 32 KiB');
-    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle']);
+    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles']);
     if (v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new TemplateError('Unsupported template schema (expected 1 or 2; egg files require conversion)');
     if (v.schemaVersion === 1 && v.lifecycle !== undefined) throw new TemplateError('Native lifecycle requires schemaVersion 2');
     const r = object(v.runtime, ['provider', 'image', 'catalogId', 'gameServerName', 'architectures', 'identity']);
@@ -83,9 +83,21 @@ export function validateTemplate(input: unknown): GameTemplate {
         return { key: identifier(m.key), containerPath: containerPath.replace(/\/$/, '') };
     });
     unique(mounts.map(m => m.key)); unique(mounts.map(m => m.containerPath));
+    let configFiles: GameTemplate['configFiles'];
+    if (v.configFiles !== undefined) {
+        if (v.schemaVersion !== 2) throw new TemplateError('Configuration file links require a native template');
+        configFiles = list(v.configFiles, 32).map(raw => {
+            const file = object(raw, ['root', 'path', 'label']);
+            const root = identifier(file.root);
+            const filePath = text(file.path, 300);
+            if (!mounts.some(m => m.key === root) || !filePath.startsWith('/') || filePath.includes('\\') || filePath.split('/').some(p => p === '..' || p === '.') || filePath.endsWith('/')) throw new TemplateError('Configuration paths must name a file inside a declared data mount');
+            return { root, path: filePath, label: text(file.label, 80) };
+        });
+        unique(configFiles.map(f => `${f.root}:${f.path}`));
+    }
     let lifecycle: GameTemplate['lifecycle'];
     if (v.schemaVersion === 2) {
-        if (provider !== 'external') throw new TemplateError('Native lifecycle uses the external image provider, not a legacy adapter');
+        if (provider !== 'external') throw new TemplateError('Native lifecycle requires the generic runtime provider, not a legacy adapter');
         const l = object(v.lifecycle, ['startup', 'install', 'update', 'workdir', 'stopSignal', 'stopTimeoutSeconds', 'installerImage']);
         let installerImage: string | undefined;
         if (l.installerImage !== undefined) {
@@ -129,7 +141,7 @@ export function validateTemplate(input: unknown): GameTemplate {
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
         lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}) };
     }
-    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}) };
+    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}) };
 }
 export function validateVariable(v: GameTemplate['variables'][number], value: unknown): string {
     const s = text(value, 2048, !v.required);

@@ -356,7 +356,7 @@ function AppContent() {
       try { native = JSON.parse(server.providerMetadataJson || '{}')?.template?.document?.schemaVersion === 2; } catch {}
       if (!native || !canAccessServer(Number(server.id), 'container.logs.read') || !canAccessServer(Number(server.id), 'server.edit')) continue;
       nativeSubscriptions.current.add(server.id);
-      apiClient.subscribeActions(Number(server.id), 200);
+      apiClient.subscribeActions(Number(server.id), 200, 'native-activity');
       if (server.installStatus && !['completed', 'failed'].includes(server.installStatus)) apiClient.subscribeInstall(Number(server.id));
     }
   }, [gameServers, canAccessServer]);
@@ -379,6 +379,8 @@ function AppContent() {
       if (Number.isFinite(numericServerId) && numericServerId > 0) {
         apiClient.unsubscribeLogs(numericServerId);
         apiClient.unsubscribeActions(numericServerId);
+        apiClient.unsubscribeActions(numericServerId, 'native-activity');
+        nativeSubscriptions.current.delete(serverId);
         apiClient.unsubscribeInstall(numericServerId);
       }
 

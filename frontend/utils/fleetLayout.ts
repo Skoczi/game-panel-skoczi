@@ -40,6 +40,7 @@ export function fleetGame(
   server: { provider: string; catalogId?: string | null },
   names: Record<string, string>
 ) {
+  if (server.provider === 'native') return { key: `native:${server.catalogId || 'unknown'}`, label: server.catalogId || 'Native Runtime' };
   if (server.catalogId)
     return {
       key: `${server.provider}:${server.catalogId}`,

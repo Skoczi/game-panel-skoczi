@@ -38,6 +38,17 @@ export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; 
       <label className="text-sm">Stop timeout (seconds)<input className={field} type="number" min={1} max={120} value={lifecycle.stopTimeoutSeconds} onChange={e => update({ stopTimeoutSeconds: Number(e.target.value) })} /></label>
       <fieldset className="text-sm"><legend>Stop signal</legend><div className="mt-3 flex gap-4">{(['SIGTERM', 'SIGINT'] as const).map(signal => <label key={signal}><input type="radio" name="native-stop-signal" checked={lifecycle.stopSignal === signal} onChange={() => update({ stopSignal: signal })} /> {signal}</label>)}</div></fieldset>
     </div>
+    <section className="space-y-3 border-t border-slate-300 pt-5 dark:border-slate-700">
+      <h3 className="font-semibold">Game configuration files</h3>
+      <p className="text-sm text-slate-500">Expose exact configuration files in Server Settings. Paths are relative to the selected data mount, not the host filesystem.</p>
+      {(draft.configFiles ?? []).map((file, index) => <div key={index} className="grid gap-2 md:grid-cols-4">
+        <input aria-label={`Configuration label ${index + 1}`} className={field} value={file.label} placeholder="Label" onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, label: e.target.value } : f) })} />
+        <select aria-label={`Configuration root ${index + 1}`} className={field} value={file.root} onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, root: e.target.value } : f) })}>{draft.mounts.map(m => <option key={m.key} value={m.key}>{m.containerPath}</option>)}</select>
+        <input aria-label={`Configuration path ${index + 1}`} className={field} value={file.path} placeholder="/serverfiles/game/server.cfg" onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, path: e.target.value } : f) })} />
+        <button className={button} onClick={() => change({ configFiles: draft.configFiles!.filter((_, i) => i !== index) })}>Remove file</button>
+      </div>)}
+      <button className={button} disabled={!draft.mounts.length || (draft.configFiles?.length ?? 0) >= 32} onClick={() => change({ configFiles: [...(draft.configFiles ?? []), { root: draft.mounts[0].key, path: '/server.cfg', label: 'Server configuration' }] })}>Add configuration file</button>
+    </section>
     {(['install', 'update'] as const).map(phase => <section key={phase} className="space-y-3 border-t border-slate-300 pt-5 dark:border-slate-700">
       <h3 className="font-semibold">{phase === 'install' ? 'Installation' : 'Explicit update'} steps</h3>
       {lifecycle[phase].map((step, index) => {

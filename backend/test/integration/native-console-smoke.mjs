@@ -54,5 +54,16 @@ try {
   }
   assert(logs.includes('reply:status') && logs.includes('reply:version'));
   assert((await game.inspect()).State.Running, 'Disconnecting console must not close game stdin');
+  const { createNativeBackup, nativeBackupDirectory } = await import('./dist/services/nativeBackups.js');
+  const { getServerStoragePaths } = await import('./dist/utils/storage.js');
+  const { serverRoot } = getServerStoragePaths(1);
+  await fs.mkdir(`${serverRoot}/data/serverfiles`, { recursive: true });
+  await fs.writeFile(`${serverRoot}/data/serverfiles/server.cfg`, 'hostname isolated-smoke');
+  await assert.rejects(createNativeBackup(server), /Stop the server/);
+  await game.stop({ t: 1 });
+  assert((await createNativeBackup(server)).ok);
+  const names = await fs.readdir(await nativeBackupDirectory(server));
+  assert.equal(names.length, 1);
+  assert(names[0].endsWith('.tar.gz'));
 } finally { await game.remove({ force: true }); await closeDatabase(); }
-console.log('PASS: persisted/redacted installer logs, realtime batches, named progress, repeated native stdin commands; test container removed');
+console.log('PASS: persisted/redacted installer logs, realtime batches, named progress, repeated native stdin commands, stopped-server native backup; test container removed');

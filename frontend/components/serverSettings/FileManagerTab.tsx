@@ -266,9 +266,11 @@ export function FileManagerTab({
       <div
         className={`h-[52px] px-3 border-b ${borderColor} ${contentBg} flex items-center gap-1 flex-shrink-0`}
       >
-        {availableRoots.length > 1 && (
+        {availableRoots.length > 0 && (
           <select
             value={currentRoot}
+            aria-label="Data directory"
+            disabled={availableRoots.length === 1}
             onChange={(e) => setCurrentRoot(e.target.value)}
             className="h-[30px] flex-shrink-0 rounded border border-gray-700 bg-gray-800 px-2 text-xs text-gray-300 outline-none cursor-pointer hover:border-gray-500"
           >

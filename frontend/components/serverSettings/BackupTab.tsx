@@ -22,6 +22,7 @@ interface BackupItem {
 }
 
 interface BackupTabProps {
+  native?: boolean;
   contentBg: string;
   borderColor: string;
   hoverBg: string;
@@ -109,6 +110,7 @@ export function BackupTab({
   isLinuxGSMGame,
   backupsNotSupported,
   hideManualBackup = false,
+  native = false,
 }: BackupTabProps) {
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -153,6 +155,7 @@ export function BackupTab({
           )}
         </div>
 
+        {native && <p className={`rounded-xl border ${borderColor} p-4 text-sm ${textSecondary}`}>Native backups include all persistent data directories. Stop the server before creating a consistent archive. Download archives for off-node storage; automatic restore and retention are not enabled.</p>}
         {backupsNotSupported && (
           <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
             <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -250,7 +253,7 @@ export function BackupTab({
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
               <div>
                 <h4 className={`text-lg font-semibold ${textPrimary} mb-1`}>Available Backups</h4>
-                <p className={`text-sm ${textSecondary}`}>{isLinuxGSMGame ? 'Download or delete your server backups' : 'Download, restore or delete your server backups'}</p>
+                <p className={`text-sm ${textSecondary}`}>{isLinuxGSMGame || !canRestoreBackups ? 'Download or delete your server backups' : 'Download, restore or delete your server backups'}</p>
               </div>
               <AppButton
                 onClick={() => loadBackups()}

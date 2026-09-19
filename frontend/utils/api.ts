@@ -939,12 +939,12 @@ class ApiClient {
     this.realtime.unsubscribeLogs(serverId);
   }
 
-  subscribeActions(serverId: number, limit?: number) {
-    this.realtime.subscribeActions(serverId, limit);
+  subscribeActions(serverId: number, limit?: number, owner?: string) {
+    this.realtime.subscribeActions(serverId, limit, owner);
   }
 
-  unsubscribeActions(serverId: number) {
-    this.realtime.unsubscribeActions(serverId);
+  unsubscribeActions(serverId: number, owner?: string) {
+    this.realtime.unsubscribeActions(serverId, owner);
   }
 
   subscribeServersMetrics() {

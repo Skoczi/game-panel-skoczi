@@ -12,9 +12,15 @@ const document = {
     { key: 'MAX_PLAYERS', label: 'Maximum players (1-32)', type: 'integer', required: true, secret: false, default: '16' }
   ],
   mounts: [{ key: 'data', containerPath: '/data' }],
+  configFiles: [
+    { root: 'data', path: '/serverfiles/cstrike/server.cfg', label: 'Server settings' },
+    { root: 'data', path: '/serverfiles/cstrike/mapcycle.txt', label: 'Map rotation' },
+    { root: 'data', path: '/serverfiles/cstrike/banned.cfg', label: 'Banned players' },
+    { root: 'data', path: '/serverfiles/cstrike/listip.cfg', label: 'Banned addresses' }
+  ],
   lifecycle: {
     installerImage: 'gamepanel-installer:steamcmd-v1', workdir: '/data',
-    startup: ['/data/hlds_linux', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}', '+hostname', '{{SERVER_NAME}}'],
+    startup: ['/bin/bash', '-c', 'cd /data/serverfiles && export LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin && exec ./hlds_linux "$@"', 'hlds', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}', '+hostname', '{{SERVER_NAME}}'],
     stopSignal: 'SIGINT', stopTimeoutSeconds: 30,
     install: [{ name: 'Install Steam legacy files and verified ReHLDS', timeoutSeconds: 1800, script: readFileSync(new URL('./install.sh', import.meta.url), 'utf8') }], update: []
   }

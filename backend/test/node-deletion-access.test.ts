@@ -118,6 +118,7 @@ test('deletion inventory verification is signed, read-only and rejects unavailab
         '../nodes/transport.js': { nodeTls: () => ({}) },
         '../nodes/protocol.js': protocol, '../nodes/delegation.js': {},
         '../permissions.js': {}, './store.js': { FleetStore },
+        './displayIdentity.js': { fleetDisplayIdentity: (provider: string, catalogId: string) => ({ provider, catalogId }) },
     }, { URL, Buffer, setTimeout, clearTimeout });
     try {
         await verifyNodeEmpty(node);

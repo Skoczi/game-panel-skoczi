@@ -343,6 +343,7 @@ export function ContainerConfigTab({
               label="TCP"
               ports={tcpPorts}
               protocol="tcp"
+              lockedStructure={!!nativeSnapshot}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               canEdit={canEdit}
@@ -354,6 +355,7 @@ export function ContainerConfigTab({
               label="UDP"
               ports={udpPorts}
               protocol="udp"
+              lockedStructure={!!nativeSnapshot}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               canEdit={canEdit}
@@ -387,7 +389,7 @@ export function ContainerConfigTab({
                   placeholder="key (e.g. data)"
                   value={mount.key}
                   onChange={e => updateMount(idx, 'key', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot}
                 />
                 <span className={`text-sm ${textSecondary} flex-shrink-0`}>→</span>
                 <input
@@ -395,9 +397,9 @@ export function ContainerConfigTab({
                   placeholder="containerPath (e.g. /data)"
                   value={mount.containerPath}
                   onChange={e => updateMount(idx, 'containerPath', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot}
                 />
-                {canEdit && (
+                {canEdit && !nativeSnapshot && (
                   <AppButton
                     tone="ghost"
                     onClick={() => removeMount(idx)}
@@ -408,7 +410,7 @@ export function ContainerConfigTab({
                 )}
               </div>
             ))}
-            {canEdit && (
+            {canEdit && !nativeSnapshot && (
               <AppButton
                 tone="ghost"
                 onClick={addMount}
@@ -423,7 +425,8 @@ export function ContainerConfigTab({
 
         {canManageEnv && (
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
-          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Environment Variables</h4>
+          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>{nativeSnapshot ? 'Template Variables' : 'Environment Variables'}</h4>
+          {nativeSnapshot && <p className={`text-sm ${textSecondary} mb-4`}>Variable names and internal ports are defined by the installed template. Saving values recreates the container without reinstalling game files.</p>}
           <div className={sectionClass}>
             {envEntries.length === 0 && (
               <p className={`text-sm ${textSecondary}`}>No variables configured.</p>
@@ -435,17 +438,19 @@ export function ContainerConfigTab({
                   placeholder="KEY"
                   value={entry.key}
                   onChange={e => updateEnv(idx, 'key', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot}
                 />
                 <span className={`text-sm ${textSecondary} flex-shrink-0`}>=</span>
                 <input
                   className={`${inputClass} flex-[2]`}
                   placeholder="value"
+                  aria-label={nativeSnapshot?.document.variables.find(v => v.key === entry.key)?.label || entry.key}
+                  type={nativeSnapshot?.document.variables.find(v => v.key === entry.key)?.secret ? 'password' : 'text'}
                   value={entry.value}
                   onChange={e => updateEnv(idx, 'value', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot?.document.ports.some(p => p.env === entry.key)}
                 />
-                {canEdit && (
+                {canEdit && !nativeSnapshot && (
                   <AppButton
                     tone="ghost"
                     onClick={() => removeEnv(idx)}
@@ -456,7 +461,7 @@ export function ContainerConfigTab({
                 )}
               </div>
             ))}
-            {canEdit && (
+            {canEdit && !nativeSnapshot && (
               <AppButton
                 tone="ghost"
                 onClick={addEnv}
@@ -730,6 +735,7 @@ export function ContainerConfigTab({
 }
 
 interface PortsSectionProps {
+  lockedStructure?: boolean;
   label: string;
   ports: PortEntry[];
   protocol: 'tcp' | 'udp';
@@ -742,6 +748,7 @@ interface PortsSectionProps {
 }
 
 function PortsSection({
+  lockedStructure = false,
   label,
   ports,
   textPrimary,
@@ -787,7 +794,7 @@ function PortsSection({
               placeholder="Container port"
               value={port.container}
               onChange={e => onUpdate(idx, 'container', e.target.value)}
-              disabled={!canEdit}
+              disabled={!canEdit || lockedStructure}
             />
             <input
               className={`${inputClass} flex-1`}
@@ -796,7 +803,7 @@ function PortsSection({
               onChange={e => onUpdate(idx, 'label', e.target.value)}
               disabled={!canEdit}
             />
-            {canEdit && (
+            {canEdit && !lockedStructure && (
               <AppButton
                 tone="ghost"
                 onClick={() => onRemove(idx)}
@@ -807,7 +814,7 @@ function PortsSection({
             )}
           </div>
         ))}
-        {canEdit && (
+        {canEdit && !lockedStructure && (
           <AppButton
             tone="ghost"
             onClick={onAdd}

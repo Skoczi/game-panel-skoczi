@@ -61,11 +61,36 @@
       "containerPath": "/data"
     }
   ],
+  "configFiles": [
+    {
+      "root": "data",
+      "path": "/serverfiles/cstrike/server.cfg",
+      "label": "Server settings"
+    },
+    {
+      "root": "data",
+      "path": "/serverfiles/cstrike/mapcycle.txt",
+      "label": "Map rotation"
+    },
+    {
+      "root": "data",
+      "path": "/serverfiles/cstrike/banned.cfg",
+      "label": "Banned players"
+    },
+    {
+      "root": "data",
+      "path": "/serverfiles/cstrike/listip.cfg",
+      "label": "Banned addresses"
+    }
+  ],
   "lifecycle": {
     "installerImage": "gamepanel-installer:steamcmd-v1",
     "workdir": "/data",
     "startup": [
-      "/data/hlds_linux",
+      "/bin/bash",
+      "-c",
+      "cd /data/serverfiles && export LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin && exec ./hlds_linux \"$@\"",
+      "hlds",
       "-console",
       "-game",
       "cstrike",
@@ -87,7 +112,7 @@
       {
         "name": "Install Steam legacy files and verified ReHLDS",
         "timeoutSeconds": 1800,
-        "script": "#!/bin/bash\nset -euo pipefail\n# Panel-owned recipe; no remote shell scripts are executed.\n[[ \"$MAX_PLAYERS\" =~ ^[0-9]{1,2}$ ]] && (( MAX_PLAYERS >= 1 && MAX_PLAYERS <= 32 )) || { echo 'Player limit must be 1-32'; exit 2; }\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid map name'; exit 2; }\ntest ! -e /data/hlds_linux || { echo 'Existing installation detected; refusing to overwrite it'; exit 2; }\nstage=$(mktemp -d /tmp/rehlds.XXXXXXXX)\ncurl --fail --location --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 --max-time 180 \\\n  https://eserv.pl/runtime-assets/rehlds/rehlds-bin-3.15.0.896.zip -o \"$stage/rehlds.zip\"\nprintf '%s  %s\\n' 997baeb7ef3842dab3e034d82dc651ebfe560c23b158adce660a6b97976b4e2b \"$stage/rehlds.zip\" | sha256sum -c -\n# Extract only reviewed files from the verified archive, outside the server data.\nunzip -q \"$stage/rehlds.zip\" 'bin/linux32/engine_i486.so' 'bin/linux32/hlds_linux' 'bin/linux32/filesystem_stdio.so' -d \"$stage\"\ncd /opt/steamcmd\ncomplete=0\nfor attempt in 1 2 3; do\n  if ./linux32/steamcmd +force_install_dir /data +login anonymous +app_set_config 90 mod cstrike +app_update 90 -beta steam_legacy validate +quit; then\n    if [[ -s /data/cstrike/dlls/cs.so && -s /data/cstrike/maps/de_dust2.bsp && -s /data/valve/valve.rc ]]; then complete=1; break; fi\n  fi\n  echo \"Incomplete Steam download, attempt $attempt/3\"\ndone\n(( complete == 1 )) || { echo 'Steam download incomplete; installation stopped'; exit 1; }\ninstall -m 755 \"$stage/bin/linux32/engine_i486.so\" /data/engine_i486.so\ninstall -m 755 \"$stage/bin/linux32/filesystem_stdio.so\" /data/filesystem_stdio.so\ninstall -m 755 \"$stage/bin/linux32/hlds_linux\" /data/hlds_linux\nmkdir -p /data/.steam/sdk32\ninstall -m 644 linux32/steamclient.so /data/.steam/sdk32/steamclient.so\nprintf '%s\\n' 'ReHLDS 3.15.0.896' > /data/.gamepanel-engine-version\necho 'ReHLDS installed. No automatic updates or third-party plugins enabled.'\n"
+        "script": "#!/bin/bash\nset -euo pipefail\n# Panel-owned recipe; no remote shell scripts are executed.\n[[ \"$MAX_PLAYERS\" =~ ^[0-9]{1,2}$ ]] && (( MAX_PLAYERS >= 1 && MAX_PLAYERS <= 32 )) || { echo 'Player limit must be 1-32'; exit 2; }\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid map name'; exit 2; }\ntest ! -e /data/serverfiles/hlds_linux || { echo 'Existing installation detected; refusing to overwrite it'; exit 2; }\ntest ! -e /data/hlds_linux || { echo 'Legacy flat installation detected; migrate or use a new server'; exit 2; }\nmkdir -p /data/serverfiles /data/log\nstage=$(mktemp -d /tmp/rehlds.XXXXXXXX)\ncurl --fail --location --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 --max-time 180 \\\n  https://eserv.pl/runtime-assets/rehlds/rehlds-bin-3.15.0.896.zip -o \"$stage/rehlds.zip\"\nprintf '%s  %s\\n' 997baeb7ef3842dab3e034d82dc651ebfe560c23b158adce660a6b97976b4e2b \"$stage/rehlds.zip\" | sha256sum -c -\n# Extract only reviewed files from the verified archive, outside the server data.\nunzip -q \"$stage/rehlds.zip\" 'bin/linux32/engine_i486.so' 'bin/linux32/hlds_linux' 'bin/linux32/filesystem_stdio.so' -d \"$stage\"\ncd /opt/steamcmd\ncomplete=0\nfor attempt in 1 2 3; do\n  if ./linux32/steamcmd +force_install_dir /data/serverfiles +login anonymous +app_set_config 90 mod cstrike +app_update 90 -beta steam_legacy validate +quit; then\n    if [[ -s /data/serverfiles/cstrike/dlls/cs.so && -s /data/serverfiles/cstrike/maps/de_dust2.bsp && -s /data/serverfiles/valve/valve.rc ]]; then complete=1; break; fi\n  fi\n  echo \"Incomplete Steam download, attempt $attempt/3\"\ndone\n(( complete == 1 )) || { echo 'Steam download incomplete; installation stopped'; exit 1; }\ninstall -m 755 \"$stage/bin/linux32/engine_i486.so\" /data/serverfiles/engine_i486.so\ninstall -m 755 \"$stage/bin/linux32/filesystem_stdio.so\" /data/serverfiles/filesystem_stdio.so\ninstall -m 755 \"$stage/bin/linux32/hlds_linux\" /data/serverfiles/hlds_linux\nmkdir -p /data/.steam/sdk32\ninstall -m 644 linux32/steamclient.so /data/.steam/sdk32/steamclient.so\nif [[ ! -f /data/serverfiles/cstrike/server.cfg ]]; then\n  printf '%s\\n' '// Managed by the server owner through Game Config.' 'sv_lan 0' 'log on' > /data/serverfiles/cstrike/server.cfg\nfi\ntouch /data/serverfiles/cstrike/banned.cfg /data/serverfiles/cstrike/listip.cfg\n[[ -f /data/serverfiles/cstrike/mapcycle.txt ]] || printf '%s\\n' de_dust2 > /data/serverfiles/cstrike/mapcycle.txt\nprintf '%s\\n' 'ReHLDS 3.15.0.896' > /data/serverfiles/.gamepanel-engine-version\necho 'ReHLDS installed. No automatic updates or third-party plugins enabled.'\n"
       }
     ],
     "update": []

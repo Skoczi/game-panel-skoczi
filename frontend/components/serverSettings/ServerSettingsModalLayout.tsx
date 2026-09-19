@@ -86,6 +86,7 @@ export function ServerSettingsModalLayout({
           </div>
           <AppButton
             onClick={onClose}
+            aria-label="Close server settings"
             className={`p-2 rounded ${hoverBg} transition-colors ${textSecondary} hover:text-red-400 flex-shrink-0 ml-2`}
           >
             <X className="w-5 h-5" />
@@ -246,4 +247,3 @@ export function ServerSettingsModalLayout({
     </div>
   );
 }
-

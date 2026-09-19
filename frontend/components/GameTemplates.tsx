@@ -915,7 +915,7 @@ export function GameTemplates() {
               .filter(
                 (r) =>
                   (filter === 'all' || r.status === filter) &&
-                  `${r.document.name} ${r.document.runtime.provider} ${r.document.author}`
+                  `${r.document.name} ${r.document.schemaVersion === 2 ? 'native runtime' : r.document.runtime.provider} ${r.document.author}`
                     .toLowerCase()
                     .includes(query.toLowerCase())
               )
@@ -925,7 +925,7 @@ export function GameTemplates() {
                     <div>
                       <h2 className="text-xl font-semibold">{r.document.name}</h2>
                       <p className="mt-1 text-xs uppercase tracking-wider text-slate-500">
-                        {r.document.runtime.provider} · v{r.version} · {r.document.author}
+                        {r.document.schemaVersion === 2 ? 'Native Runtime' : r.document.runtime.provider} · v{r.version} · {r.document.author}
                       </p>
                     </div>
                     <span className="h-fit rounded-full bg-blue-500/10 px-3 py-1 text-xs">
@@ -1084,6 +1084,7 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
         templatesProtocol?: number;
         nativeRuntimeProtocol?: number;
         templateScriptsProtocol?: number;
+        nativeSettingsProtocol?: number;
       }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
@@ -1094,6 +1095,8 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
           'This node does not support Native Runtime. Update its agent first. No installation was sent.'
         );
       const lifecycle = row.document.lifecycle;
+      if (row.document.configFiles !== undefined && health.nativeSettingsProtocol !== 1)
+        throw new Error('This node needs the native settings update before using template configuration links. No installation was sent.');
       if (lifecycle && (lifecycle.installerImage || [...lifecycle.install, ...lifecycle.update].some(step => step.script !== undefined)) && health.templateScriptsProtocol !== 1)
         throw new Error('This node does not support template scripts and installer images. Update its agent first. No installation was sent.');
       const { ticket } = await nodesRequest<{ ticket: string }>(

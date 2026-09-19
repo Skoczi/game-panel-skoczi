@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
 import { type AuthenticatedRequest, requireServerPermission } from '../middleware/auth.js';
 import { resolveServerPath } from '../services/fileExplorer.js';
+import { rejectPrivateFileRoots } from '../middleware/privateFileRoots.js';
 import { ensureIsFile, getBasenameFromApiPath, guessContentTypeByName } from '../utils/fsBrowser.js';
 import { promises as fs } from 'node:fs';
 import { sendRouteError } from '../utils/routeErrors.js';
@@ -15,6 +16,7 @@ import {
 const MAX_INLINE_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 
 const router = Router({ mergeParams: true });
+router.use(rejectPrivateFileRoots);
 
 function getQueryRoot(value: unknown): string | undefined {
     return optionalQueryString(value as string | string[] | undefined);

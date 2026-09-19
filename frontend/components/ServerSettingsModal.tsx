@@ -1,5 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameConfigTab } from './GameConfigTab';
+import { NativeGameConfig } from './serverSettings/NativeGameConfig';
+import { isNativeTemplate } from '../utils/providerCapabilities';
 
 const ServerSshTerminal = lazy(() =>
   import('./ServerSshTerminal').then((m) => ({ default: m.ServerSshTerminal }))
@@ -70,7 +72,8 @@ export function ServerSettingsModal({
   serverPermissions = [],
 }: ServerSettingsModalProps) {
   const isLinuxGSMGame = serverProvider === 'linuxgsm';
-  const isExternalProvider = serverProvider === 'external';
+  const isNative = isNativeTemplate(serverProviderMetadataJson);
+  const isExternalProvider = serverProvider === 'external' && !isNative;
   const ovhcloudFamily = (() => {
     if (serverProvider !== 'ovhcloud') return null;
     try {
@@ -160,6 +163,7 @@ export function ServerSettingsModal({
   }, [isMinecraftJavaOvhcloud, isHytaleOvhcloud, isPalworldOvhcloud, isProjectZomboidOvhcloud, pzServerName]);
 
   const serverBackupSupported = (() => {
+    if (isNative) return true;
     if (serverProvider === 'linuxgsm') return true;
     if (serverProvider === 'ovhcloud') {
       try {
@@ -353,7 +357,7 @@ export function ServerSettingsModal({
       isCS2Ovhcloud ||
       isRustOvhcloud ||
       isValheimOvhcloud ||
-      isLinuxGSMGame);
+      isLinuxGSMGame || isNative);
 
   const gameConfigHasContent =
     ((isMinecraftJavaOvhcloud || isMinecraftBedrockOvhcloud) && canUseMinecraft) ||
@@ -363,7 +367,7 @@ export function ServerSettingsModal({
     (isCS2Ovhcloud && (canEditContainerConfig || canWipeHard)) ||
     (isRustOvhcloud && canUseRust) ||
     (isValheimOvhcloud && canUseValheim) ||
-    (isLinuxGSMGame && canUseFileManager);
+    ((isLinuxGSMGame || isNative) && canUseFileManager);
 
   const canUseGameConfigTab = gameConfigApplicable;
   const canAccessTab = (tab: SettingsTab): boolean => {
@@ -431,7 +435,7 @@ export function ServerSettingsModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, activeTab, serverId, pendingFilePath, currentPath]);
+  }, [isOpen, activeTab, serverId, pendingFilePath, currentPath, currentRoot]);
 
   const {
     handleFileClick,
@@ -757,7 +761,7 @@ export function ServerSettingsModal({
         isOpen={isOpen}
         onClose={onClose}
         serverName={serverName}
-        serverProvider={serverProvider}
+        serverProvider={isNative ? 'native' : serverProvider}
         modalBg={modalBg}
         sidebarBg={sidebarBg}
         borderColor={borderColor}
@@ -864,17 +868,19 @@ export function ServerSettingsModal({
             canDeleteBackups={canDeleteBackups}
             backupDeleteLoading={backupDeleteLoading}
             handleRestoreBackup={handleRestoreBackup}
-            canRestoreBackups={canRestoreBackups}
+            canRestoreBackups={canRestoreBackups && !isNative}
             backupRestoreLoading={backupRestoreLoading}
             handleRenameBackup={handleRenameBackup}
             canRenameBackups={canRenameBackups}
             backupRenameLoading={backupRenameLoading}
             isLinuxGSMGame={isLinuxGSMGame}
             backupsNotSupported={backupsNotSupported}
+            native={isNative}
           />
         }
         gameConfigContent={
-          <GameConfigTab
+          isNative ? <NativeGameConfig serverId={serverId} metadata={serverProviderMetadataJson}
+            onOpen={(path, root) => { hasUserSelectedTabRef.current = true; setCurrentRoot(root); handleOpenFileManagerAtPath(path); }} /> : <GameConfigTab
             serverGame={serverGame}
             serverProvider={serverProvider}
             serverId={serverId}
@@ -1023,7 +1029,7 @@ export function ServerSettingsModal({
           <ScheduledTasksTab
             serverId={serverId}
             serverBackupSupported={serverBackupSupported}
-            serverProvider={serverProvider}
+            serverProvider={isNative ? 'native' : serverProvider}
             serverGame={serverGame}
             canRead={canAccessTab('scheduledtasks')}
             canWrite={canWriteScheduledTasks}

@@ -102,7 +102,12 @@ test('fleet metric modals and action history are scoped to the selected server',
   }
   await page.evaluate(() => document.documentElement.classList.add('dark'));
   await page.screenshot({ path: 'test-results/fleet-metrics-dark.png', animations: 'disabled' });
-  await page.keyboard.press('Escape');
+  const close = modal.locator('[data-part="close-trigger"]');
+  await expect(close).toHaveCSS('width', '44px');
+  await expect(close).toHaveCSS('height', '44px');
+  await expect(close).toHaveCSS('right', '20px');
+  await expect(close).toHaveCSS('top', '16px');
+  await close.click();
   await expect(modal).toHaveCount(0);
   await page.getByRole('button', { name: 'List view' }).click();
   await page.getByRole('button', { name: 'Open Memory history for Community Arena' }).click();
@@ -132,6 +137,14 @@ test('metrics errors can recover and empty history is not fabricated', async ({ 
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByText('No metrics history available yet for this server.')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('dialog').locator('[data-part="close-trigger"]')).toHaveCSS(
+    'right',
+    '12px'
+  );
+  await expect(page.getByRole('dialog').locator('[data-part="close-trigger"]')).toHaveCSS(
+    'top',
+    '12px'
+  );
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBeLessThanOrEqual(390);
@@ -649,6 +662,7 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
   await page.getByRole('combobox', { name: 'User', exact: true }).click();
   await page.getByRole('option', { name: 'Player', exact: true }).click();
   const accessDialog = page.locator('.gp-fleet-access-modal');
+  await expect(accessDialog.locator('[data-part="close-trigger"]')).toHaveCSS('width', '44px');
   await expect(accessDialog.getByText('Console & terminal', { exact: true })).toBeVisible();
   await expect(accessDialog.getByLabel('View console logs', { exact: true })).toBeVisible();
   await page.evaluate(() => document.documentElement.classList.add('dark'));

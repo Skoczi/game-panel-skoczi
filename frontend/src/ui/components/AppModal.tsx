@@ -9,6 +9,7 @@ import {
   type ModalProp,
 } from '@ovhcloud/ods-react';
 import { cn } from '../utils/cn';
+import './app-modal.css';
 
 interface AppModalProps extends Omit<ModalProp, 'onOpenChange'> {
   children?: ReactNode;

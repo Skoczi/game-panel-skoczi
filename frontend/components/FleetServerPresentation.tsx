@@ -1,39 +1,92 @@
-import { ArrowDown, ArrowUp, Copy, Play, RotateCw, Settings, Square, Terminal } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Copy,
+  Play,
+  RotateCw,
+  Settings,
+  Square,
+  Terminal,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { formatNetworkSpeed, getServerStatusPresentation } from './gameServersTable/utils';
 import { fleetAllowed, type FleetRuntime } from '../utils/fleetRuntime';
+import type { FleetMetricType } from './FleetMetricsModal';
 
-export function FleetStatus({ status, available }: { status: string; available: boolean }) {
+export function FleetStatus({
+  status,
+  available,
+  name,
+  onClick,
+}: {
+  status: string;
+  available: boolean;
+  name: string;
+  onClick: () => void;
+}) {
   const value = getServerStatusPresentation(available ? status : 'unknown');
   return (
-    <span
+    <button
+      type="button"
+      title="Open history logs"
+      aria-label={`Open history logs for ${name}`}
+      onClick={onClick}
       data-status={available ? value.normalizedStatus : 'unknown'}
       className={`fleet-node-status ${value.className}`}
     >
       {available ? value.label : 'Unavailable'}
-    </span>
+    </button>
   );
 }
 
-export function FleetAddress({
-  runtime,
-  name,
-  onCopy,
-}: {
-  runtime?: FleetRuntime;
-  name: string;
-  onCopy: () => void;
-}) {
+export function FleetAddress({ runtime, name }: { runtime?: FleetRuntime; name: string }) {
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(runtime!.address!);
+      setCopied(true);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+      setCopied(false);
+    }
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      setCopied(false);
+      setFailed(false);
+    }, 2000);
+  };
   return (
     <div className="fleet-node-address">
-      <code>{runtime?.address || '—'}</code>
+      {runtime?.address ? (
+        <button
+          className="fleet-address-text"
+          title="Copy connection address"
+          aria-label={`Copy connection address for ${name}`}
+          onClick={() => void copy()}
+        >
+          <code>{runtime.address}</code>
+        </button>
+      ) : (
+        <code>—</code>
+      )}
       {runtime?.address && (
         <button
           title="Copy connection address"
           aria-label={`Copy address for ${name}`}
-          onClick={onCopy}
+          onClick={() => void copy()}
         >
-          <Copy size={16} />
+          {copied ? <Check size={16} /> : <Copy size={16} />}
         </button>
+      )}
+      {(copied || failed) && (
+        <span role="status" className="fleet-copy-feedback">
+          {copied ? 'Copied' : 'Copy failed'}
+        </span>
       )}
     </div>
   );
@@ -42,9 +95,13 @@ export function FleetAddress({
 export function FleetMetrics({
   runtime,
   compact = false,
+  name,
+  onOpen,
 }: {
   runtime?: FleetRuntime;
   compact?: boolean;
+  name: string;
+  onOpen: (metric: FleetMetricType) => void;
 }) {
   return (
     <div className={`fleet-node-metrics ${compact ? 'is-compact' : ''}`}>
@@ -54,27 +111,40 @@ export function FleetMetrics({
       ).map((key, index) => {
         const value = runtime?.server[key];
         return (
-          <div className="fleet-node-metric" key={key}>
+          <button
+            type="button"
+            className="fleet-node-metric"
+            key={key}
+            title={`Open ${index === 0 ? 'CPU' : index === 1 ? 'Memory' : 'Disk'} history`}
+            aria-label={`Open ${index === 0 ? 'CPU' : index === 1 ? 'Memory' : 'Disk'} history for ${name}`}
+            onClick={() => onOpen(index === 0 ? 'cpu' : index === 1 ? 'memory' : 'disk')}
+          >
             <span>{index === 0 ? 'CPU' : index === 1 ? (compact ? 'RAM' : 'Memory') : 'Disk'}</span>
             <strong>{value == null ? '—' : `${value.toFixed(1)}%`}</strong>
-            <div className="fleet-node-track">
+            <span className="fleet-node-track">
               <i style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} />
-            </div>
-          </div>
+            </span>
+          </button>
         );
       })}
       {!compact && (
-        <div className="fleet-node-network">
+        <button
+          type="button"
+          className="fleet-node-network"
+          title="Open Network history"
+          aria-label={`Open Network history for ${name}`}
+          onClick={() => onOpen('network')}
+        >
           <span>Network</span>
-          <div>
+          <span className="fleet-node-network-values">
             <ArrowUp size={13} />
             {runtime?.server.networkOut == null
               ? '—'
               : formatNetworkSpeed(runtime.server.networkOut)}
             <ArrowDown size={13} />
             {runtime?.server.networkIn == null ? '—' : formatNetworkSpeed(runtime.server.networkIn)}
-          </div>
-        </div>
+          </span>
+        </button>
       )}
     </div>
   );

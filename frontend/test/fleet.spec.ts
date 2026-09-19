@@ -32,6 +32,194 @@ const servers = [
     node: { name: 'North-02', location: 'Helsinki, FI' },
   },
 ];
+test('fleet metric modals and action history are scoped to the selected server', async ({
+  page,
+}) => {
+  await page.addInitScript(() => localStorage.setItem('auth_token', 'fixture-token'));
+  const requested: string[] = [];
+  await page.route('**/api/servers/1/metrics?limit=2000', (r) => {
+    requested.push(r.request().headers()['x-gamepanel-server']);
+    return r.fulfill({
+      json: {
+        serverId: 1,
+        metrics: [0, 1, 2].map((i) => ({
+          timestamp: new Date(Date.now() - (2 - i) * 10000).toISOString(),
+          cpuUsage: 12 + i,
+          memoryUsage: 24,
+          diskUsage: 8,
+          network: { in: 512, out: 256 },
+        })),
+      },
+    });
+  });
+  await page.routeWebSocket(/\/api\/nodes\//, (ws) => {
+    expect(ws.url()).toContain(`server=${serverId}`);
+    ws.onMessage((raw) => {
+      const message = JSON.parse(String(raw));
+      if (message.type === 'auth') ws.send(JSON.stringify({ type: 'auth:success' }));
+      if (message.type === 'subscribe:actions') {
+        ws.send(
+          JSON.stringify({
+            type: 'actions:history',
+            serverId: 999,
+            actions: [
+              {
+                id: 1,
+                level: 'info',
+                message: 'WRONG SERVER',
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          })
+        );
+        ws.send(
+          JSON.stringify({
+            type: 'actions:history',
+            serverId: 1,
+            actions: [
+              {
+                id: 2,
+                level: 'success',
+                message: 'Scoped server started',
+                actorUsername: 'Admin',
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          })
+        );
+      }
+    });
+  });
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('button', { name: 'Open CPU history for Community Arena' }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByRole('heading', { name: 'Server Metrics' })).toBeVisible();
+  await expect(modal.locator('[aria-label="CPU history chart"]')).toBeVisible();
+  expect(requested).toEqual([serverId]);
+  for (const metric of ['Memory', 'Disk', 'Network']) {
+    await modal.getByRole('button', { name: metric, exact: true }).click();
+    await expect(modal.locator(`[aria-label="${metric} history chart"]`)).toBeVisible();
+  }
+  await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await page.screenshot({ path: 'test-results/fleet-metrics-dark.png', animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await expect(modal).toHaveCount(0);
+  await page.getByRole('button', { name: 'List view' }).click();
+  await page.getByRole('button', { name: 'Open Memory history for Community Arena' }).click();
+  await expect(modal.getByRole('button', { name: 'Memory', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Open history logs for Community Arena' }).click();
+  await expect(modal.getByText('[Admin] Scoped server started')).toBeVisible();
+  await expect(page.getByText('WRONG SERVER')).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/fleet-actions-dark.png', animations: 'disabled' });
+});
+
+test('metrics errors can recover and empty history is not fabricated', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/servers/1/metrics?limit=2000', (r) =>
+    r.fulfill({
+      status: fail ? 503 : 200,
+      json: fail ? { error: 'Node offline' } : { serverId: 1, metrics: [] },
+    })
+  );
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('button', { name: 'Open Network history for Community Arena' }).click();
+  await expect(page.getByRole('alert')).toContainText('Node offline');
+  fail = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.getByText('No metrics history available yet for this server.')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(390);
+  await page.screenshot({ path: 'test-results/fleet-metrics-empty-mobile.png' });
+});
+
+test('header sorting toggles direction and persists while clipboard copies the full address', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: async (value: string) => {
+          (window as any).copiedAddress = value;
+        },
+      },
+    })
+  );
+  await page.route('**/api/servers/1', (r) =>
+    r.fulfill({
+      json: {
+        server: {
+          id: 1,
+          name: 'Community Arena',
+          status: 'running',
+          ports: { udp: [{ hostIp: '192.0.2.5', host: 27015 }] },
+        },
+      },
+    })
+  );
+  await page.goto('/test/fleet.fixture.html');
+  await page
+    .getByRole('button', { name: 'Copy connection address for Community Arena', exact: true })
+    .click();
+  await expect(page.getByRole('status').filter({ hasText: 'Copied' })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).copiedAddress)).toBe('192.0.2.5:27015');
+  await page.getByRole('button', { name: 'List view' }).click();
+  const names = page.locator('tbody tr td:first-child');
+  for (const column of ['Server name', 'Game', 'Status']) {
+    const header = page.getByRole('columnheader', { name: new RegExp(`^${column}`) });
+    await header.getByRole('button').click();
+    await expect(header).toHaveAttribute('aria-sort', 'ascending');
+    await expect(names).toHaveText(['Community Arena', 'Survival World']);
+    await header.getByRole('button').click();
+    await expect(header).toHaveAttribute('aria-sort', 'descending');
+    await expect(names).toHaveText(['Survival World', 'Community Arena']);
+  }
+  await page.reload();
+  await expect(page.getByRole('columnheader', { name: /^Status/ })).toHaveAttribute(
+    'aria-sort',
+    'descending'
+  );
+});
+
+test('inline rename checks fresh permission and sends only the scoped name patch', async ({
+  page,
+}) => {
+  let permissions = ['server.edit'];
+  const writes: unknown[] = [];
+  await page.route(`**/api/fleet/${serverId}/context`, (r) =>
+    r.fulfill({ json: { id: serverId, runtimeId: 1, nodeId, permissions, placementRevision: 1 } })
+  );
+  await page.route('**/api/servers/1', (r) => {
+    if (r.request().method() === 'PATCH') {
+      expect(r.request().headers()['x-gamepanel-server']).toBe(serverId);
+      expect(r.request().url()).toContain(`/nodes/${nodeId}/runtime/`);
+      writes.push(r.request().postDataJSON());
+      return r.fulfill({ json: { server: { id: 1, name: 'Renamed Arena' } } });
+    }
+    return r.fulfill({ json: { server: { id: 1, name: 'Community Arena', status: 'running' } } });
+  });
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('button', { name: 'Edit name for Community Arena' }).click();
+  await page.getByRole('textbox', { name: 'Server name', exact: true }).fill('Cancelled');
+  await page.keyboard.press('Escape');
+  expect(writes).toEqual([]);
+  await page.getByRole('button', { name: 'Edit name for Community Arena' }).click();
+  await page.getByRole('textbox', { name: 'Server name', exact: true }).fill('Renamed Arena');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Edit name for Renamed Arena' })).toBeVisible();
+  expect(writes).toEqual([{ name: 'Renamed Arena' }]);
+  await page.getByRole('button', { name: 'Edit name for Renamed Arena' }).click();
+  permissions = [];
+  await page.getByRole('textbox', { name: 'Server name', exact: true }).fill('Forbidden rename');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alert')).toContainText('no longer have permission');
+  expect(writes).toHaveLength(1);
+});
 test('global IDs, premium views and quick consoles stay scoped across identical local IDs', async ({
   page,
 }) => {
@@ -366,14 +554,11 @@ test.beforeEach(async ({ page }) => {
     })
   );
 });
-test('users get one workspace with locations, no node selector or infrastructure menu', async ({
-  page,
-}) => {
+test('users get one workspace without node metadata or infrastructure menu', async ({ page }) => {
   await page.goto('/test/fleet.fixture.html');
   await expect(page.getByRole('heading', { name: 'Community Arena' })).toBeVisible();
-  await expect(
-    page.locator('.fleet-node-location').filter({ hasText: 'Amsterdam, NL' })
-  ).toBeVisible();
+  await expect(page.locator('.fleet-node-location')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Access for/ })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: /Execution node/ })).toHaveCount(0);
   for (const name of ['Nodes', 'Add Game Server', 'Host Status', 'Settings', 'User Administration'])
     await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
@@ -442,8 +627,25 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
     } else members = [];
     return r.fulfill({ json: { ok: true } });
   });
-  await page.goto('/test/fleet.fixture.html');
-  await page.getByRole('button', { name: 'Access for Community Arena' }).click();
+  await page.addInitScript(
+    (id) =>
+      sessionStorage.setItem(
+        'gamepanel_active_server',
+        JSON.stringify({
+          id,
+          nodeId: 'local',
+          runtimeId: 7,
+          name: 'CS16 Test',
+          location: 'Amsterdam, NL',
+          nodeName: 'West-01',
+          permissions: ['*'],
+          placementRevision: 1,
+        })
+      ),
+    serverId
+  );
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+  await page.getByRole('button', { name: 'Access', exact: true }).click();
   await page.getByRole('combobox', { name: 'User', exact: true }).click();
   await page.getByRole('option', { name: 'Player', exact: true }).click();
   const accessDialog = page.locator('.gp-fleet-access-modal');

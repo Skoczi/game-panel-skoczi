@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { MapPin, RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -49,6 +49,9 @@ import {
 import { ArrowUpDown, Plus, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { ViewModeToggle } from './gameServersTable/ViewModeToggle';
 import { FleetQuickConsole } from './FleetQuickConsole';
+import { FleetMetricsModal, type FleetMetricType } from './FleetMetricsModal';
+import { FleetHistoryModal } from './FleetHistoryModal';
+import { FleetServerName } from './FleetServerName';
 import { ConfirmationModal } from './ConfirmationModal';
 import {
   loadFleetRuntime,
@@ -101,14 +104,20 @@ export function FleetWorkspace({
     }
   };
   const [servers, setServers] = useState<FleetServer[]>([]);
+  // The fleet inventory refreshes asynchronously; do not flash the old name after a save.
+  const renamed = useRef(new Map<string, { name: string; until: number }>());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [members, setMembers] = useState<FleetServer | null>(null);
   const [runtimes, setRuntimes] = useState<Record<string, FleetRuntime>>({});
   const [consoleTabs, setConsoleTabs] = useState<FleetServer[]>([]);
   const [activeConsole, setActiveConsole] = useState('');
+  const [metricSelection, setMetricSelection] = useState<{
+    server: FleetServer;
+    metric: FleetMetricType;
+  } | null>(null);
+  const [historySelection, setHistorySelection] = useState<FleetServer | null>(null);
   const [power, setPower] = useState<{ server: FleetServer; action: string } | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -145,19 +154,15 @@ export function FleetWorkspace({
     setActiveConsole(server.id);
   };
   const connection = (server: FleetServer) => (
-    <FleetAddress
-      runtime={runtimes[server.id]}
-      name={server.name}
-      onCopy={() =>
-        void run(async () => {
-          const address = runtimes[server.id]?.address;
-          if (address) await navigator.clipboard.writeText(address);
-        })
-      }
-    />
+    <FleetAddress runtime={runtimes[server.id]} name={server.name} />
   );
   const metrics = (server: FleetServer, compact = false) => (
-    <FleetMetrics runtime={runtimes[server.id]} compact={compact} />
+    <FleetMetrics
+      runtime={runtimes[server.id]}
+      compact={compact}
+      name={server.name}
+      onOpen={(metric) => setMetricSelection({ server, metric })}
+    />
   );
   const powerButtons = (server: FleetServer, compact = false) => (
     <FleetPower
@@ -176,21 +181,20 @@ export function FleetWorkspace({
       onConsole={() => openConsole(server)}
     />
   );
-  const access = (server: FleetServer) =>
-    administrator && (
-      <button
-        className="fleet-node-access"
-        onClick={() => setMembers(server)}
-        aria-label={`Access for ${server.name}`}
-      >
-        <Users size={16} />
-        Access
-      </button>
-    );
   const load = async () => {
     try {
       const data = await nodesRequest<{ servers: FleetServer[] }>('/api/fleet');
-      setServers(data.servers);
+      setServers(
+        data.servers.map((server) => {
+          const pendingName = renamed.current.get(server.id);
+          if (!pendingName) return server;
+          if (server.name === pendingName.name || Date.now() > pendingName.until) {
+            renamed.current.delete(server.id);
+            return server;
+          }
+          return { ...server, name: pendingName.name };
+        })
+      );
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Cannot load servers');
@@ -235,9 +239,51 @@ export function FleetWorkspace({
             ? s.status
             : s.name;
     return (
-      value(a).localeCompare(value(b)) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+      (value(a).localeCompare(value(b)) ||
+        a.name.localeCompare(b.name) ||
+        a.id.localeCompare(b.id)) * (layout.direction === 'desc' ? -1 : 1)
     );
   });
+  const sortHeader = (sort: 'name' | 'type' | 'status', label: string) => (
+    <th
+      aria-sort={
+        layout.sort === sort ? (layout.direction === 'desc' ? 'descending' : 'ascending') : 'none'
+      }
+    >
+      <button
+        onClick={() =>
+          changeLayout({
+            ...layout,
+            sort,
+            direction: layout.sort === sort && layout.direction !== 'desc' ? 'desc' : 'asc',
+          })
+        }
+      >
+        {label}{' '}
+        {layout.sort === sort ? (
+          <span aria-hidden="true">{layout.direction === 'desc' ? '↓' : '↑'}</span>
+        ) : (
+          <ArrowUpDown size={14} />
+        )}
+      </button>
+    </th>
+  );
+  const serverName = (server: FleetServer) => (
+    <FleetServerName
+      id={server.id}
+      name={server.name}
+      editable={!!runtimes[server.id] && fleetAllowed(runtimes[server.id].context, 'server.edit')}
+      onSaved={(name) => {
+        renamed.current.set(server.id, { name, until: Date.now() + 60000 });
+        setServers((previous) =>
+          previous.map((item) => (item.id === server.id ? { ...item, name } : item))
+        );
+        setConsoleTabs((previous) =>
+          previous.map((item) => (item.id === server.id ? { ...item, name } : item))
+        );
+      }}
+    />
+  );
   const filtered = ordered.filter(
     (s) =>
       (!layout.type || game(s).key === layout.type) &&
@@ -357,7 +403,9 @@ export function FleetWorkspace({
           label="Sort"
           ariaLabel="Sort servers"
           value={layout.sort}
-          onChange={(sort) => changeLayout({ ...layout, sort: sort as FleetLayout['sort'] })}
+          onChange={(sort) =>
+            changeLayout({ ...layout, sort: sort as FleetLayout['sort'], direction: 'asc' })
+          }
           options={[
             { value: 'custom', label: 'My order' },
             { value: 'name', label: 'Name A–Z' },
@@ -426,46 +474,32 @@ export function FleetWorkspace({
                 <table className="fleet-node-table">
                   <thead>
                     <tr>
-                      <th>
-                        <button onClick={() => changeLayout({ ...layout, sort: 'name' })}>
-                          Server name <ArrowUpDown size={14} />
-                        </button>
-                      </th>
-                      <th>
-                        <button onClick={() => changeLayout({ ...layout, sort: 'type' })}>
-                          Game <ArrowUpDown size={14} />
-                        </button>
-                      </th>
+                      {sortHeader('name', 'Server name')}
+                      {sortHeader('type', 'Game')}
                       <th>Connection</th>
-                      <th>
-                        <button onClick={() => changeLayout({ ...layout, sort: 'status' })}>
-                          Status <ArrowUpDown size={14} />
-                        </button>
-                      </th>
+                      {sortHeader('status', 'Status')}
                       <th>Server metrics</th>
                       <th>Power</th>
                       <th>Management</th>
-                      {administrator && <th>Access</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((server) => (
                       <tr key={server.id}>
-                        <td>
-                          <strong>{server.name}</strong>
-                          <small>
-                            {server.node.name} · {server.node.location}
-                          </small>
-                        </td>
+                        <td>{serverName(server)}</td>
                         <td>{game(server).label}</td>
                         <td>{connection(server)}</td>
                         <td>
-                          <FleetStatus status={server.status} available={server.available} />
+                          <FleetStatus
+                            status={server.status}
+                            available={server.available}
+                            name={server.name}
+                            onClick={() => setHistorySelection(server)}
+                          />
                         </td>
                         <td>{metrics(server, true)}</td>
                         <td>{powerButtons(server, true)}</td>
                         <td>{management(server)}</td>
-                        {administrator && <td>{access(server)}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -523,16 +557,17 @@ export function FleetWorkspace({
                                     : ''
                                 }
                               />
-                              {server.name}
+                              {serverName(server)}
                             </h3>
                             <p>{game(server).label}</p>
                           </div>
-                          <FleetStatus status={server.status} available={server.available} />
+                          <FleetStatus
+                            status={server.status}
+                            available={server.available}
+                            name={server.name}
+                            onClick={() => setHistorySelection(server)}
+                          />
                         </div>
-                        <p className="fleet-node-location">
-                          <MapPin size={13} />
-                          {server.node.name} · {server.node.location}
-                        </p>
                         {connection(server)}
                         {metrics(server)}
                         {powerButtons(server)}
@@ -544,7 +579,6 @@ export function FleetWorkspace({
                             running.
                           </p>
                         )}
-                        {access(server)}
                       </SortableCard>
                     ))}
                   </div>
@@ -553,6 +587,22 @@ export function FleetWorkspace({
             ))}
           </DndContext>
         </div>
+      )}
+      {metricSelection && (
+        <FleetMetricsModal
+          key={metricSelection.server.id}
+          server={metricSelection.server}
+          game={game(metricSelection.server).label}
+          initialMetric={metricSelection.metric}
+          onClose={() => setMetricSelection(null)}
+        />
+      )}
+      {historySelection && (
+        <FleetHistoryModal
+          key={historySelection.id}
+          server={historySelection}
+          onClose={() => setHistorySelection(null)}
+        />
       )}
       {consoleTabs.length > 0 && (
         <FleetQuickConsole
@@ -582,7 +632,6 @@ export function FleetWorkspace({
           }}
         />
       )}
-      {members && <FleetAccess server={members} onClose={() => setMembers(null)} />}
     </section>
   );
 }
@@ -627,7 +676,13 @@ function SortableCard({
   );
 }
 
-function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => void }) {
+export function FleetAccess({
+  server,
+  onClose,
+}: {
+  server: { id: string; name: string; node: { location: string } };
+  onClose: () => void;
+}) {
   const [members, setMembers] = useState<Member[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [available, setAvailable] = useState<string[]>([]);

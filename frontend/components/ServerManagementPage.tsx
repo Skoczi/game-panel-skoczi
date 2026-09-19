@@ -10,6 +10,7 @@ import {
   HardDrive,
   Network,
   Globe,
+  Users,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import type { GameServer } from '../types/gameServer';
@@ -29,6 +30,7 @@ import { createServerSettingsAccess, type SettingsTab } from './serverSettings/a
 import { type ServerPageTab } from './serverSettings/useServerPageRoute';
 import { ServerSettingsModal } from './ServerSettingsModal';
 import { ConfirmationModal } from './ConfirmationModal';
+import { FleetAccess } from './FleetWorkspace';
 import './serverSettings/server-page.css';
 
 interface Props {
@@ -117,6 +119,7 @@ export function ServerManagementPage({
   const access = createServerSettingsAccess(currentUser, permissions);
   const canLogs = allowed('container.logs.read');
   const [pending, setPending] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
   const [confirm, setConfirm] = useState<'stop' | 'restart' | null>(null);
   const [feedback, setFeedback] = useState('');
   const consoleSectionRef = useRef<HTMLElement>(null);
@@ -212,7 +215,9 @@ export function ServerManagementPage({
           <div className="gp-server-identity">
             <div className="gp-server-titles">
               <h1>{server.name}</h1>
-              {ACTIVE_SERVER?.displayId && <small className="gp-server-display-id">{ACTIVE_SERVER.displayId}</small>}
+              {ACTIVE_SERVER?.displayId && (
+                <small className="gp-server-display-id">{ACTIVE_SERVER.displayId}</small>
+              )}
               <span className="gp-server-game">
                 <span className="gp-server-title-separator" aria-hidden="true">
                   –
@@ -225,6 +230,11 @@ export function ServerManagementPage({
         </div>
         {allowed('server.power') && (
           <div className="gp-server-power">
+            {currentUser?.isRoot && ACTIVE_SERVER && (
+              <button onClick={() => setShowAccess(true)}>
+                <Users size={16} /> Access
+              </button>
+            )}
             <button
               disabled={pending || !isServerDownLike(server.status)}
               onClick={() => void power('start')}
@@ -246,6 +256,16 @@ export function ServerManagementPage({
           </div>
         )}
       </header>
+      {showAccess && currentUser?.isRoot && ACTIVE_SERVER && (
+        <FleetAccess
+          server={{
+            id: ACTIVE_SERVER.id,
+            name: server.name,
+            node: { location: ACTIVE_SERVER.location },
+          }}
+          onClose={() => setShowAccess(false)}
+        />
+      )}
       {feedback && <p role="status">{feedback}</p>}
       <nav className="gp-server-tabs" aria-label="Server sections">
         {tabs.map((key) => (

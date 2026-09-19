@@ -1,0 +1,112 @@
+.fleet-detail-modal[data-ods='modal-content'] {
+  width: min(920px, calc(100vw - 32px));
+  max-width: 920px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px #0005;
+}
+.fleet-detail-modal .gp-app-modal-header {
+  padding: 24px 56px 20px 24px;
+  border-bottom: 1px solid var(--fleet-border);
+}
+.fleet-detail-modal .gp-app-modal-title {
+  margin: 0;
+  font-size: 22px;
+}
+.fleet-detail-modal .gp-app-modal-description {
+  margin: 8px 0 0;
+  color: var(--fleet-muted);
+  overflow-wrap: anywhere;
+}
+.fleet-detail-modal .gp-app-modal-body {
+  padding: 24px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.fleet-metric-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 18px;
+}
+.fleet-metric-tabs button {
+  padding: 7px 12px;
+  border-radius: 7px;
+  color: var(--fleet-muted);
+}
+.fleet-metric-tabs button[aria-pressed='true'] {
+  color: #0891b2;
+  background: #06b6d41a;
+}
+.dark .fleet-metric-tabs button[aria-pressed='true'] {
+  color: #22d3ee;
+}
+.fleet-history-chart {
+  height: clamp(220px, 46vh, 400px);
+  width: 100%;
+}
+.fleet-detail-empty {
+  padding: 50px 12px;
+  text-align: center;
+  color: var(--fleet-muted);
+}
+.fleet-history-tooltip {
+  background: var(--fleet-surface);
+  color: inherit;
+  border: 1px solid var(--fleet-border);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 8px 30px #0003;
+}
+.fleet-history-tooltip time {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--fleet-muted);
+}
+.fleet-history-tooltip strong {
+  margin-left: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.fleet-action-entry {
+  border: 1px solid var(--fleet-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.fleet-action-entry header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fleet-muted);
+}
+.fleet-action-entry p {
+  margin: 12px 0 0;
+}
+.fleet-action-entry b {
+  text-transform: uppercase;
+  color: #0891b2;
+}
+.fleet-action-entry[data-level='error'] b {
+  color: #ef4444;
+}
+.fleet-action-entry[data-level='success'] b {
+  color: #10b981;
+}
+.fleet-action-entry[data-level='warning'] b {
+  color: #d97706;
+}
+@media (max-width: 600px) {
+  .fleet-detail-modal .gp-app-modal-header {
+    padding: 18px 45px 16px 16px;
+  }
+  .fleet-detail-modal .gp-app-modal-body {
+    padding: 16px 10px;
+  }
+}

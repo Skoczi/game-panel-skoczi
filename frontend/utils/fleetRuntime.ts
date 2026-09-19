@@ -19,7 +19,8 @@ export async function fleetContext(id: string): Promise<ServerContext> {
 export async function fleetRequest<T>(
   context: ServerContext,
   suffix = '',
-  body?: unknown
+  body?: unknown,
+  method?: 'PATCH'
 ): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
@@ -27,7 +28,7 @@ export async function fleetRequest<T>(
     const response = await fetch(
       runtimeUrl(`/api/servers/${context.runtimeId}${suffix}`, context.nodeId),
       {
-        method: body === undefined ? 'GET' : 'POST',
+        method: method ?? (body === undefined ? 'GET' : 'POST'),
         cache: 'no-store',
         signal: controller.signal,
         headers: {

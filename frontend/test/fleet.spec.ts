@@ -1,5 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
+async function openFilters(page: Page) {
+  const toggle = page.getByRole('button', { name: /^Filters/ });
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
+}
 async function select(page: Page, name: string, option: string) {
+  await openFilters(page);
   await page.getByRole('combobox', { name, exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
 }
@@ -106,9 +111,25 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
   await page.setViewportSize({ width: 1600, height: 1100 });
   await page.goto('/test/fleet.fixture.html');
   await expect(page.getByText('SRV-1', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Filters', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false'
+  );
+  await expect(page.getByRole('combobox', { name: 'Sort servers' })).toHaveCount(0);
+  await expect(page.locator('.fleet-node-title')).toContainText('2/2 servers');
+  await expect(page.getByText('Drag the handle to reorder.', { exact: false })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add Game Server', exact: true })).toHaveCount(1);
+  await expect(
+    page.locator('header').getByRole('button', { name: 'Add Game Server', exact: true })
+  ).toBeVisible();
+  await select(page, 'Group servers', 'Game / type');
+  await expect(page.getByRole('button', { name: 'Add Game Server', exact: true })).toHaveCount(1);
+  await select(page, 'Group servers', 'No grouping');
+  await page.getByRole('button', { name: /^Filters/ }).click();
   await expect(page.getByText('12.3%')).toHaveCount(2);
   await page.screenshot({ path: 'test-results/fleet-premium-cards-dark.png', fullPage: true });
   await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.getByRole('button', { name: 'Add Game Server', exact: true })).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute(
     'aria-pressed',
     'true'
@@ -151,6 +172,7 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
 });
 test('custom dropdown supports keyboard, typeahead, cancellation and focus', async ({ page }) => {
   await page.goto('/test/fleet.fixture.html');
+  await openFilters(page);
   const sort = page.getByRole('combobox', { name: 'Sort servers' });
   await sort.focus();
   await page.keyboard.press('ArrowDown');
@@ -185,6 +207,7 @@ test('custom dropdown supports keyboard, typeahead, cancellation and focus', asy
 test('open custom menus fit mobile and dark desktop', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/test/fleet.fixture.html');
+  await openFilters(page);
   await page.getByRole('combobox', { name: 'Sort servers' }).click();
   const menu = page.getByRole('listbox');
   await expect(menu).toBeVisible();
@@ -197,6 +220,7 @@ test('open custom menus fit mobile and dark desktop', async ({ page }) => {
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.reload();
+  await openFilters(page);
   await page.getByRole('combobox', { name: 'Sort servers' }).click();
   await expect(page.getByRole('option', { name: 'Location', exact: true })).toHaveAttribute(
     'aria-selected',
@@ -215,18 +239,21 @@ test('view filters, grouping and sort persist per account and can be reset', asy
   await select(page, 'Sort servers', 'Name A–Z');
   await expect(page.getByRole('button', { name: 'Reorder Survival World' })).toBeDisabled();
   await page.reload();
+  await openFilters(page);
   await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toContainText(
     'mcserver'
   );
   await expect(page.getByRole('combobox', { name: 'Group servers' })).toContainText('Game / type');
   await page.evaluate(() => sessionStorage.setItem('test-user', '3'));
   await page.reload();
+  await openFilters(page);
   await expect(page.getByRole('article')).toHaveCount(2);
   await expect(page.getByRole('combobox', { name: 'Filter by game type' })).toContainText(
     'All types'
   );
   await page.evaluate(() => sessionStorage.setItem('test-user', '2'));
   await page.reload();
+  await openFilters(page);
   await expect(page.getByRole('article')).toHaveCount(1);
   await page.getByRole('button', { name: 'Reset view' }).click();
   await expect(page.getByRole('article')).toHaveCount(2);
@@ -348,7 +375,7 @@ test('users get one workspace with locations, no node selector or infrastructure
     page.locator('.fleet-node-location').filter({ hasText: 'Amsterdam, NL' })
   ).toBeVisible();
   await expect(page.getByRole('combobox', { name: /Execution node/ })).toHaveCount(0);
-  for (const name of ['Nodes', 'Manage nodes', 'Host Status', 'Settings', 'User Administration'])
+  for (const name of ['Nodes', 'Add Game Server', 'Host Status', 'Settings', 'User Administration'])
     await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
   await expect(page.getByText('The game may still be running.', { exact: false })).toBeVisible();
   await expect(

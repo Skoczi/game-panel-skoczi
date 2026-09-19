@@ -20,17 +20,36 @@
   letter-spacing: normal;
   margin: 0;
 }
-.gp-fleet-node-workspace .gp-fleet-heading .gp-fleet-muted {
-  display: none;
+.fleet-node-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.fleet-node-count {
+  border-left: 1px solid var(--fleet-border);
+  padding-left: 12px;
+  color: var(--fleet-muted);
+  font-size: 12px;
 }
 .gp-fleet-node-workspace .gp-fleet-toolbar {
   border-top: 0;
   padding: 8px 0 14px;
   margin-bottom: 14px;
 }
-.gp-fleet-node-workspace .gp-fleet-layout-hint {
-  font-size: 11px;
-  margin: 10px 0 18px;
+.gp-fleet-node-workspace .gp-fleet-search {
+  flex: 0 1 320px;
+  min-width: 0;
+  margin-right: 0;
+  border: 1px solid var(--fleet-border);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.gp-fleet-node-workspace .gp-fleet-view-controls {
+  margin-bottom: 18px;
+}
+.gp-fleet-node-workspace .gp-fleet-view-controls[hidden] {
+  display: none;
 }
 .gp-fleet-node-workspace .gp-fleet-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
@@ -393,29 +412,6 @@
 }
 .fleet-node-table .fleet-node-access {
   margin: 0;
-}
-.fleet-node-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 24px auto 0;
-  padding: 10px 32px;
-  border: 2px solid #0891b2;
-  border-radius: 8px;
-  color: #009fbb;
-  background: transparent;
-  font-weight: 600;
-}
-.fleet-node-add-tile {
-  flex-direction: column;
-  border-style: dashed;
-  width: 100%;
-  height: 100%;
-  min-height: 280px;
-  margin: 0;
-  gap: 16px;
-  background: #0050d705;
 }
 @media (max-width: 700px) {
   .gp-fleet-node-workspace {

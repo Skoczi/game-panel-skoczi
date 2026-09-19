@@ -46,7 +46,7 @@ import {
   FleetManagement,
   FleetStatus,
 } from './FleetServerPresentation';
-import { ArrowUpDown, Plus } from 'lucide-react';
+import { ArrowUpDown, Plus, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { ViewModeToggle } from './gameServersTable/ViewModeToggle';
 import { FleetQuickConsole } from './FleetQuickConsole';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -86,6 +86,7 @@ export function FleetWorkspace({
 }) {
   const [layout, setLayout] = useState(() => readFleetLayout(userId));
   const [storageError, setStorageError] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -262,9 +263,12 @@ export function FleetWorkspace({
   return (
     <section className="gp-fleet gp-fleet-node-workspace" aria-label="Game servers workspace">
       <header className="gp-fleet-heading">
-        <div>
+        <div className="fleet-node-title">
           <h1>Game Servers</h1>
-          <p className="gp-fleet-muted">Your servers, across every location.</p>
+          <span className="fleet-node-count">
+            {filtered.length}/{servers.length} servers ·{' '}
+            {new Set(servers.map((s) => s.node.location)).size} locations
+          </span>
         </div>
         <div className="gp-fleet-actions">
           <ViewModeToggle
@@ -288,8 +292,8 @@ export function FleetWorkspace({
           </button>
           {administrator && (
             <button className={`${button} gp-fleet-primary`} onClick={onNodes}>
-              <Server size={16} />
-              Manage nodes
+              <Plus size={16} />
+              Add Game Server
             </button>
           )}
         </div>
@@ -304,12 +308,21 @@ export function FleetWorkspace({
             placeholder="Search servers or locations…"
           />
         </label>
-        <span className="gp-fleet-muted">
-          {filtered.length} / {servers.length} servers ·{' '}
-          {new Set(servers.map((s) => s.node.location)).size} locations
-        </span>
+        <button
+          className={button}
+          aria-expanded={filtersOpen}
+          aria-controls="fleet-filters"
+          onClick={() => setFiltersOpen(!filtersOpen)}
+        >
+          <SlidersHorizontal size={16} />
+          Filters{layout.type || layout.status ? ' · Active' : ''}
+          <ChevronDown
+            size={14}
+            style={{ transform: filtersOpen ? 'rotate(180deg)' : undefined }}
+          />
+        </button>
       </div>
-      <div className="gp-fleet-view-controls">
+      <div id="fleet-filters" className="gp-fleet-view-controls" hidden={!filtersOpen}>
         <FleetSelect
           label="Game / type"
           ariaLabel="Filter by game type"
@@ -373,12 +386,6 @@ export function FleetWorkspace({
           Reset view
         </button>
       </div>
-      <p className="gp-fleet-layout-hint">
-        {layout.sort === 'custom'
-          ? 'Drag the handle to reorder. Keyboard: Space, arrow keys, Space to drop. Grouped cards stay within their type.'
-          : 'Choose My order to rearrange cards.'}{' '}
-        View saved for your account in this browser.
-      </p>
       {storageError && (
         <p role="alert" className="gp-fleet-error">
           Browser storage is unavailable. This view will not survive a reload.
@@ -466,12 +473,6 @@ export function FleetWorkspace({
               </div>
             </section>
           ))}
-          {administrator && (
-            <button className="fleet-node-add" onClick={onNodes}>
-              <Plus size={20} />
-              Add Game Server
-            </button>
-          )}
         </div>
       ) : (
         <div className="fleet-node-cards">
@@ -546,23 +547,11 @@ export function FleetWorkspace({
                         {access(server)}
                       </SortableCard>
                     ))}
-                    {administrator && !label && (
-                      <button className="fleet-node-add fleet-node-add-tile" onClick={onNodes}>
-                        <Plus size={26} />
-                        Add Game Server
-                      </button>
-                    )}
                   </div>
                 </SortableContext>
               </section>
             ))}
           </DndContext>
-          {administrator && layout.group !== 'none' && (
-            <button className="fleet-node-add" onClick={onNodes}>
-              <Plus size={20} />
-              Add Game Server
-            </button>
-          )}
         </div>
       )}
       {consoleTabs.length > 0 && (

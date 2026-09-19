@@ -70,10 +70,10 @@ export function ServerConsoleTabs({
   const [isMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [panelHeight, setPanelHeight] = useState(() => {
-    let stored = singleServer ? 360 : DEFAULT_CONSOLE_HEIGHT;
+    let stored = singleServer ? 450 : DEFAULT_CONSOLE_HEIGHT;
     try {
       const raw = Number(localStorage.getItem(heightStorageKey));
-      if (Number.isFinite(raw) && raw > 0) stored = raw;
+      if (Number.isFinite(raw) && raw > 0) stored = singleServer && raw === 360 ? 450 : raw;
     } catch { /* ignore */ }
     const max = typeof window !== 'undefined'
       ? Math.max(MIN_CONSOLE_HEIGHT, Math.round(window.innerHeight * 0.85))

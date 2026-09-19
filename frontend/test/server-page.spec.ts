@@ -7,7 +7,8 @@ test('console height is independent, persisted, and moves charts beside a tall c
   await page.addInitScript(() => localStorage.setItem('gp_console_height', '900'));
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
   const panel = page.locator('.gp-console-panel');
-  expect((await panel.boundingBox())!.height).toBeLessThan(480);
+  expect((await panel.boundingBox())!.height).toBeGreaterThan(490);
+  expect((await panel.boundingBox())!.height).toBeLessThan(560);
   const handle = page.getByRole('separator', { name: 'Resize console' });
   const grip = (await handle.boundingBox())!;
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);

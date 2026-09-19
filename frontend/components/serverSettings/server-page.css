@@ -352,6 +352,14 @@
   max-width: none;
   margin-inline: 0;
 }
+.gp-server-page-content.gp-server-page-flow {
+  height: auto;
+  overflow: visible;
+}
+.gp-server-page-flow > div {
+  height: auto;
+  overflow: visible;
+}
 .gp-server-network {
   width: 100%;
   text-align: left;

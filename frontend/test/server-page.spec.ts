@@ -84,6 +84,14 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
       await page.goto(`/test/server-page.fixture.html#/nodes/local/servers/7/${tab}`);
       const body = page.locator('.gp-server-page-content .gp-server-settings-body');
       await expect(body).toBeVisible();
+      expect(await body.evaluate((element) => {
+        let current = element.parentElement;
+        while (current?.closest('.gp-server-page-content')) {
+          if (current.scrollHeight > current.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(current).overflowY)) return true;
+          current = current.parentElement;
+        }
+        return false;
+      })).toBe(false);
       const dimensions = await body.evaluate((element) => {
         const parent = element.parentElement!;
         const style = getComputedStyle(parent);

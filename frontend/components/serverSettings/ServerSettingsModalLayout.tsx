@@ -70,7 +70,7 @@ export function ServerSettingsModalLayout({
     const contents = { filemanager: fileManagerContent, backup: backupContent,
       gameconfig: gameConfigContent, terminal: terminalContent,
       containerconfig: containerConfigContent, scheduledtasks: scheduledTasksContent };
-    return <section className="gp-settings-modal gp-server-page-content" aria-label="Server management section">
+    return <section className={`gp-settings-modal gp-server-page-content${!['filemanager', 'terminal'].includes(activeTab) ? ' gp-server-page-flow' : ''}`} aria-label="Server management section">
       {canAccessTab(activeTab) ? contents[activeTab] : <p className="p-8">No access to this section.</p>}
     </section>;
   }

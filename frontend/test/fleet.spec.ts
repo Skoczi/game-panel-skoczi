@@ -300,6 +300,7 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
   await expect(accessDialog.getByText('Console & terminal', { exact: true })).toBeVisible();
   await expect(accessDialog.getByLabel('View console logs', { exact: true })).toBeVisible();
   await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await expect(accessDialog.locator('.gp-app-modal-footer').getByRole('button', { name: 'Close', exact: true })).toHaveCSS('background-color', 'rgb(17, 28, 48)');
   await page.screenshot({ path: 'test-results/server-access-dark.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Save access' })).toBeVisible();

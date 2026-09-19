@@ -369,6 +369,16 @@
   font-size: 13px;
   line-height: 1.6;
 }
+.gp-fleet-access-modal .gp-fleet-button {
+  background: var(--fleet-surface);
+  color: inherit;
+  border-color: var(--fleet-border);
+}
+.gp-fleet-access-modal .gp-fleet-button.gp-fleet-primary {
+  background: #1455d9;
+  border-color: #1455d9;
+  color: #fff;
+}
 .gp-fleet-access-modal button[aria-pressed='true'],
 .gp-fleet-access-modal button.is-selected {
   border-color: #00a6c4;

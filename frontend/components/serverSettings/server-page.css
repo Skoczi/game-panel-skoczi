@@ -4,6 +4,114 @@
   color: var(--gp-text-gray-200);
   min-width: 0;
 }
+.gp-server-state-message {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 32px;
+  border: 1px solid var(--gp-border);
+  border-radius: 16px;
+  background: var(--gp-surface);
+}
+.gp-server-state-message h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 6px 0 8px;
+}
+.gp-server-state-message p {
+  color: #64748b;
+  max-width: 640px;
+  line-height: 1.6;
+}
+.dark .gp-server-state-message p {
+  color: #94a3b8;
+}
+.gp-server-state-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  color: #0891b2;
+  background: #00c8e510;
+  border: 1px solid #00a6c430;
+  border-radius: 18px;
+}
+.gp-server-state .gp-server-state-retry {
+  margin: 0 0 0 auto;
+}
+.gp-server-skeleton {
+  margin-top: 28px;
+}
+.gp-server-skeleton-tabs {
+  display: flex;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--gp-border);
+}
+.gp-server-skeleton span {
+  display: block;
+  background: #8194b218;
+  border-radius: 8px;
+}
+.gp-server-skeleton-tabs span {
+  width: 100px;
+  height: 20px;
+}
+.gp-server-skeleton-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  margin-top: 24px;
+}
+.gp-server-skeleton-console {
+  height: 340px;
+  border: 1px solid var(--gp-border);
+  border-radius: 16px;
+  padding: 28px;
+}
+.gp-server-skeleton-console span {
+  height: 12px;
+  margin-bottom: 18px;
+  width: 55%;
+}
+.gp-server-skeleton-console span:nth-child(2) {
+  width: 75%;
+}
+.gp-server-skeleton-console span:nth-child(3) {
+  width: 40%;
+}
+.gp-server-skeleton-stats {
+  display: grid;
+  gap: 16px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gp-server-skeleton,
+  .gp-server-state-icon.is-loading {
+    animation: gp-server-breathe 2s ease-in-out infinite;
+  }
+  @keyframes gp-server-breathe {
+    50% {
+      opacity: 0.45;
+    }
+  }
+}
+@media (max-width: 640px) {
+  .gp-server-state-message {
+    padding: 24px;
+  }
+  .gp-server-state .gp-server-state-retry {
+    margin-left: 0;
+  }
+  .gp-server-skeleton-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gp-server-skeleton-stats {
+    grid-template-columns: repeat(3, 1fr);
+    height: 80px;
+  }
+}
 .dark .gp-server-page {
   --gp-surface: #101b2e;
   --gp-border: #334155;

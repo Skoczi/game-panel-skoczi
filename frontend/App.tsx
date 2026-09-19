@@ -85,6 +85,14 @@ function AppContent() {
   );
 
   const [gameServers, setGameServersState] = useState<GameServer[]>([]);
+  const [serverSnapshotStatus, setServerSnapshotStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading'
+  );
+  useEffect(() => {
+    if (serverSnapshotStatus !== 'loading' || !authReady || !isAuthenticated) return;
+    const timer = window.setTimeout(() => setServerSnapshotStatus('error'), 15000);
+    return () => window.clearTimeout(timer);
+  }, [serverSnapshotStatus, authReady, isAuthenticated]);
   const setGameServers: Dispatch<SetStateAction<GameServer[]>> = useCallback((value) => {
     setGameServersState((previous) => {
       const next = typeof value === 'function' ? value(previous) : value;
@@ -168,6 +176,9 @@ function AppContent() {
 
     const wsListener = (message: any) => {
       handleWebSocketMessageRef.current(message);
+      if (message.type === 'servers:snapshot' && Array.isArray(message.servers)) {
+        setServerSnapshotStatus('ready');
+      }
     };
 
     const connectWS = async () => {
@@ -176,6 +187,7 @@ function AppContent() {
 
         apiClient.subscribeServers();
       } catch (error) {
+        setServerSnapshotStatus('error');
         console.error('Failed to connect WebSocket:', error);
       }
     };
@@ -531,6 +543,7 @@ function AppContent() {
     resetSession();
     setMobileMenuOpen(false);
     setGameServers([]);
+    setServerSnapshotStatus('loading');
     setServerLogs({});
     setServerHistoryById({});
     setServerMetricsHistoryById({});
@@ -764,6 +777,11 @@ function AppContent() {
       currentUser={currentUser}
       pageShellClassName={pageShellClassName}
       gameServers={gameServers}
+      serverSnapshotStatus={serverSnapshotStatus}
+      onRetryServerSnapshot={() => {
+        setServerSnapshotStatus('loading');
+        void handleRefreshServerSnapshot();
+      }}
       serverMetricsHistoryById={serverMetricsHistoryById}
       onLoadServerMetricsHistory={loadServerMetricsHistory}
       serverHistoryById={serverHistoryById}

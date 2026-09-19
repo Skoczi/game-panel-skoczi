@@ -12,7 +12,8 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
         const style = getComputedStyle(parent);
         return {
           actual: element.getBoundingClientRect().width,
-          available: parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+          available:
+            parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
           maxWidth: getComputedStyle(element).maxWidth,
           overflow: document.documentElement.scrollWidth > innerWidth,
         };
@@ -20,7 +21,10 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
       expect(dimensions.maxWidth).toBe('none');
       expect(Math.abs(dimensions.actual - dimensions.available)).toBeLessThan(2);
       expect(dimensions.overflow).toBe(false);
-      await page.screenshot({ path: `test-results/server-page-${tab}-${width}.png`, fullPage: true });
+      await page.screenshot({
+        path: `test-results/server-page-${tab}-${width}.png`,
+        fullPage: true,
+      });
     });
   }
 }
@@ -102,9 +106,43 @@ test('a URL for a different node never exposes the same numeric server on this n
   await page.goto(
     '/test/server-page.fixture.html#/nodes/11111111-1111-1111-1111-111111111111/servers/7/console'
   );
-  await expect(page.getByRole('heading', { name: 'Server unavailable' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Different execution node' })).toBeVisible();
   await expect(page.getByText('Server ready for players')).toHaveCount(0);
 });
+
+test('loading uses a responsive skeleton without flashing an unavailable error', async ({
+  page,
+}) => {
+  await page.goto('/test/server-page.fixture.html?snapshot=loading#/nodes/local/servers/7/console');
+  await expect(page.getByRole('heading', { name: 'Opening your server' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Server unavailable' })).toHaveCount(0);
+  await expect(page.locator('.gp-server-skeleton')).toBeVisible();
+  await expect(page.locator('.gp-server-state')).toHaveAttribute('aria-busy', 'true');
+  await page.screenshot({ path: 'test-results/server-loading-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(
+    await page.locator('.gp-server-skeleton').evaluate((el) => getComputedStyle(el).animationName)
+  ).toBe('none');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/server-loading-mobile.png', fullPage: true });
+});
+
+for (const state of ['error', 'missing']) {
+  test(`${state} has a distinct message and retry can recover`, async ({ page }) => {
+    await page.goto(
+      `/test/server-page.fixture.html?snapshot=${state}#/nodes/local/servers/7/console`
+    );
+    await expect(
+      page.getByRole('heading', {
+        name: state === 'error' ? 'Unable to connect' : 'Server unavailable',
+      })
+    ).toBeVisible();
+    await expect(page.locator('.gp-server-skeleton')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { name: 'CS16 Test', exact: true })).toBeVisible();
+  });
+}
 
 test('unsaved files are protected when leaving by tabs and browser history', async ({ page }) => {
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');

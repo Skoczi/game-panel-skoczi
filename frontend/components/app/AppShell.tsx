@@ -40,6 +40,7 @@ import { supportsConsoleCommand } from '../../utils/providerCapabilities';
 import { FleetWorkspace } from '../FleetWorkspace';
 import { ACTIVE_NODE, ACTIVE_SERVER, ADMIN_RUNTIME, openFleet } from '../../utils/nodeContext';
 import { ServerManagementPage } from '../ServerManagementPage';
+import { ServerPageState } from '../serverSettings/ServerPageState';
 import { useServerPageRoute } from '../serverSettings/useServerPageRoute';
 
 interface AppShellProps {
@@ -53,6 +54,8 @@ interface AppShellProps {
   currentUser: AuthUser | null;
   pageShellClassName: string;
   gameServers: GameServer[];
+  serverSnapshotStatus?: 'loading' | 'ready' | 'error';
+  onRetryServerSnapshot?: () => void;
   serverMetricsHistoryById: Record<string, ServerMetricHistoryPoint[]>;
   onLoadServerMetricsHistory: (serverId: string) => void;
   serverHistoryById: ServerHistoryById;
@@ -118,6 +121,8 @@ export function AppShell({
   currentUser,
   pageShellClassName,
   gameServers,
+  serverSnapshotStatus = 'ready',
+  onRetryServerSnapshot,
   serverMetricsHistoryById,
   onLoadServerMetricsHistory,
   serverHistoryById,
@@ -347,11 +352,17 @@ export function AppShell({
                   }
                 />
               ) : (
-                <section className="gp-server-stat">
-                  <h1>Server unavailable</h1>
-                  <p>The server is loading, no longer accessible, or belongs to another node.</p>
-                  <AppButton onClick={() => navigate(null)}>Back to servers</AppButton>
-                </section>
+                <ServerPageState
+                  state={
+                    route.node !== ACTIVE_NODE
+                      ? 'wrong-node'
+                      : serverSnapshotStatus === 'ready'
+                        ? 'missing'
+                        : serverSnapshotStatus
+                  }
+                  onBack={() => (ACTIVE_SERVER ? openFleet() : navigate(null))}
+                  onRetry={onRetryServerSnapshot || handleRefreshServerSnapshot}
+                />
               )
             ) : (
               <>

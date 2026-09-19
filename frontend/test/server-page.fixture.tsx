@@ -25,6 +25,8 @@ const metadata = JSON.stringify({
   },
 });
 function Fixture() {
+  const initialState = new URLSearchParams(location.search).get('snapshot');
+  const [snapshot, setSnapshot] = useState(initialState || 'ready');
   const [activeTab, setActiveTab] = useState('game-servers');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const props: any = {
@@ -76,6 +78,8 @@ function Fixture() {
     handleDeleteServer: noop,
     handleRenameServer: noop,
     handleRefreshServerSnapshot: noop,
+    serverSnapshotStatus: snapshot === 'missing' ? 'ready' : snapshot,
+    onRetryServerSnapshot: () => setSnapshot('ready'),
     handleStartAll: noop,
     handleStopAll: noop,
     canInstallServers: false,
@@ -122,6 +126,7 @@ function Fixture() {
     handleRequestLogout: noop,
     handleOpenChangePassword: noop,
   };
+  if (snapshot !== 'ready') props.gameServers = [];
   return <AppShell {...props} />;
 }
 createRoot(document.getElementById('root')!).render(

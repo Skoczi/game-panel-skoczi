@@ -20,7 +20,9 @@ const GlobalSettings = lazy(() =>
   import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings }))
 );
 const Nodes = lazy(() => import('../Nodes').then((m) => ({ default: m.Nodes })));
-const GameTemplates = lazy(() => import('../GameTemplates').then((m) => ({ default: m.GameTemplates })));
+const GameTemplates = lazy(() =>
+  import('../GameTemplates').then((m) => ({ default: m.GameTemplates }))
+);
 import type { CLIMessage } from '../../types/cli';
 import type { GameServer, InstallInteraction, InstallStep } from '../../types/gameServer';
 import type { AuthUser } from '../../utils/permissions';
@@ -36,7 +38,9 @@ import type { ActiveLogPromptToast, ConsoleTerminalTarget } from './appRuntime';
 import { AppButton } from '../../src/ui/components';
 import { supportsConsoleCommand } from '../../utils/providerCapabilities';
 import { FleetWorkspace } from '../FleetWorkspace';
-import { ACTIVE_SERVER, ADMIN_RUNTIME, openFleet } from '../../utils/nodeContext';
+import { ACTIVE_NODE, ACTIVE_SERVER, ADMIN_RUNTIME, openFleet } from '../../utils/nodeContext';
+import { ServerManagementPage } from '../ServerManagementPage';
+import { useServerPageRoute } from '../serverSettings/useServerPageRoute';
 
 interface AppShellProps {
   activeTab: string;
@@ -55,7 +59,12 @@ interface AppShellProps {
   gameNamesByKey: Record<string, string>;
   serverPermissionsById: Record<string, string[]>;
   handleDeleteServer: (id: string) => Promise<void>;
-  handleServerAction: (serverId: string, serverName: string, action: string) => Promise<void>;
+  handleServerAction: (
+    serverId: string,
+    serverName: string,
+    action: string,
+    propagateError?: boolean
+  ) => Promise<void>;
   openConsoleTerminal: (serverId: number, serverName: string) => void;
   handleRenameServer: (id: string, newName: string) => Promise<void>;
   handleRefreshServerSnapshot: () => Promise<void>;
@@ -154,6 +163,12 @@ export function AppShell({
   setChangePasswordOpen,
   currentUserId,
 }: AppShellProps) {
+  const { route, navigate, setDirty, allowLeave } = useServerPageRoute();
+  const managedServer =
+    route?.node === ACTIVE_NODE ? gameServers.find((server) => server.id === route.id) : undefined;
+  const changeMainTab = (tab: string) => {
+    if (allowLeave()) setActiveTab(tab);
+  };
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const mobileNavRef = useRef<HTMLDivElement>(null);
@@ -201,7 +216,7 @@ export function AppShell({
       <div className="hidden md:block">
         <Sidebar
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={changeMainTab}
           onLogout={handleRequestLogout}
           onChangePassword={handleOpenChangePassword}
           canManageUsers={canManageUsers}
@@ -254,7 +269,7 @@ export function AppShell({
             <Sidebar
               activeTab={activeTab}
               onTabChange={(tab) => {
-                setActiveTab(tab);
+                changeMainTab(tab);
                 setMobileMenuOpen(false);
               }}
               onLogout={handleRequestLogout}
@@ -289,81 +304,140 @@ export function AppShell({
         )}
         {activeTab === 'game-servers' && (ACTIVE_SERVER || ADMIN_RUNTIME) && (
           <AppPageLayout className={pageShellClassName}>
-            <div className="gp-fleet">
-              <div className="gp-fleet-context">
-                <button className="gp-fleet-button" onClick={openFleet}>
-                  ← All servers
-                </button>
-                <div>
-                  <strong>{ACTIVE_SERVER?.name || 'Node administration'}</strong>
-                  <small>
-                    {ACTIVE_SERVER
-                      ? `${ACTIVE_SERVER.location} · ${ACTIVE_SERVER.nodeName}`
-                      : 'Administrator runtime workspace'}
-                  </small>
+            {route ? (
+              managedServer ? (
+                <ServerManagementPage
+                  key={`${route.node}:${route.id}`}
+                  server={managedServer}
+                  currentUser={currentUser}
+                  permissions={serverPermissionsById[managedServer.id] || []}
+                  gameName={gameNamesByKey[managedServer.game] || managedServer.game}
+                  nodeName={
+                    ACTIVE_SERVER?.nodeName || (ACTIVE_NODE === 'local' ? 'Local' : 'Remote node')
+                  }
+                  tab={route.tab}
+                  onTab={(tab) => navigate({ ...route, tab })}
+                  onBack={() => {
+                    if (ACTIVE_SERVER) {
+                      if (allowLeave()) openFleet();
+                    } else navigate(null);
+                  }}
+                  onDirtyChange={setDirty}
+                  onAction={(id, name, action) =>
+                    handleServerAction(id, name, action, action !== 'debug')
+                  }
+                  onLoadMetrics={onLoadServerMetricsHistory}
+                  metrics={serverMetricsHistoryById[managedServer.id] || []}
+                  history={serverHistoryById[managedServer.id] || []}
+                  consoleContent={
+                    <ServerConsoleTabs
+                      singleServer
+                      servers={[managedServer]}
+                      logs={serverLogs}
+                      cliMessages={[]}
+                      onClearLogs={handleClearServerLogs}
+                      onClearCLI={() => {}}
+                      activeTab={managedServer.id}
+                      onSetActiveTab={() => {}}
+                      onCloseTab={() => {}}
+                      openTabs={[managedServer.id]}
+                      canSendCommandByServer={canSendCommandByServer}
+                      onSendCommand={handleSendConsoleCommand}
+                    />
+                  }
+                />
+              ) : (
+                <section className="gp-server-stat">
+                  <h1>Server unavailable</h1>
+                  <p>The server is loading, no longer accessible, or belongs to another node.</p>
+                  <AppButton onClick={() => navigate(null)}>Back to servers</AppButton>
+                </section>
+              )
+            ) : (
+              <>
+                <div className="gp-fleet">
+                  <div className="gp-fleet-context">
+                    <button className="gp-fleet-button" onClick={openFleet}>
+                      ← All servers
+                    </button>
+                    <div>
+                      <strong>{ACTIVE_SERVER?.name || 'Node administration'}</strong>
+                      <small>
+                        {ACTIVE_SERVER
+                          ? `${ACTIVE_SERVER.location} · ${ACTIVE_SERVER.nodeName}`
+                          : 'Administrator runtime workspace'}
+                      </small>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <NewsPanel />
+                <NewsPanel />
 
-            <GameServersTable
-              servers={gameServers}
-              metricsHistoryByServer={serverMetricsHistoryById}
-              onLoadMetricsHistory={onLoadServerMetricsHistory}
-              historyByServer={serverHistoryById}
-              gameNamesByKey={gameNamesByKey}
-              currentUser={currentUser}
-              permissionsByServer={serverPermissionsById}
-              onDelete={handleDeleteServer}
-              onAction={handleServerAction}
-              onRename={handleRenameServer}
-              onRefresh={handleRefreshServerSnapshot}
-              onStartAll={handleStartAll}
-              onStopAll={handleStopAll}
-              canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
-              onOpenInstallModal={() => setInstallModalOpen(true)}
-            />
+                <GameServersTable
+                  onManage={(server) =>
+                    navigate({ node: ACTIVE_NODE, id: server.id, tab: 'console' })
+                  }
+                  servers={gameServers}
+                  metricsHistoryByServer={serverMetricsHistoryById}
+                  onLoadMetricsHistory={onLoadServerMetricsHistory}
+                  historyByServer={serverHistoryById}
+                  gameNamesByKey={gameNamesByKey}
+                  currentUser={currentUser}
+                  permissionsByServer={serverPermissionsById}
+                  onDelete={handleDeleteServer}
+                  onAction={(id, name, action) => {
+                    if (action === 'debug') navigate({ node: ACTIVE_NODE, id, tab: 'console' });
+                    else void handleServerAction(id, name, action);
+                  }}
+                  onRename={handleRenameServer}
+                  onRefresh={handleRefreshServerSnapshot}
+                  onStartAll={handleStartAll}
+                  onStopAll={handleStopAll}
+                  canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
+                  onOpenInstallModal={() => setInstallModalOpen(true)}
+                />
 
-            <InstallGameServer
-              isOpen={installModalOpen}
-              onClose={() => setInstallModalOpen(false)}
-              onReopen={() => setInstallModalOpen(true)}
-              onInstall={handleInstallGame}
-              canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
-              installing={installing}
-              installError={installError}
-              installProgressPercent={installProgressPercent}
-              installStatus={installStatus}
-              installServerId={installServerId}
-              installInteraction={installInteraction}
-              setInstallInteraction={setInstallInteraction}
-              installPlan={installPlan}
-              installPermissionsSyncing={installPermissionsSyncing}
-              canOpenInstallLog={installServerId !== null}
-              usedPorts={{
-                tcp: Array.from(usedInstallPorts.tcp).sort((a, b) => a - b),
-                udp: Array.from(usedInstallPorts.udp).sort((a, b) => a - b),
-              }}
-              usedServerNames={gameServers.map((server) => server.name)}
-              onClearError={handleClearInstallError}
-              onOpenConsole={openInstallLogs}
-            />
+                <InstallGameServer
+                  isOpen={installModalOpen}
+                  onClose={() => setInstallModalOpen(false)}
+                  onReopen={() => setInstallModalOpen(true)}
+                  onInstall={handleInstallGame}
+                  canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
+                  installing={installing}
+                  installError={installError}
+                  installProgressPercent={installProgressPercent}
+                  installStatus={installStatus}
+                  installServerId={installServerId}
+                  installInteraction={installInteraction}
+                  setInstallInteraction={setInstallInteraction}
+                  installPlan={installPlan}
+                  installPermissionsSyncing={installPermissionsSyncing}
+                  canOpenInstallLog={installServerId !== null}
+                  usedPorts={{
+                    tcp: Array.from(usedInstallPorts.tcp).sort((a, b) => a - b),
+                    udp: Array.from(usedInstallPorts.udp).sort((a, b) => a - b),
+                  }}
+                  usedServerNames={gameServers.map((server) => server.name)}
+                  onClearError={handleClearInstallError}
+                  onOpenConsole={openInstallLogs}
+                />
 
-            <div id="server-console-logs" className="mt-6 mb-6 sm:mb-8 lg:mb-10">
-              <ServerConsoleTabs
-                servers={gameServers}
-                logs={serverLogs}
-                cliMessages={cliMessages}
-                onClearLogs={handleClearServerLogs}
-                onClearCLI={handleClearCLI}
-                activeTab={activeConsoleTab}
-                onSetActiveTab={setActiveConsoleTab}
-                onCloseTab={handleCloseConsoleTab}
-                openTabs={openConsoleTabs}
-                canSendCommandByServer={canSendCommandByServer}
-                onSendCommand={handleSendConsoleCommand}
-              />
-            </div>
+                <div id="server-console-logs" className="mt-6 mb-6 sm:mb-8 lg:mb-10">
+                  <ServerConsoleTabs
+                    servers={gameServers}
+                    logs={serverLogs}
+                    cliMessages={cliMessages}
+                    onClearLogs={handleClearServerLogs}
+                    onClearCLI={handleClearCLI}
+                    activeTab={activeConsoleTab}
+                    onSetActiveTab={setActiveConsoleTab}
+                    onCloseTab={handleCloseConsoleTab}
+                    openTabs={openConsoleTabs}
+                    canSendCommandByServer={canSendCommandByServer}
+                    onSendCommand={handleSendConsoleCommand}
+                  />
+                </div>
+              </>
+            )}
           </AppPageLayout>
         )}
 

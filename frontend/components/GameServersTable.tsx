@@ -29,6 +29,7 @@ import {
 } from './gameServersTable/utils';
 
 interface GameServersTableProps {
+  onManage?: (server: GameServer) => void;
   servers: GameServer[];
   metricsHistoryByServer?: Record<string, ServerMetricHistoryPoint[]>;
   onLoadMetricsHistory?: (serverId: string) => void;
@@ -54,6 +55,7 @@ interface ConnectionPortRow {
 }
 
 export function GameServersTable({
+  onManage,
   servers,
   metricsHistoryByServer,
   onLoadMetricsHistory,
@@ -147,6 +149,7 @@ export function GameServersTable({
   const connectionCopyTimerRef = useRef<number | null>(null);
 
   const handleOpenSettings = (server: GameServer) => {
+    if (onManage) { onManage(server); return; }
     setSelectedServer(server);
     setSettingsModalOpen(true);
   };

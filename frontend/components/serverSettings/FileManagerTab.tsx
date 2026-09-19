@@ -62,6 +62,7 @@ interface FileRoot {
 }
 
 interface FileManagerTabProps {
+  embeddedEditor?: boolean;
   borderColor: string;
   contentBg: string;
   hoverBg: string;
@@ -118,6 +119,7 @@ interface FileManagerTabProps {
 }
 
 export function FileManagerTab({
+  embeddedEditor = false,
   borderColor,
   contentBg,
   hoverBg,
@@ -692,11 +694,11 @@ export function FileManagerTab({
 
       {selectedFile && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4"
+          className={embeddedEditor ? 'absolute inset-0 z-10 flex' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4'}
           onKeyDown={(e) => e.stopPropagation()}
         >
           <div
-            className={`flex h-full md:h-[calc(100vh-2rem)] w-full max-w-7xl flex-col rounded-none md:rounded-xl border ${borderColor} ${contentBg} shadow-2xl overflow-hidden`}
+            className={`flex h-full w-full flex-col ${embeddedEditor ? '' : 'md:h-[calc(100vh-2rem)] max-w-7xl rounded-none md:rounded-xl border shadow-2xl'} ${borderColor} ${contentBg} overflow-hidden`}
             onKeyDown={(e) => e.stopPropagation()}
           >
             <div className={`flex flex-shrink-0 items-center justify-between border-b ${borderColor} px-4 py-3`}>

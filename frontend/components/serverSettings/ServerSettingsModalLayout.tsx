@@ -8,6 +8,7 @@ import type { SettingsTab } from './access';
 import { ProviderLogo } from '../gameServersTable/ProviderBadge';
 
 interface ServerSettingsModalLayoutProps {
+  pageMode?: boolean;
   isOpen: boolean;
   onClose: () => void;
   serverName: string;
@@ -34,6 +35,7 @@ interface ServerSettingsModalLayoutProps {
 }
 
 export function ServerSettingsModalLayout({
+  pageMode = false,
   isOpen,
   onClose,
   serverName,
@@ -59,10 +61,19 @@ export function ServerSettingsModalLayout({
   containerConfigContent,
 }: ServerSettingsModalLayoutProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  useBodyScrollLock(isOpen);
-  useFocusTrap(isOpen, dialogRef, { onEscape: onClose });
+  useBodyScrollLock(isOpen && !pageMode);
+  useFocusTrap(isOpen && !pageMode, dialogRef, { onEscape: onClose });
   const isWindowed = useMediaQuery('(min-width: 768px) and (min-height: 600px)');
   if (!isOpen) return null;
+
+  if (pageMode) {
+    const contents = { filemanager: fileManagerContent, backup: backupContent,
+      gameconfig: gameConfigContent, terminal: terminalContent,
+      containerconfig: containerConfigContent, scheduledtasks: scheduledTasksContent };
+    return <section className="gp-settings-modal gp-server-page-content" aria-label="Server management section">
+      {canAccessTab(activeTab) ? contents[activeTab] : <p className="p-8">No access to this section.</p>}
+    </section>;
+  }
 
   return (
     <div className={`gp-settings-modal fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden ${isWindowed ? 'p-4' : 'p-0'}`}>

@@ -38,6 +38,7 @@ const AnsiLine = memo(function AnsiLine({
 });
 
 interface ServerConsoleTabsProps {
+  singleServer?: boolean;
   servers: GameServer[];
   logs: ServerLogs;
   cliMessages: CLIMessage[];
@@ -52,6 +53,7 @@ interface ServerConsoleTabsProps {
 }
 
 export function ServerConsoleTabs({
+  singleServer = false,
   servers,
   logs,
   cliMessages,
@@ -560,7 +562,7 @@ export function ServerConsoleTabs({
         className={`flex min-h-[44px] shrink-0 items-stretch justify-between border-b ${borderColor} ${isFullscreen ? '' : 'rounded-t-lg'} overflow-hidden bg-gp-surface-input`}
       >
         <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto hide-scrollbar">
-          <div
+          {!singleServer && <div
             className={`flex h-full shrink-0 items-center gap-2 border-l px-4 transition-colors cursor-pointer select-none ${
               activeTab === 'cli-console'
                 ? `${tabActiveBg} ${tabActiveText}`
@@ -587,7 +589,7 @@ export function ServerConsoleTabs({
                 {cliMessages.length}
               </span>
             )}
-          </div>
+          </div>}
 
           {openTabServers.map((server, index) => {
               const isLastOpenTab = index === openTabServers.length - 1;
@@ -606,7 +608,7 @@ export function ServerConsoleTabs({
                     <Terminal className="w-4 h-4" />
                     <span className="text-sm font-medium whitespace-nowrap">{server.name}</span>
                   </div>
-                  <button
+                  {!singleServer && <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -620,7 +622,7 @@ export function ServerConsoleTabs({
                     }`}
                   >
                     <X className="h-4 w-4" strokeWidth={2.2} />
-                  </button>
+                  </button>}
                 </div>
               );
             })}

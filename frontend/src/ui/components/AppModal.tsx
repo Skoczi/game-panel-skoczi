@@ -1,4 +1,4 @@
-import { useEffect, type ComponentProps, type ReactNode } from 'react';
+import { type ComponentProps, type ReactNode } from 'react';
 import {
   Modal,
   ModalBody,
@@ -21,17 +21,8 @@ export function AppModal({
   positionerStyle,
   ...props
 }: AppModalProps) {
-  useEffect(() => {
-    if (props.open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [props.open]);
-
+  // ODS owns scroll locking and restores the previous styles. A second lock here
+  // made it capture "hidden" as the original value and leave pages unscrollable.
   return (
     <Modal
       {...props}

@@ -6,6 +6,7 @@ import {
   ADMIN_RUNTIME,
   openServer,
   openFleet,
+  selectNode,
   type ServerContext,
 } from '../../utils/nodeContext';
 import { nodesRequest } from '../../utils/nodesApi';
@@ -33,6 +34,19 @@ export function useAuthSession() {
   const applyProfile = useCallback(async (profile: any) => {
     const user = profile?.user ?? null;
     const requestedServer = new URLSearchParams(location.search).get('server') || ACTIVE_SERVER?.id;
+    const requestedNode =
+      /^#\/nodes\/(local|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\/servers\/[1-9]\d*\//.exec(
+        location.hash
+      )?.[1];
+    if (
+      !requestedServer &&
+      requestedNode &&
+      user?.isRoot &&
+      (!ADMIN_RUNTIME || requestedNode !== ACTIVE_NODE)
+    ) {
+      selectNode(requestedNode, true);
+      return;
+    }
     if (requestedServer) {
       try {
         const context = await nodesRequest<ServerContext>(

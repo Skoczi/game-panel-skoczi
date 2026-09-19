@@ -1,0 +1,384 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, Copy, Play, Square, RotateCw } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
+import type { GameServer } from '../types/gameServer';
+import type { AuthUser } from '../utils/permissions';
+import type { ServerMetricHistoryPoint, ServerHistoryEntry } from '../utils/serverRuntime';
+import { isServerDownLike, isServerUpLike } from '../utils/serverRuntime';
+import { apiClient, PUBLIC_CONNECTION_HOST } from '../utils/api';
+import { ACTIVE_NODE } from '../utils/nodeContext';
+import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
+import { isNativeTemplate } from '../utils/providerCapabilities';
+import { gameDisplayName } from '../utils/gameDisplayName';
+import {
+  getServerStatusPresentation,
+  formatMetricValue,
+  formatNetworkSpeed,
+} from './gameServersTable/utils';
+import { createServerSettingsAccess, type SettingsTab } from './serverSettings/access';
+import { type ServerPageTab } from './serverSettings/useServerPageRoute';
+import { ServerSettingsModal } from './ServerSettingsModal';
+import { ConfirmationModal } from './ConfirmationModal';
+import './serverSettings/server-page.css';
+
+interface Props {
+  server: GameServer;
+  currentUser: AuthUser | null;
+  permissions: string[];
+  gameName: string;
+  nodeName: string;
+  tab: ServerPageTab;
+  onTab: (tab: ServerPageTab) => void;
+  onBack: () => void;
+  onDirtyChange: (dirty: boolean) => void;
+  onAction: (id: string, name: string, action: string) => Promise<void>;
+  onLoadMetrics: (id: string) => void;
+  metrics: ServerMetricHistoryPoint[];
+  history: ServerHistoryEntry[];
+  consoleContent: ReactNode;
+}
+const labels: Record<ServerPageTab, string> = {
+  console: 'Console',
+  filemanager: 'Files',
+  gameconfig: 'Game Config',
+  backup: 'Backups',
+  scheduledtasks: 'Schedules',
+  network: 'Network',
+  containerconfig: 'Startup & Settings',
+  terminal: 'Terminal',
+  activity: 'Activity',
+};
+export function ServerManagementPage({
+  server,
+  currentUser,
+  permissions,
+  gameName,
+  nodeName,
+  tab,
+  onTab,
+  onBack,
+  onDirtyChange,
+  onAction,
+  onLoadMetrics,
+  metrics,
+  history,
+  consoleContent,
+}: Props) {
+  const allowed = (permission: string) =>
+    Boolean(currentUser?.isRoot || permissions.includes('*') || permissions.includes(permission));
+  const access = createServerSettingsAccess(currentUser, permissions);
+  const canLogs = allowed('container.logs.read');
+  const [pending, setPending] = useState(false);
+  const [confirm, setConfirm] = useState<'stop' | 'restart' | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [resolvedNodeName, setResolvedNodeName] = useState(nodeName);
+  useEffect(() => {
+    if (!currentUser?.isRoot) return;
+    let active = true;
+    void nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes')
+      .then((result) => {
+        const node =
+          ACTIVE_NODE === 'local'
+            ? result.local
+            : result.nodes.find((item) => item.id === ACTIVE_NODE);
+        if (active && node) setResolvedNodeName(node.name);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.isRoot]);
+  const actionRef = useRef(onAction);
+  actionRef.current = onAction;
+  const metricsRef = useRef(onLoadMetrics);
+  metricsRef.current = onLoadMetrics;
+  useEffect(() => {
+    metricsRef.current(server.id);
+    if (canLogs) void actionRef.current(server.id, server.name, 'debug');
+  }, [server.id, canLogs]);
+  useEffect(() => {
+    if (!canLogs) return;
+    apiClient.subscribeActions(Number(server.id), 200, 'server-management-page');
+    return () => apiClient.unsubscribeActions(Number(server.id), 'server-management-page');
+  }, [server.id, canLogs]);
+  const status = getServerStatusPresentation(server.status);
+  const host = server.connectionHost || PUBLIC_CONNECTION_HOST;
+  const address = server.port
+    ? `${host.includes(':') ? `[${host}]` : host}:${server.port}`
+    : 'Not assigned';
+  const power = async (action: string) => {
+    if (!allowed('server.power') || pending) return;
+    setPending(true);
+    setFeedback('');
+    try {
+      await onAction(server.id, server.name, action);
+    } catch {
+      setFeedback(
+        'Could not confirm the action. Check the server status, connection and your permissions before trying again.'
+      );
+    } finally {
+      setPending(false);
+      setConfirm(null);
+    }
+  };
+  const settingsTab = !['console', 'activity', 'network'].includes(tab);
+  let hasBackup = server.provider === 'linuxgsm' || isNativeTemplate(server.providerMetadataJson);
+  if (server.provider === 'ovhcloud') {
+    try {
+      hasBackup = Boolean(JSON.parse(server.providerMetadataJson || '{}')?.capabilities?.backup);
+    } catch {
+      /* unavailable */
+    }
+  }
+  const tabs = (Object.keys(labels) as ServerPageTab[]).filter((key) => {
+    if (key === 'console' || key === 'network' || key === 'containerconfig') return true;
+    if (key === 'activity') return canLogs;
+    if (key === 'backup') return hasBackup && access.canReadBackups;
+    if (
+      key === 'gameconfig' &&
+      server.provider === 'external' &&
+      !isNativeTemplate(server.providerMetadataJson)
+    )
+      return false;
+    if (key === 'gameconfig')
+      return (
+        access.canUseGameConfigTab ||
+        access.canUseMinecraft ||
+        access.canUseHytale ||
+        access.canUsePalworld ||
+        access.canUseProjectZomboid ||
+        access.canUseRust ||
+        access.canUseValheim
+      );
+    return access.canAccessTab(key as SettingsTab);
+  });
+  const rows = ['tcp', 'udp'].flatMap((protocol) =>
+    (server.portBindings?.[protocol as 'tcp' | 'udp'] || []).map((binding) => ({
+      ...binding,
+      protocol,
+    }))
+  );
+  return (
+    <div className="gp-server-page">
+      <button className="gp-server-back" onClick={onBack}>
+        <ArrowLeft size={17} /> Back to servers
+      </button>
+      <header className="gp-server-heading">
+        <div className="min-w-0">
+          <p className="gp-server-eyebrow">SERVER MANAGEMENT · {resolvedNodeName}</p>
+          <h1>{server.name}</h1>
+          <p>
+            {gameDisplayName(gameName || server.game)}{' '}
+            <span className={`gp-server-status ${status.className}`}>{status.label}</span>
+          </p>
+        </div>
+        {allowed('server.power') && (
+          <div className="gp-server-power">
+            <button
+              disabled={pending || !isServerDownLike(server.status)}
+              onClick={() => void power('start')}
+            >
+              <Play size={16} /> Start
+            </button>
+            <button
+              disabled={pending || !isServerUpLike(server.status)}
+              onClick={() => setConfirm('restart')}
+            >
+              <RotateCw size={16} /> Restart
+            </button>
+            <button
+              disabled={pending || !isServerUpLike(server.status)}
+              onClick={() => setConfirm('stop')}
+            >
+              <Square size={16} /> Stop
+            </button>
+          </div>
+        )}
+      </header>
+      {feedback && <p role="status">{feedback}</p>}
+      <nav className="gp-server-tabs" aria-label="Server sections">
+        {tabs.map((key) => (
+          <a
+            key={key}
+            href={`#/nodes/${ACTIVE_NODE}/servers/${server.id}/${key}`}
+            aria-current={tab === key ? 'page' : undefined}
+            onClick={(event) => {
+              if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              onTab(key);
+            }}
+          >
+            {labels[key]}
+          </a>
+        ))}
+      </nav>
+      {tab === 'console' && (
+        <>
+          <div className="gp-server-overview">
+            <section className="min-w-0">
+              {canLogs ? (
+                consoleContent
+              ) : (
+                <div className="gp-server-stat">You don't have permission to read the console.</div>
+              )}
+            </section>
+            <aside className="gp-server-stats" aria-label="Server details">
+              <div className="gp-server-stat">
+                <small>Connection address</small>
+                <strong className="gp-server-address">{address}</strong>
+                {server.port && (
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(address).then(
+                        () => setFeedback('Address copied.'),
+                        () => setFeedback('Could not copy the address.')
+                      );
+                    }}
+                    aria-label="Copy connection address"
+                  >
+                    <Copy size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="gp-server-stat">
+                <small>CPU usage</small>
+                <strong>{formatMetricValue(server.status, server.cpuUsage)}</strong>
+              </div>
+              <div className="gp-server-stat">
+                <small>Memory usage</small>
+                <strong>{formatMetricValue(server.status, server.memoryUsage)}</strong>
+              </div>
+              <div className="gp-server-stat">
+                <small>Disk usage</small>
+                <strong>{formatMetricValue(server.status, server.diskUsage)}</strong>
+              </div>
+              <div className="gp-server-stat">
+                <small>Network · inbound / outbound</small>
+                <strong>
+                  {formatNetworkSpeed(server.networkIn)} / {formatNetworkSpeed(server.networkOut)}
+                </strong>
+              </div>
+            </aside>
+          </div>
+          <div className="gp-server-charts">
+            {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
+              <section className="gp-server-stat" key={metric}>
+                <h2>{['CPU (%)', 'Memory (%)', 'Network (B/s)'][index]}</h2>
+                {metrics.length ? (
+                  <div style={{ height: 180 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={metrics.slice(-120)}>
+                        <XAxis dataKey="timestamp" hide />
+                        <YAxis width={42} tick={{ fontSize: 11 }} />
+                        <Tooltip
+                          labelFormatter={(value) => new Date(Number(value)).toLocaleTimeString()}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey={metric}
+                          stroke="#00c8e5"
+                          fill="#00c8e5"
+                          fillOpacity={0.12}
+                          isAnimationActive={false}
+                        />
+                        {index === 2 && (
+                          <Area
+                            dataKey="networkOut"
+                            stroke="#eab308"
+                            fillOpacity={0}
+                            isAnimationActive={false}
+                          />
+                        )}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p>Waiting for metric history…</p>
+                )}
+              </section>
+            ))}
+          </div>
+        </>
+      )}
+      {settingsTab && (
+        <ServerSettingsModal
+          isOpen
+          pageTab={tab as SettingsTab}
+          onPageTabChange={onTab}
+          onDirtyChange={onDirtyChange}
+          onClose={onBack}
+          serverName={server.name}
+          serverGame={server.game}
+          serverProvider={server.provider}
+          serverProviderMetadataJson={server.providerMetadataJson}
+          serverStatus={server.status}
+          serverId={Number(server.id)}
+          currentUser={currentUser}
+          serverPermissions={permissions}
+        />
+      )}
+      {tab === 'network' && (
+        <section className="gp-server-stat">
+          <h2>Network allocations</h2>
+          <p>
+            Public connection: <strong>{address}</strong>
+          </p>
+          <div className="overflow-x-auto">
+            <table className="gp-server-network">
+              <thead>
+                <tr>
+                  <th>Purpose</th>
+                  <th>Protocol</th>
+                  <th>Public address</th>
+                  <th>Container port</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i}>
+                    <td>{row.label || 'Game server'}</td>
+                    <td>{row.protocol.toUpperCase()}</td>
+                    <td>
+                      {row.hostIp || host}:{row.host}
+                    </td>
+                    <td>{row.container}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {!rows.length && <p>No additional port mappings available.</p>}
+        </section>
+      )}
+      {tab === 'activity' && (
+        <section className="gp-server-stat">
+          <h2>Server activity</h2>
+          <p>Runtime events received by this panel session.</p>
+          {!canLogs ? (
+            <p>No access to server activity.</p>
+          ) : history.length ? (
+            <ol className="gp-server-activity">
+              {[...history].reverse().map((entry) => (
+                <li key={entry.id}>
+                  <time>{new Date(entry.timestamp).toLocaleString()}</time>
+                  <span>{entry.message}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>No events recorded yet.</p>
+          )}
+        </section>
+      )}
+      <ConfirmationModal
+        isOpen={confirm !== null}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => power(confirm!)}
+        title={`${confirm === 'stop' ? 'Stop' : 'Restart'} ${server.name}?`}
+        message="This will interrupt connected players."
+        confirmText={confirm === 'stop' ? 'Stop server' : 'Restart server'}
+        icon="warning"
+      />
+    </div>
+  );
+}

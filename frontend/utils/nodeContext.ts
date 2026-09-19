@@ -38,14 +38,16 @@ export const ACTIVE_NODE = (() => {
     return 'local';
   }
 })();
-export function selectNode(id: string) {
+export function selectNode(id: string, preserveServerPage = false) {
   if (!valid.test(id)) throw new Error('Invalid node');
   // An explicit Open servers action must also leave the Nodes tab for the current runtime.
   // Per-tab identity. A full reload closes sockets and discards every server-ID cache.
   sessionStorage.setItem(KEY, id);
   sessionStorage.setItem(ADMIN_KEY, '1');
   sessionStorage.removeItem(SERVER_KEY);
-  history.replaceState(null, '', location.pathname);
+  const hash =
+    preserveServerPage && location.hash.startsWith(`#/nodes/${id}/servers/`) ? location.hash : '';
+  history.replaceState(null, '', `${location.pathname}${hash}`);
   clearAppCache();
   window.location.reload();
 }
@@ -57,7 +59,14 @@ export function clearNodeSelection() {
 export function openServer(context: ServerContext) {
   clearNodeSelection();
   sessionStorage.setItem(SERVER_KEY, JSON.stringify(context));
-  history.replaceState(null, '', `${location.pathname}?server=${encodeURIComponent(context.id)}`);
+  const hash = location.hash.startsWith(`#/nodes/${context.nodeId}/servers/${context.runtimeId}/`)
+    ? location.hash
+    : '';
+  history.replaceState(
+    null,
+    '',
+    `${location.pathname}?server=${encodeURIComponent(context.id)}${hash}`
+  );
   clearAppCache();
   window.location.reload();
 }

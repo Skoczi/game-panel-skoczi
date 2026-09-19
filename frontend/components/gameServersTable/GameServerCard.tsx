@@ -423,7 +423,7 @@ export function GameServerCard({
           }`}
         >
           <Settings className="w-4 h-4" />
-          Settings
+          Manage
         </AppButton>
         <AppButton
           disabled={!canReadLogs}

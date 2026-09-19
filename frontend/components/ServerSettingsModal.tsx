@@ -47,6 +47,9 @@ import {
 } from './serverSettings/utils';
 
 interface ServerSettingsModalProps {
+  pageTab?: SettingsTab;
+  onPageTabChange?: (tab: SettingsTab) => void;
+  onDirtyChange?: (dirty: boolean) => void;
   isOpen: boolean;
   onClose: () => void;
   serverName: string;
@@ -60,6 +63,9 @@ interface ServerSettingsModalProps {
 }
 
 export function ServerSettingsModal({
+  pageTab,
+  onPageTabChange,
+  onDirtyChange,
   isOpen,
   onClose,
   serverName,
@@ -176,7 +182,13 @@ export function ServerSettingsModal({
     return false;
   })();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('filemanager');
+  const [activeTab, updateActiveTab] = useState<SettingsTab>(pageTab ?? 'filemanager');
+  const setActiveTab: React.Dispatch<React.SetStateAction<SettingsTab>> = (value) => {
+    const tab = typeof value === 'function' ? value(activeTab) : value;
+    updateActiveTab(tab);
+    onPageTabChange?.(tab);
+  };
+  useEffect(() => { if (pageTab) updateActiveTab(pageTab); }, [pageTab]);
   const hasUserSelectedTabRef = useRef(false);
   const [containerConfigSaveCount, setContainerConfigSaveCount] = useState(0);
 
@@ -383,8 +395,12 @@ export function ServerSettingsModal({
     setActiveTab(tab);
   };
   const defaultTab = SETTINGS_TAB_PRIORITY.find((tab) => canAccessTab(tab)) ?? 'filemanager';
-  const effectiveActiveTab = hasUserSelectedTabRef.current ? activeTab : defaultTab;
-  useBodyScrollLock(isOpen);
+  const effectiveActiveTab = pageTab ?? (hasUserSelectedTabRef.current ? activeTab : defaultTab);
+  useBodyScrollLock(isOpen && !pageTab);
+  useEffect(() => {
+    onDirtyChange?.(isFileDirty);
+    return () => onDirtyChange?.(false);
+  }, [isFileDirty, onDirtyChange]);
 
   const getFileMutationErrorMessage = (action: string, error: any): Promise<string> =>
     resolveFileMutationError(action, error, serverId);
@@ -720,6 +736,7 @@ export function ServerSettingsModal({
   });
 
   useEffect(() => {
+    if (pageTab) return;
     if (isOpen) return;
     hasUserSelectedTabRef.current = false;
     if (activeTab === defaultTab) return;
@@ -727,6 +744,7 @@ export function ServerSettingsModal({
   }, [isOpen, activeTab, defaultTab]);
 
   useEffect(() => {
+    if (pageTab) return;
     if (!isOpen) return;
     if (!hasUserSelectedTabRef.current) {
       if (activeTab !== defaultTab) setActiveTab(defaultTab);
@@ -758,6 +776,7 @@ export function ServerSettingsModal({
   return (
     <>
       <ServerSettingsModalLayout
+        pageMode={Boolean(pageTab)}
         isOpen={isOpen}
         onClose={onClose}
         serverName={serverName}
@@ -777,6 +796,7 @@ export function ServerSettingsModal({
         activeTab={effectiveActiveTab}
         fileManagerContent={
           <FileManagerTab
+            embeddedEditor={Boolean(pageTab)}
             borderColor={borderColor}
             contentBg={contentBg}
             hoverBg={hoverBg}

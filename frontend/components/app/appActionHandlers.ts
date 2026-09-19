@@ -152,12 +152,13 @@ export const createServerActionHandler =
     openServerConsole,
     serverLogHistoryLimit,
   }: CreateServerActionHandlerDeps) =>
-  async (serverId: string, serverName: string, action: string) => {
+  async (serverId: string, serverName: string, action: string, propagateError = false) => {
     try {
       if (
         (action === 'start' || action === 'stop' || action === 'restart') &&
         !canAccessServer(serverId, 'server.power')
       ) {
+        if (propagateError) throw new Error("You don't have permission to control this server");
         addCLIMessage(
           'error',
           "You don't have permission to control this server",
@@ -227,6 +228,7 @@ export const createServerActionHandler =
         serverName,
         action
       );
+      if (propagateError) throw error;
     }
   };
 

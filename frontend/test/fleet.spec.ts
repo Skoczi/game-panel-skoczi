@@ -34,7 +34,10 @@ test('custom dropdown supports keyboard, typeahead, cancellation and focus', asy
   await expect(page.getByRole('listbox')).toBeVisible();
   await expect(page.getByRole('listbox')).toBeFocused();
   await page.keyboard.press('End');
-  await expect(page.getByRole('option', { name: 'Status', exact: true })).toHaveAttribute('data-highlighted', '');
+  await expect(page.getByRole('option', { name: 'Status', exact: true })).toHaveAttribute(
+    'data-highlighted',
+    ''
+  );
   await page.keyboard.press('Enter');
   await expect(sort).toContainText('Status');
   await expect(sort).toBeFocused();
@@ -291,7 +294,19 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
   });
   await page.goto('/test/fleet.fixture.html');
   await page.getByRole('button', { name: 'Access for Community Arena' }).click();
-  await page.getByRole('combobox', { name: 'User', exact: true }).selectOption('2');
+  await page.getByRole('combobox', { name: 'User', exact: true }).click();
+  await page.getByRole('option', { name: 'Player', exact: true }).click();
+  const accessDialog = page.locator('.gp-fleet-access-modal');
+  await expect(accessDialog.getByText('Console & terminal', { exact: true })).toBeVisible();
+  await expect(accessDialog.getByLabel('View console logs', { exact: true })).toBeVisible();
+  await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await page.screenshot({ path: 'test-results/server-access-dark.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: 'Save access' })).toBeVisible();
+  expect((await accessDialog.boundingBox())!.width).toBeLessThan(390);
+  await page.screenshot({ path: 'test-results/server-access-mobile.png' });
+  await page.evaluate(() => document.documentElement.classList.remove('dark'));
+  await page.screenshot({ path: 'test-results/server-access-light.png' });
   await page.getByRole('button', { name: 'Operator', exact: true }).click();
   await page.getByRole('button', { name: 'Save access' }).click();
   await expect

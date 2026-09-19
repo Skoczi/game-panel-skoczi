@@ -312,6 +312,119 @@
   display: grid;
   gap: 18px;
 }
+.gp-fleet-access-modal[data-ods='modal-content'] {
+  width: min(880px, calc(100vw - 32px));
+  max-width: 880px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px #0005;
+}
+.gp-fleet-access-modal .gp-app-modal-header {
+  padding: 24px 56px 20px 24px;
+  border-bottom: 1px solid var(--fleet-border);
+}
+.gp-fleet-access-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gp-fleet-access-heading svg {
+  color: #00a6c4;
+}
+.gp-fleet-access-modal .gp-app-modal-title {
+  font-size: 22px;
+  margin: 0;
+}
+.gp-fleet-access-modal .gp-app-modal-description {
+  margin: 8px 0 0;
+  color: var(--fleet-muted);
+  font-size: 14px;
+}
+.gp-fleet-access-modal .gp-app-modal-body {
+  padding: 24px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.gp-fleet-access-modal .gp-app-modal-footer {
+  padding: 18px 24px;
+  border-top: 1px solid var(--fleet-border);
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+.gp-fleet-access-modal .gp-fleet-members {
+  padding: 14px;
+  border: 1px solid var(--fleet-border);
+  border-radius: 12px;
+}
+.gp-fleet-access-modal .gp-fleet-members p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.gp-fleet-access-modal .gp-fleet-muted {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.gp-fleet-access-modal button[aria-pressed='true'],
+.gp-fleet-access-modal button.is-selected {
+  border-color: #00a6c4;
+  background: #00a6c414;
+}
+.gp-fleet-access-modal .gp-fleet-permissions {
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  gap: 14px;
+  align-items: start;
+}
+.gp-fleet-access-modal .gp-fleet-permissions fieldset {
+  min-width: 0;
+  border: 1px solid var(--fleet-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.gp-fleet-access-modal .gp-fleet-permissions legend {
+  padding: 0 6px;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+}
+.gp-fleet-access-modal .gp-fleet-permissions label {
+  font-size: 13px;
+  gap: 10px;
+  min-height: 32px;
+  margin: 4px 0;
+  cursor: pointer;
+}
+.gp-fleet-access-modal input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #00a6c4;
+}
+.dark .gp-fleet-access-modal input[type='checkbox'] {
+  color-scheme: dark;
+}
+@media (max-width: 600px) {
+  .gp-fleet-access-modal .gp-app-modal-header {
+    padding: 20px 48px 16px 18px;
+  }
+  .gp-fleet-access-modal .gp-app-modal-body {
+    padding: 18px;
+  }
+  .gp-fleet-access-modal .gp-app-modal-footer {
+    padding: 14px 18px;
+  }
+  .gp-fleet-access-modal .gp-fleet-permissions {
+    grid-template-columns: 1fr;
+  }
+}
 .gp-fleet-members {
   display: flex;
   gap: 8px;

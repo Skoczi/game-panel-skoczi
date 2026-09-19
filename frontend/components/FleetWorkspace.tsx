@@ -42,6 +42,8 @@ import {
   AppModalTitle,
   AppModalDescription,
   AppModalBody,
+  AppModalFooter,
+  AppSelect,
 } from '../src/ui/components';
 import './fleet.css';
 import { FleetSelect } from './FleetSelect';
@@ -502,6 +504,28 @@ function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => 
     (result[permission.split('.')[0]] ??= []).push(permission);
     return result;
   }, {});
+  const groupNames: Record<string, string> = {
+    server: 'Server management',
+    scheduledtasks: 'Scheduled tasks',
+    container: 'Console & terminal',
+    fs: 'Files',
+    backups: 'Backups',
+  };
+  const permissionNames: Record<string, string> = {
+    'server.edit': 'Edit server',
+    'server.power': 'Start, restart & stop',
+    'server.delete': 'Delete server',
+    'server.command.send': 'Send console commands',
+    'server.env': 'Edit startup variables',
+    'server.wipe.soft': 'Soft wipe',
+    'server.wipe.hard': 'Full wipe',
+    'container.terminal': 'Use terminal',
+    'container.logs.read': 'View console logs',
+    'fs.read': 'Browse & read files',
+    'fs.write': 'Create, edit & delete files',
+    'scheduledtasks.read': 'View schedules',
+    'scheduledtasks.write': 'Manage schedules',
+  };
   return (
     <AppModal
       open
@@ -509,15 +533,18 @@ function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => 
         if (!open && !busy) onClose();
       }}
     >
-      <AppModalContent className="max-w-3xl">
+      <AppModalContent className="gp-fleet gp-fleet-access-modal">
         <AppModalHeader>
-          <AppModalTitle>Server access</AppModalTitle>
+          <div className="gp-fleet-access-heading">
+            <ShieldCheck size={23} />
+            <AppModalTitle>Server access</AppModalTitle>
+          </div>
           <AppModalDescription>
-            {server.name} · {server.node.location}. Permissions apply only to this server.
+            {server.name} · {server.node.location}
           </AppModalDescription>
         </AppModalHeader>
         <AppModalBody>
-          <div className="gp-fleet gp-fleet-access">
+          <div className="gp-fleet-access" aria-busy={busy}>
             {error && (
               <p role="alert" className="gp-fleet-error">
                 {error}
@@ -525,12 +552,15 @@ function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => 
             )}
             <div className="gp-fleet-members">
               {members.length === 0 ? (
-                <p className="gp-fleet-muted">No assigned users. Administrators retain access.</p>
+                <p className="gp-fleet-muted">
+                  <Users size={18} /> No assigned users. Administrators retain access.
+                </p>
               ) : (
                 members.map((m) => (
                   <button
                     key={m.userId}
-                    className={button}
+                    className={`${button} ${userId === String(m.userId) ? 'is-selected' : ''}`}
+                    disabled={busy}
                     onClick={() => changeUser(String(m.userId))}
                   >
                     <ShieldCheck size={15} />
@@ -540,32 +570,34 @@ function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => 
                 ))
               )}
             </div>
-            <label className="gp-fleet-field">
-              User
-              <select
-                aria-label="User"
+            <div className="gp-fleet-field">
+              <span>User</span>
+              <AppSelect
+                className="gp-resources-select gp-fleet-dropdown"
+                controlLabel="User"
+                placeholder="Select a user…"
                 value={userId}
                 disabled={busy}
-                onChange={(e) => changeUser(e.target.value)}
-              >
-                <option value="">Select a user…</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.username}
-                    {u.isEnabled ? '' : ' (disabled)'}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={changeUser}
+                options={users.map((u) => ({
+                  value: String(u.id),
+                  label: `${u.username}${u.isEnabled ? '' : ' (disabled)'}`,
+                }))}
+              />
+            </div>
             <p className="gp-fleet-muted">
-              Assigned users can see status and metrics. Add the operations they should be allowed
-              to perform.
+              Permissions apply only to this server. Assigned users can see status and metrics.
             </p>
             <div className="gp-fleet-actions">
               {Object.entries(profiles).map(([name, values]) => (
                 <button
                   key={name}
                   className={button}
+                  aria-pressed={
+                    Boolean(userId) &&
+                    permissions.length === values.filter((p) => available.includes(p)).length &&
+                    permissions.every((p) => values.includes(p))
+                  }
                   disabled={!userId || busy}
                   onClick={() => setPermissions(values.filter((p) => available.includes(p)))}
                 >
@@ -576,7 +608,7 @@ function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => 
             <div className="gp-fleet-permissions">
               {Object.entries(groups).map(([group, values]) => (
                 <fieldset key={group}>
-                  <legend>{group}</legend>
+                  <legend>{groupNames[group] || group}</legend>
                   {values.map((p) => (
                     <label key={p}>
                       <input
@@ -591,36 +623,37 @@ function FleetAccess({ server, onClose }: { server: FleetServer; onClose: () => 
                           )
                         }
                       />
-                      <span>
-                        {p
-                          .slice(group.length + 1)
-                          .split('.')
-                          .join(' / ')}
+                      <span title={p}>
+                        {permissionNames[p] ||
+                          p
+                            .slice(group.length + 1)
+                            .split('.')
+                            .join(' / ')}
                       </span>
                     </label>
                   ))}
                 </fieldset>
               ))}
             </div>
-            <div className="gp-fleet-actions">
-              <button
-                className={`${button} gp-fleet-primary`}
-                disabled={!userId || busy}
-                onClick={() => void save()}
-              >
-                Save access
-              </button>
-              {members.some((m) => m.userId === Number(userId)) && (
-                <button className={button} disabled={busy} onClick={() => void save(true)}>
-                  Revoke access
-                </button>
-              )}
-              <button className={button} disabled={busy} onClick={onClose}>
-                Close
-              </button>
-            </div>
           </div>
         </AppModalBody>
+        <AppModalFooter className="gp-fleet-actions">
+          <button
+            className={`${button} gp-fleet-primary`}
+            disabled={!userId || busy}
+            onClick={() => void save()}
+          >
+            Save access
+          </button>
+          {members.some((m) => m.userId === Number(userId)) && (
+            <button className={button} disabled={busy} onClick={() => void save(true)}>
+              Revoke access
+            </button>
+          )}
+          <button className={button} disabled={busy} onClick={onClose}>
+            Close
+          </button>
+        </AppModalFooter>
       </AppModalContent>
     </AppModal>
   );

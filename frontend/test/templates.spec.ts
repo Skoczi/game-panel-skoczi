@@ -151,6 +151,23 @@ test('scripted templates reject older native agents before authorization or inst
   await expect(page.getByRole('alert')).toContainText('does not support template scripts');
   expect(sends).toBe(0);
 });
+
+test('native configuration links require the settings contract before creating a ticket', async ({ page }) => {
+  await mock(page, 'published');
+  const document = { ...definition, schemaVersion: 2, runtime: { ...definition.runtime, provider: 'external' },
+    configFiles: [{ root: 'data', path: '/serverfiles/cstrike/server.cfg', label: 'Server settings' }],
+    lifecycle: { startup: ['/data/serverfiles/hlds_linux'], workdir: '/data', install: [], update: [], stopSignal: 'SIGINT', stopTimeoutSeconds: 30 },
+  };
+  await page.route('**/api/game-templates', r => r.fulfill({ json: { templates: [{ ...row, status: 'published', document }] } }));
+  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1 } }));
+  let sends = 0;
+  await page.route('**/prepare', r => { sends++; return r.fulfill({ json: {} }); });
+  await page.route('**/api/servers/install', r => { sends++; return r.fulfill({ json: {} }); });
+  await openNetwork(page);
+  await page.getByRole('button', { name: 'Create server', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('native settings update');
+  expect(sends).toBe(0);
+});
 test('remote installation sends a signed ticket and explicit bindings, never a client-supplied image', async ({
   page,
 }) => {

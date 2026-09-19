@@ -85,6 +85,15 @@ test('version store preserves published documents, rejects stale saves and keeps
         await assert.rejects(store.status('builtin-cs16', 1, 'published', 'admin'), /new draft/);
         assert.equal((await store.list()).length, 3);
         assert.equal((await store.get('builtin-cs16-native', 1)).status, 'draft');
+        await store.remove('builtin-cs16', 'admin');
+        assert.equal((await store.list()).length, 1);
+        await assert.rejects(store.get('builtin-cs16', 1), /deleted/);
+        await assert.rejects(store.create(doc, 'admin', 'builtin-cs16', 2), /deleted/);
+        await store.initialize();
+        assert.equal((await store.list()).length, 1, 'deleted builtins must not reappear');
+        assert.equal(native.prepare('SELECT COUNT(*) AS n FROM game_template_versions').get()!.n, 3, 'historical definitions preserved');
+        await store.remove('builtin-cs16', 'admin');
+        await assert.rejects(store.remove('missing', 'admin'), /not found/);
     } finally { native.close(); }
 });
 test('long remote container names become deterministic <=63 byte hostnames without losing Docker identity', () => {

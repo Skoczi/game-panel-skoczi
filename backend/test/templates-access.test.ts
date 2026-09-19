@@ -40,5 +40,9 @@ test('template HTTP routes enforce root, draft publication, node isolation and s
         const exported = await (await request('/builtin-cs16/1/export')).json(); assert.deepEqual(exported, schema.CS16_TEMPLATE);
         await request('/builtin-cs16/1/status', { status: 'disabled' }); assert.equal((await request('/builtin-cs16/1/prepare', { nodeId: 'remote' })).status, 409);
         assert.equal((await request('', { document: { ...schema.CS16_TEMPLATE, scripts: {} } })).status, 400);
+        assert.equal((await fetch(base + '/builtin-cs16', { method: 'DELETE', headers: { 'x-test-role': 'user' } })).status, 403);
+        assert.equal((await fetch(base + '/builtin-cs16', { method: 'DELETE', headers: { 'x-test-role': 'root' } })).status, 200);
+        assert.equal((await request('/builtin-cs16/1/prepare', { nodeId: 'local' })).status, 404);
+        assert.equal((await request('/builtin-cs16/1/export')).status, 404);
     } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); native.close(); }
 });

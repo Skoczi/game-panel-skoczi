@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "name": "Counter-Strike 1.6 · ReHLDS",
+  "description": "Clean ReHLDS 3.15.0.896. Panel-owned installation script, locally hosted checksum-pinned engine, Steam legacy game files. No AMXX/ReAPI/Reunion; no automatic updates. Test before production use.",
+  "author": "Skoczi (template); ReHLDS contributors; Valve (game files)",
+  "source": "https://github.com/rehlds/ReHLDS/releases/tag/3.15.0.896",
+  "runtime": {
+    "provider": "external",
+    "image": "gamepanel-runtime:linux-v1",
+    "catalogId": "",
+    "gameServerName": "",
+    "architectures": [
+      "x64"
+    ],
+    "identity": {
+      "user": "1000",
+      "uid": 1000,
+      "gid": 1000
+    }
+  },
+  "ports": [
+    {
+      "key": "game",
+      "label": "Game / Query / RCON",
+      "protocol": "udp",
+      "container": 27015,
+      "suggested": 27015,
+      "env": "SERVER_PORT",
+      "linuxgsmKey": ""
+    }
+  ],
+  "variables": [
+    {
+      "key": "SERVER_NAME",
+      "label": "Server name",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": "Counter-Strike 1.6 ReHLDS Server"
+    },
+    {
+      "key": "MAP",
+      "label": "Starting map",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": "de_dust2"
+    },
+    {
+      "key": "MAX_PLAYERS",
+      "label": "Maximum players (1-32)",
+      "type": "integer",
+      "required": true,
+      "secret": false,
+      "default": "16"
+    }
+  ],
+  "mounts": [
+    {
+      "key": "data",
+      "containerPath": "/data"
+    }
+  ],
+  "lifecycle": {
+    "installerImage": "gamepanel-installer:steamcmd-v1",
+    "workdir": "/data",
+    "startup": [
+      "/data/hlds_linux",
+      "-console",
+      "-game",
+      "cstrike",
+      "-ip",
+      "0.0.0.0",
+      "-port",
+      "{{SERVER_PORT}}",
+      "-strictportbind",
+      "+maxplayers",
+      "{{MAX_PLAYERS}}",
+      "+map",
+      "{{MAP}}",
+      "+hostname",
+      "{{SERVER_NAME}}"
+    ],
+    "stopSignal": "SIGINT",
+    "stopTimeoutSeconds": 30,
+    "install": [
+      {
+        "name": "Install Steam legacy files and verified ReHLDS",
+        "timeoutSeconds": 1800,
+        "script": "#!/bin/bash\nset -euo pipefail\n# Panel-owned recipe; no remote shell scripts are executed.\n[[ \"$MAX_PLAYERS\" =~ ^[0-9]{1,2}$ ]] && (( MAX_PLAYERS >= 1 && MAX_PLAYERS <= 32 )) || { echo 'Player limit must be 1-32'; exit 2; }\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid map name'; exit 2; }\ntest ! -e /data/hlds_linux || { echo 'Existing installation detected; refusing to overwrite it'; exit 2; }\nstage=$(mktemp -d /tmp/rehlds.XXXXXXXX)\ncurl --fail --location --proto '=https' --tlsv1.2 --retry 3 --connect-timeout 20 --max-time 180 \\\n  https://eserv.pl/runtime-assets/rehlds/rehlds-bin-3.15.0.896.zip -o \"$stage/rehlds.zip\"\nprintf '%s  %s\\n' 997baeb7ef3842dab3e034d82dc651ebfe560c23b158adce660a6b97976b4e2b \"$stage/rehlds.zip\" | sha256sum -c -\n# Extract only reviewed files from the verified archive, outside the server data.\nunzip -q \"$stage/rehlds.zip\" 'bin/linux32/engine_i486.so' 'bin/linux32/hlds_linux' 'bin/linux32/filesystem_stdio.so' -d \"$stage\"\ncd /opt/steamcmd\ncomplete=0\nfor attempt in 1 2 3; do\n  if ./linux32/steamcmd +force_install_dir /data +login anonymous +app_set_config 90 mod cstrike +app_update 90 -beta steam_legacy validate +quit; then\n    if [[ -s /data/cstrike/dlls/cs.so && -s /data/cstrike/maps/de_dust2.bsp && -s /data/valve/valve.rc ]]; then complete=1; break; fi\n  fi\n  echo \"Incomplete Steam download, attempt $attempt/3\"\ndone\n(( complete == 1 )) || { echo 'Steam download incomplete; installation stopped'; exit 1; }\ninstall -m 755 \"$stage/bin/linux32/engine_i486.so\" /data/engine_i486.so\ninstall -m 755 \"$stage/bin/linux32/filesystem_stdio.so\" /data/filesystem_stdio.so\ninstall -m 755 \"$stage/bin/linux32/hlds_linux\" /data/hlds_linux\nmkdir -p /data/.steam/sdk32\ninstall -m 644 linux32/steamclient.so /data/.steam/sdk32/steamclient.so\nprintf '%s\\n' 'ReHLDS 3.15.0.896' > /data/.gamepanel-engine-version\necho 'ReHLDS installed. No automatic updates or third-party plugins enabled.'\n"
+      }
+    ],
+    "update": []
+  }
+}

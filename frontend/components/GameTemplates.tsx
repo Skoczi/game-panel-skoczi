@@ -953,6 +953,20 @@ export function GameTemplates() {
                       <Play size={15} />
                       Install server
                     </button>
+                    <button
+                      disabled={busy}
+                      className={`${button} text-red-500`}
+                      onClick={() => {
+                        if (!window.confirm(`Remove "${r.document.name}" and all its versions from the catalog? Existing servers and their files will not be changed.`)) return;
+                        void run(async () => {
+                          await nodesRequest(`/api/game-templates/${r.id}`, { method: 'DELETE' });
+                          await refresh();
+                          setNotice('Template removed. Existing servers are unchanged.');
+                        });
+                      }}
+                    >
+                      Remove template
+                    </button>
                   </div>
                 </article>
               ))}

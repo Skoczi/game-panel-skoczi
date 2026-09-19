@@ -12,7 +12,9 @@ export class TemplateStore {
             PRIMARY KEY(id, version));
             CREATE TABLE IF NOT EXISTS game_template_audit (
             id INTEGER PRIMARY KEY AUTOINCREMENT, template_id TEXT NOT NULL, version INTEGER NOT NULL,
-            actor TEXT NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL);`);
+            actor TEXT NOT NULL, action TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS game_template_deleted (
+            template_id TEXT PRIMARY KEY, actor TEXT NOT NULL, deleted_at TEXT NOT NULL);`);
         // INSERT OR IGNORE never overwrites administrator changes, including disabling a bundled template.
         const t = validateTemplate(CS16_TEMPLATE);
         await this.db.run(`INSERT OR IGNORE INTO game_template_versions VALUES(?,1,'draft',?,?,?,?)`, 'builtin-cs16', JSON.stringify(t), templateHash(t), 'bundled', new Date().toISOString());
@@ -20,13 +22,23 @@ export class TemplateStore {
         await this.db.run(`INSERT OR IGNORE INTO game_template_versions VALUES(?,1,'draft',?,?,?,?)`, 'builtin-cs16-native', JSON.stringify(native), templateHash(native), 'bundled', new Date().toISOString());
     }
     async list() {
-        const rows = await this.db.all(`SELECT * FROM game_template_versions ORDER BY created_at DESC, version DESC`);
+        const rows = await this.db.all(`SELECT * FROM game_template_versions WHERE id NOT IN
+            (SELECT template_id FROM game_template_deleted) ORDER BY created_at DESC, version DESC`);
         return rows.map((r: any) => ({ ...r, document: JSON.parse(r.document) }));
     }
     async get(id: string, version: number) {
+        if (await this.db.get('SELECT 1 FROM game_template_deleted WHERE template_id=?', id)) throw new TemplateError('Template has been deleted', 404);
         const row = await this.db.get(`SELECT * FROM game_template_versions WHERE id=? AND version=?`, id, version);
         if (!row) throw new TemplateError('Template version not found', 404);
         return { ...row, document: validateTemplate(JSON.parse(row.document)) };
+    }
+    // Tombstones preserve immutable server snapshots and audit history, and stop bundled
+    // definitions from reappearing after restart. Recovery is an operator action.
+    async remove(id: string, actor: string) {
+        const row = await this.db.get('SELECT MAX(version) AS version FROM game_template_versions WHERE id=?', id);
+        if (!row?.version) throw new TemplateError('Template not found', 404);
+        await this.db.run('INSERT OR IGNORE INTO game_template_deleted VALUES(?,?,?)', id, actor, new Date().toISOString());
+        return { deleted: true, id };
     }
     async create(document: unknown, actor: string, id: string = randomUUID(), baseVersion = 0) {
         const t = validateTemplate(document);

@@ -17,6 +17,7 @@ const route = (fn: (req: AuthenticatedRequest, res: any) => Promise<unknown>) =>
     void fn(req, res).catch(error => res.status(error instanceof TemplateError ? error.statusCode : 500).json({ error: error instanceof TemplateError ? error.message : 'Template operation failed' }));
 };
 templateRoutes.get('/', route(async (_req, res) => res.json({ templates: await store.list() })));
+templateRoutes.delete('/:id', route(async (req, res) => res.json(await store.remove(req.params.id, req.user!.username))));
 templateRoutes.post('/validate', route(async (req, res) => res.json({ document: validateTemplate(req.body?.document) })));
 templateRoutes.post('/', route(async (req, res) => res.status(201).json(await store.create(req.body?.document, req.user!.username))));
 templateRoutes.post('/:id/versions', route(async (req, res) => {

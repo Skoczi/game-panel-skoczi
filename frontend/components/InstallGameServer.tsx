@@ -998,8 +998,9 @@ export function InstallGameServer({
   const [showExternal, setShowExternal] = useState(false);
   const [showCommunity, setShowCommunity] = useState(false);
   const [nativeTemplate, setNativeTemplate] = useState<TemplateVersion | null>(null);
+  const [nativeInstallationStarted, setNativeInstallationStarted] = useState(false);
   useEffect(() => {
-    if (!isOpen) { setShowCommunity(false); setNativeTemplate(null); setShowExternal(false); setUnifiedSearch(''); }
+    if (!isOpen) { setShowCommunity(false); setNativeTemplate(null); setNativeInstallationStarted(false); setShowExternal(false); setUnifiedSearch(''); }
   }, [isOpen]);
   const [installWasExternal, setInstallWasExternal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -1335,12 +1336,12 @@ export function InstallGameServer({
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className={nativeInstallationStarted ? 'contents' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4'}>
           <div
-            className="bg-gp-surface-card w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-2xl h-[85vh] flex flex-col"
+            className={nativeInstallationStarted ? 'contents' : 'bg-gp-surface-card w-full max-w-3xl rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-2xl h-[85vh] flex flex-col'}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 bg-gp-surface-card rounded-t-2xl">
+            <div className={nativeInstallationStarted ? 'hidden' : 'flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 bg-gp-surface-card rounded-t-2xl'}>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Install Game Server</h2>
                 {showExternal && (
@@ -1357,9 +1358,9 @@ export function InstallGameServer({
               </AppButton>
             </div>
 
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className={nativeInstallationStarted ? 'contents' : 'flex-1 flex flex-col overflow-hidden'}>
 
-              {nativeTemplate && <div className="flex-1 overflow-y-auto p-4"><React.Suspense fallback={<p>Loading installer…</p>}><NativeTemplateInstall row={nativeTemplate} fixedNodeId={ACTIVE_NODE} onClose={() => setNativeTemplate(null)} /></React.Suspense></div>}
+              {nativeTemplate && <div className={nativeInstallationStarted ? 'contents' : 'flex-1 overflow-y-auto p-4'}><React.Suspense fallback={<p>Loading installer…</p>}><NativeTemplateInstall row={nativeTemplate} fixedNodeId={ACTIVE_NODE} resumePreviousInstallation={false} onClose={() => setNativeTemplate(null)} onInstallationStarted={() => setNativeInstallationStarted(true)} onDismiss={handleClose} /></React.Suspense></div>}
               {!showExternal && !nativeTemplate && (
                 <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
                   <div className="space-y-4">

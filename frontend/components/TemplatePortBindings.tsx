@@ -142,8 +142,8 @@ export function TemplatePortBindings({
               </span>
             </div>
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <div>
-                <span className="mb-1 block text-sm font-medium">Public IP</span>
+              <div className="space-y-2">
+                <span className="block text-sm font-medium">Public IP</span>
                 <AppSelect
                   className="gp-resources-select"
                   controlLabel={`Public IP · ${p.label}`}

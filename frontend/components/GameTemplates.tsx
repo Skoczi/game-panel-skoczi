@@ -988,7 +988,7 @@ export function GameTemplates() {
   );
 }
 
-export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVersion; onClose: () => void; fixedNodeId?: string }) {
+export function TemplateInstall({ row, onClose, fixedNodeId, onInstallationStarted, onDismiss, resumePreviousInstallation = true }: { row: TemplateVersion; onClose: () => void; fixedNodeId?: string; onInstallationStarted?: () => void; onDismiss?: () => void; resumePreviousInstallation?: boolean }) {
   const installStorageKey = `template-install-${row.id}${fixedNodeId ? `-${fixedNodeId}` : ''}`;
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
   const [localNode, setLocalNode] = useState<LocalNode>();
@@ -1011,12 +1011,16 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
   const [result, setResult] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const [installedServer, setInstalledServer] = useState<{ id: number; nodeId: string } | null>(() => {
+    if (!resumePreviousInstallation) return null;
     try {
       const value = JSON.parse(sessionStorage.getItem(installStorageKey) || 'null');
       return Number.isSafeInteger(value?.id) && value.id > 0 && /^(local|[0-9a-f-]{36})$/.test(value.nodeId) ? value : null;
     } catch { return null; }
   });
   const [showProgress, setShowProgress] = useState(Boolean(installedServer));
+  useEffect(() => {
+    if (installedServer) onInstallationStarted?.();
+  }, [installedServer, onInstallationStarted]);
   const [progress, setProgress] = useState<{ progress: number; status: string; errorMessage?: string }>({ progress: 0, status: 'pending' });
   const [progressError, setProgressError] = useState('');
   const installPlan: InstallStep[] = [
@@ -1038,7 +1042,16 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
         setProgressError('');
         if (value.server.installProgress) {
           setProgress(value.server.installProgress);
-          if (['completed', 'failed'].includes(value.server.installProgress.status)) return;
+          if (['completed', 'failed'].includes(value.server.installProgress.status)) {
+            // Only an in-flight operation can be resumed; never reuse its result
+            // as the state of a new installation (or erase a newer operation).
+            try {
+              const saved = JSON.parse(sessionStorage.getItem(installStorageKey) || 'null');
+              if (saved?.id === installedServer.id && saved?.nodeId === installedServer.nodeId)
+                sessionStorage.removeItem(installStorageKey);
+            } catch { /* Browser storage is optional. */ }
+            return;
+          }
         }
       } catch {
         if (cancelled) return;
@@ -1048,7 +1061,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
     };
     void poll();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [installedServer]);
+  }, [installedServer, installStorageKey]);
   useEffect(() => {
     nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes')
       .then((v) => { setNodes(v.nodes); setLocalNode(v.local); })
@@ -1126,7 +1139,10 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
       });
       setVariables({});
       const target = { id: response.server.id, nodeId };
-      sessionStorage.setItem(installStorageKey, JSON.stringify(target));
+      if (resumePreviousInstallation) {
+        try { sessionStorage.setItem(installStorageKey, JSON.stringify(target)); }
+        catch { /* A storage failure must not hide a successfully created server. */ }
+      }
       setInstalledServer(target);
       setProgress({ progress: 0, status: 'pending' });
       setShowProgress(true);
@@ -1151,12 +1167,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
       setBusy(false);
     }
   }
-  return (
-    <div className={`${card} space-y-5`}>
-      {installedServer && <>
-        <button className={button} onClick={() => setShowProgress(true)}>Installation status · server #{installedServer.id}</button>
-        {progressError && <p role="alert">{progressError}</p>}
-        <InstallationProgressModal
+  const progressModal = installedServer && <InstallationProgressModal
           isOpen={showProgress} gameName={name} serverId={installedServer.id}
           progressPercent={progress.progress} status={progress.status} installError={progress.errorMessage}
           connectionWarning={progressError}
@@ -1166,8 +1177,15 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
             sessionStorage.setItem('native-install-open-console', JSON.stringify(installedServer));
             selectNode(installedServer.nodeId);
           }}
-          onClose={() => setShowProgress(false)}
-        />
+          onClose={() => { setShowProgress(false); onDismiss?.(); }}
+        />;
+  if (installedServer && onDismiss) return progressModal;
+  return (
+    <div className={`${card} space-y-5`}>
+      {installedServer && <>
+        <button className={button} onClick={() => setShowProgress(true)}>Installation status · server #{installedServer.id}</button>
+        {progressError && <p role="alert">{progressError}</p>}
+        {progressModal}
       </>}
       <button className={button} disabled={busy} onClick={onClose}>
         <ArrowLeft size={16} />
@@ -1194,7 +1212,10 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
         </>
       ) : (
         <fieldset disabled={busy || uncertain} className="space-y-5">
-          <Field label="Server name" value={name} onChange={setName} />
+          <div>
+            <Field label="Panel server name" value={name} onChange={setName} />
+            <p className="mt-1 text-xs text-slate-500">Name used to identify this server in the panel.</p>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Field
               label="Memory limit (MiB; empty = unlimited)"
@@ -1242,7 +1263,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVe
           {row.document.variables.map((v) => (
             <Field
               key={v.key}
-              label={`${v.label}${v.required ? ' *' : ''}${v.secret ? ' (secret)' : ''}`}
+              label={`${v.key === 'SERVER_NAME' && /^server name$/i.test(v.label.trim()) ? 'In-game server name (visible to players)' : v.label}${v.required ? ' *' : ''}${v.secret ? ' (secret)' : ''}`}
               type={v.secret ? 'password' : v.type === 'integer' ? 'number' : 'text'}
               value={variables[v.key] ?? v.default}
               onChange={(value) => setVariables({ ...variables, [v.key]: value })}

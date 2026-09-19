@@ -1,4 +1,5 @@
 import type { GameServer, GameServerStatus } from '../types/gameServer';
+import { gameDisplayName } from '../utils/gameDisplayName';
 import { lazy, Suspense, useDeferredValue, useState, useMemo, useEffect, useRef } from 'react';
 import { ServerSettingsModal } from './ServerSettingsModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -195,7 +196,7 @@ export function GameServersTable({
           // Malformed metadata: keep the catalog/key fallback.
         }
       }
-      map.set(server.id, label);
+      map.set(server.id, gameDisplayName(label));
     });
     return map;
   }, [servers, gameNamesByKey]);

@@ -405,7 +405,7 @@ export function InstallationProgressModal({
                 Please close this window and modify your server configuration before trying again.
               </p>
 
-              <div className="flex gap-3 justify-center">
+              <div className="flex flex-wrap gap-3 justify-center">
                 {onRetryInstall && (
                   <AppButton
                     tone="primary"
@@ -427,9 +427,8 @@ export function InstallationProgressModal({
           )}
         </div>
 
-        {installationStatus !== 'success' && (
-          <div className={`px-6 py-4 border-t ${borderColor} flex justify-end`}>
-            {canOpenLogs && <AppButton tone="neutral" onClick={() => { if (serverId) onOpenConsole?.(serverId); onClose(); }}>Open Logs / Console</AppButton>}
+          <div className={`px-6 py-4 border-t ${borderColor} flex flex-col gap-3 sm:flex-row sm:justify-end`}>
+            {installationStatus !== 'success' && canOpenLogs && <AppButton tone="neutral" onClick={() => { if (serverId) onOpenConsole?.(serverId); onClose(); }}>Open Logs / Console</AppButton>}
             <AppButton
               tone="neutral"
               onClick={onClose}
@@ -438,7 +437,6 @@ export function InstallationProgressModal({
               Close
             </AppButton>
           </div>
-        )}
       </div>
     </div>
   );

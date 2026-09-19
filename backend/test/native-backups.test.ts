@@ -49,3 +49,54 @@ test('file API cannot bypass backup permissions using a private root', () => {
         assert.equal(code, 403); assert.equal(continued, false);
     }
 });
+
+test('failed native backup removes partial output and releases its operation lock for retry', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gp-native-backup-failure-'));
+    let released = 0; let fail = true;
+    const module = loadWithMocks('../src/services/nativeBackups.ts', {
+        'node:fs': { promises: fs }, 'node:path': path, 'node:child_process': { execFile },
+        'node:util': { promisify: () => async (_command: string, args: string[]) => {
+            await fs.writeFile(args[1], 'partial archive');
+            if (fail) throw new Error('simulated disk full');
+        } },
+        'node:crypto': { randomUUID },
+        '../templates/nativeContract.js': { nativeTemplate: () => ({ mounts: [{ key: 'data' }] }) },
+        '../utils/storage.js': { getServerStoragePaths: () => ({ serverRoot: root }) },
+        '../utils/docker.js': { checkContainerStatus: async () => 'exited' },
+        './nativeOperationLock.js': { acquireNativeOperation: () => () => { released++; } },
+    });
+    try {
+        await fs.mkdir(path.join(root, 'data'));
+        const server = { id: 2, provider_metadata_json: '{}', docker_container_id: 'test' };
+        await assert.rejects(module.createNativeBackup(server), /simulated disk full/);
+        assert.deepEqual(await fs.readdir(path.join(root, '.native-backups')), []);
+        assert.equal(released, 1);
+        fail = false;
+        assert.equal((await module.createNativeBackup(server)).ok, true);
+        assert.equal(released, 2);
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('native backups reject symlinked archive directories and mount roots', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gp-native-backup-links-'));
+    let released = 0;
+    const module = loadWithMocks('../src/services/nativeBackups.ts', {
+        'node:fs': { promises: fs }, 'node:path': path, 'node:child_process': { execFile },
+        'node:util': { promisify }, 'node:crypto': { randomUUID },
+        '../templates/nativeContract.js': { nativeTemplate: () => ({ mounts: [{ key: 'data' }] }) },
+        '../utils/storage.js': { getServerStoragePaths: () => ({ serverRoot: root }) },
+        '../utils/docker.js': { checkContainerStatus: async () => 'exited' },
+        './nativeOperationLock.js': { acquireNativeOperation: () => () => { released++; } },
+    });
+    try {
+        await fs.mkdir(path.join(root, 'outside'));
+        await fs.symlink(path.join(root, 'outside'), path.join(root, '.native-backups'));
+        const server = { id: 3, provider_metadata_json: '{}', docker_container_id: 'test' };
+        await assert.rejects(module.createNativeBackup(server), /Invalid native backup directory/);
+        await fs.unlink(path.join(root, '.native-backups'));
+        await fs.symlink(path.join(root, 'outside'), path.join(root, 'data'));
+        await assert.rejects(module.createNativeBackup(server), /Invalid native data mount/);
+        assert.deepEqual(await fs.readdir(path.join(root, 'outside')), []);
+        assert.equal(released, 2);
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+});

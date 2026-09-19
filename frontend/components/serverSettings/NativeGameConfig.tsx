@@ -40,8 +40,6 @@ export function NativeGameConfig({ serverId, metadata, onOpen }: {
   }, [serverId, metadata]);
   return <div className="p-6 space-y-5 text-gray-800 dark:text-gray-200">
     <h3 className="font-semibold">Native game configuration</h3>
-    <p>Template: {template?.name || 'Native Runtime'}. Installation and startup are managed by the panel, independently of LinuxGSM.</p>
-    <p>Game files remain in the location defined by this server’s template. Variables and resource limits are available in Container Config.</p>
     {template?.configFiles !== undefined ? template.configFiles.map(file => <section key={`${file.root}:${file.path}`}>
       <h4 className="text-sm font-medium mb-2">{file.label}</h4>
       <GameConfigAdvancedLinks configFiles={[file.path]} isLoading={false} canReadFileManager canWriteFileManager={false}

@@ -317,7 +317,7 @@ export function ContainerConfigTab({
 
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="gp-server-settings-body max-w-4xl mx-auto space-y-6">
         <div>
           <h3 className={`text-2xl font-bold ${textPrimary} mb-1`}>Container Config</h3>
           <p className={`text-sm ${textSecondary}`}>

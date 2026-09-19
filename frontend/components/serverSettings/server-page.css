@@ -140,6 +140,11 @@
   border-radius: 14px;
   background: var(--gp-surface, #101b2e);
 }
+.gp-server-page-content .gp-server-settings-body {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+}
 .gp-server-network {
   width: 100%;
   text-align: left;

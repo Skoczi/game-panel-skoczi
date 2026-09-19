@@ -1,4 +1,30 @@
 import { test, expect } from '@playwright/test';
+
+for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
+  for (const width of [1920, 390]) {
+    test(`${tab} fills the page content at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto(`/test/server-page.fixture.html#/nodes/local/servers/7/${tab}`);
+      const body = page.locator('.gp-server-page-content .gp-server-settings-body');
+      await expect(body).toBeVisible();
+      const dimensions = await body.evaluate((element) => {
+        const parent = element.parentElement!;
+        const style = getComputedStyle(parent);
+        return {
+          actual: element.getBoundingClientRect().width,
+          available: parent.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+          maxWidth: getComputedStyle(element).maxWidth,
+          overflow: document.documentElement.scrollWidth > innerWidth,
+        };
+      });
+      expect(dimensions.maxWidth).toBe('none');
+      expect(Math.abs(dimensions.actual - dimensions.available)).toBeLessThan(2);
+      expect(dimensions.overflow).toBe(false);
+      await page.screenshot({ path: `test-results/server-page-${tab}-${width}.png`, fullPage: true });
+    });
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     sessionStorage.setItem('gamepanel_admin_runtime', '1');

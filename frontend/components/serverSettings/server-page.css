@@ -135,32 +135,53 @@
   color: inherit;
 }
 .gp-server-back {
-  margin-bottom: 24px;
+  flex-shrink: 0;
 }
 .gp-server-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.gp-server-heading-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 20px;
+}
+.gp-server-heading-divider {
+  width: 1px;
+  height: 28px;
+  flex-shrink: 0;
+  background: var(--gp-border);
+}
+.gp-server-identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
 }
 .gp-server-heading h1 {
-  font-size: clamp(24px, 3vw, 36px);
+  font-size: 21px;
+  line-height: 1.35;
   font-weight: 700;
   overflow-wrap: anywhere;
-  margin: 6px 0 10px;
+  margin: 0;
 }
-.gp-server-eyebrow {
-  color: #8194b2;
-  font-size: 11px;
-  letter-spacing: 0.12em;
+.gp-server-game {
+  color: var(--gp-muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
 }
 .gp-server-status {
   display: inline-block;
   font-size: 12px;
   padding: 3px 10px;
-  margin-left: 12px;
+  white-space: nowrap;
   border: 1px solid;
   border-radius: 20px;
 }
@@ -168,6 +189,23 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  .gp-server-heading-main {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .gp-server-heading-divider {
+    display: none;
+  }
+  .gp-server-identity {
+    flex-basis: 100%;
+  }
+  .gp-server-heading h1 {
+    font-size: 20px;
+  }
 }
 .gp-server-power button:disabled {
   opacity: 0.4;
@@ -316,12 +354,23 @@
   grid-column: 1 / -1;
   min-width: 0;
 }
-.gp-server-chart-canvas { height: 180px; }
+.gp-server-chart-canvas {
+  height: 180px;
+}
 @media (min-width: 1101px) {
-  .gp-server-overview-tall .gp-server-chart-canvas { height: 90px; }
-  .gp-server-overview-tall .gp-server-charts .gp-server-stat { padding: 14px; }
-  .gp-server-overview-tall .gp-server-charts h2 { margin-bottom: 8px; font-size: 13px; }
-  .gp-server-overview-tall .gp-server-charts { gap: 12px; }
+  .gp-server-overview-tall .gp-server-chart-canvas {
+    height: 90px;
+  }
+  .gp-server-overview-tall .gp-server-charts .gp-server-stat {
+    padding: 14px;
+  }
+  .gp-server-overview-tall .gp-server-charts h2 {
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .gp-server-overview-tall .gp-server-charts {
+    gap: 12px;
+  }
   .gp-server-overview-tall .gp-server-console {
     grid-column: 1;
     grid-row: 1 / span 2;

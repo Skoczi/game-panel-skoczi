@@ -1,5 +1,36 @@
 import { test, expect } from '@playwright/test';
 
+test('server header is a compact toolbar and wraps cleanly on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+  const heading = page.locator('.gp-server-heading');
+  const back = heading.getByRole('button', { name: 'Back to servers' });
+  const name = heading.getByRole('heading', { name: 'CS16 Test', exact: true });
+  const power = heading.locator('.gp-server-power');
+  await expect(name).toBeVisible();
+  await expect(
+    page.locator('.gp-console-panel').getByText('Server Console', { exact: true })
+  ).toBeVisible();
+  await expect(heading.locator('.gp-server-game')).toContainText('Counter-Strike 1.6');
+  await expect(heading.locator('.gp-server-status')).toHaveText('Running');
+  await expect(page.getByText(/SERVER MANAGEMENT/)).toHaveCount(0);
+  expect((await heading.boundingBox())!.height).toBeLessThan(65);
+  const backBox = (await back.boundingBox())!;
+  const nameBox = (await name.boundingBox())!;
+  const powerBox = (await power.boundingBox())!;
+  expect(nameBox.x).toBeGreaterThan(backBox.x + backBox.width);
+  expect(powerBox.x).toBeGreaterThan(nameBox.x + nameBox.width);
+  expect(Math.abs(backBox.y - powerBox.y)).toBeLessThan(3);
+  await page.screenshot({ path: 'test-results/server-header-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(name).toBeVisible();
+  await expect(power.getByRole('button', { name: 'Restart', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/server-header-mobile.png', fullPage: true });
+  await back.click();
+  await expect(page).not.toHaveURL(/servers\/7/);
+});
+
 test('console height is independent, persisted, and moves charts beside a tall console', async ({
   page,
 }) => {
@@ -85,14 +116,20 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
       await page.goto(`/test/server-page.fixture.html#/nodes/local/servers/7/${tab}`);
       const body = page.locator('.gp-server-page-content .gp-server-settings-body');
       await expect(body).toBeVisible();
-      expect(await body.evaluate((element) => {
-        let current = element.parentElement;
-        while (current?.closest('.gp-server-page-content')) {
-          if (current.scrollHeight > current.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(current).overflowY)) return true;
-          current = current.parentElement;
-        }
-        return false;
-      })).toBe(false);
+      expect(
+        await body.evaluate((element) => {
+          let current = element.parentElement;
+          while (current?.closest('.gp-server-page-content')) {
+            if (
+              current.scrollHeight > current.clientHeight + 1 &&
+              /auto|scroll/.test(getComputedStyle(current).overflowY)
+            )
+              return true;
+            current = current.parentElement;
+          }
+          return false;
+        })
+      ).toBe(false);
       const dimensions = await body.evaluate((element) => {
         const parent = element.parentElement!;
         const style = getComputedStyle(parent);

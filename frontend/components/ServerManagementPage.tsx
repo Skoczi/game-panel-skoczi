@@ -18,7 +18,6 @@ import type { ServerMetricHistoryPoint, ServerHistoryEntry } from '../utils/serv
 import { isServerDownLike, isServerUpLike } from '../utils/serverRuntime';
 import { apiClient, PUBLIC_CONNECTION_HOST } from '../utils/api';
 import { ACTIVE_NODE } from '../utils/nodeContext';
-import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
 import { isNativeTemplate } from '../utils/providerCapabilities';
 import { gameDisplayName } from '../utils/gameDisplayName';
 import {
@@ -103,7 +102,6 @@ export function ServerManagementPage({
   currentUser,
   permissions,
   gameName,
-  nodeName,
   tab,
   onTab,
   onBack,
@@ -133,23 +131,6 @@ export function ServerManagementPage({
     observer.observe(panel);
     return () => observer.disconnect();
   }, [tab, canLogs, server.id]);
-  const [resolvedNodeName, setResolvedNodeName] = useState(nodeName);
-  useEffect(() => {
-    if (!currentUser?.isRoot) return;
-    let active = true;
-    void nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes')
-      .then((result) => {
-        const node =
-          ACTIVE_NODE === 'local'
-            ? result.local
-            : result.nodes.find((item) => item.id === ACTIVE_NODE);
-        if (active && node) setResolvedNodeName(node.name);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [currentUser?.isRoot]);
   const actionRef = useRef(onAction);
   actionRef.current = onAction;
   const metricsRef = useRef(onLoadMetrics);
@@ -222,17 +203,20 @@ export function ServerManagementPage({
   );
   return (
     <div className="gp-server-page">
-      <button className="gp-server-back" onClick={onBack}>
-        <ArrowLeft size={17} /> Back to servers
-      </button>
       <header className="gp-server-heading">
-        <div className="min-w-0">
-          <p className="gp-server-eyebrow">SERVER MANAGEMENT · {resolvedNodeName}</p>
-          <h1>{server.name}</h1>
-          <p>
-            {gameDisplayName(gameName || server.game)}{' '}
+        <div className="gp-server-heading-main">
+          <button className="gp-server-back" onClick={onBack}>
+            <ArrowLeft size={17} /> Back to servers
+          </button>
+          <span className="gp-server-heading-divider" aria-hidden="true" />
+          <div className="gp-server-identity">
+            <h1>{server.name}</h1>
+            <span className="gp-server-game">
+              <span aria-hidden="true">— </span>
+              {gameDisplayName(gameName || server.game)}
+            </span>
             <span className={`gp-server-status ${status.className}`}>{status.label}</span>
-          </p>
+          </div>
         </div>
         {allowed('server.power') && (
           <div className="gp-server-power">

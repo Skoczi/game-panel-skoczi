@@ -608,7 +608,7 @@ export function ServerConsoleTabs({
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <Terminal className="w-4 h-4" />
-                    <span className="text-sm font-medium whitespace-nowrap">{server.name}</span>
+                    <span className="text-sm font-medium whitespace-nowrap">{singleServer ? 'Server Console' : server.name}</span>
                   </div>
                   {!singleServer && <button
                     type="button"

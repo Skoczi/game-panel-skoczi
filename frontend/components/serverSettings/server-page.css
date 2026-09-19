@@ -200,6 +200,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 20px;
+  align-items: start;
 }
 .gp-server-stats {
   display: grid;
@@ -312,7 +313,28 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
-  margin-top: 20px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.gp-server-chart-canvas { height: 180px; }
+@media (min-width: 1101px) {
+  .gp-server-overview-tall .gp-server-chart-canvas { height: 90px; }
+  .gp-server-overview-tall .gp-server-charts .gp-server-stat { padding: 14px; }
+  .gp-server-overview-tall .gp-server-charts h2 { margin-bottom: 8px; font-size: 13px; }
+  .gp-server-overview-tall .gp-server-charts { gap: 12px; }
+  .gp-server-overview-tall .gp-server-console {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .gp-server-overview-tall .gp-server-stats {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .gp-server-overview-tall .gp-server-charts {
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .gp-server-page-content {
   position: relative;

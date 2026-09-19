@@ -66,12 +66,13 @@ export function ServerConsoleTabs({
   canSendCommandByServer,
   onSendCommand,
 }: ServerConsoleTabsProps) {
+  const heightStorageKey = singleServer ? 'gp_server_console_height' : CONSOLE_HEIGHT_STORAGE_KEY;
   const [isMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [panelHeight, setPanelHeight] = useState(() => {
-    let stored = DEFAULT_CONSOLE_HEIGHT;
+    let stored = singleServer ? 360 : DEFAULT_CONSOLE_HEIGHT;
     try {
-      const raw = Number(localStorage.getItem(CONSOLE_HEIGHT_STORAGE_KEY));
+      const raw = Number(localStorage.getItem(heightStorageKey));
       if (Number.isFinite(raw) && raw > 0) stored = raw;
     } catch { /* ignore */ }
     const max = typeof window !== 'undefined'
@@ -488,8 +489,8 @@ export function ServerConsoleTabs({
   }, [isFullscreen]);
 
   useEffect(() => {
-    try { localStorage.setItem(CONSOLE_HEIGHT_STORAGE_KEY, String(panelHeight)); } catch { /* ignore */ }
-  }, [panelHeight]);
+    try { localStorage.setItem(heightStorageKey, String(panelHeight)); } catch { /* ignore */ }
+  }, [panelHeight, heightStorageKey]);
 
   useEffect(() => {
     const onResize = () => setPanelHeight((h) => clampConsoleHeight(h));
@@ -552,6 +553,7 @@ export function ServerConsoleTabs({
 
   return (
     <div
+      data-fullscreen={isFullscreen}
       className={`gp-console-panel ${cardBg} overflow-hidden ${
         isFullscreen
           ? 'fixed inset-0 z-[70] flex flex-col rounded-none border-0 shadow-none'

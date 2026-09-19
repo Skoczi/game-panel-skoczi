@@ -1,5 +1,36 @@
 import { test, expect } from '@playwright/test';
 
+test('console height is independent, persisted, and moves charts beside a tall console', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1400 });
+  await page.addInitScript(() => localStorage.setItem('gp_console_height', '900'));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+  const panel = page.locator('.gp-console-panel');
+  expect((await panel.boundingBox())!.height).toBeLessThan(480);
+  const handle = page.getByRole('separator', { name: 'Resize console' });
+  const grip = (await handle.boundingBox())!;
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + 450, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.locator('.gp-server-overview')).toHaveClass(/gp-server-overview-tall/);
+  const charts = page.locator('.gp-server-charts');
+  expect((await charts.boundingBox())!.x).toBeGreaterThan((await panel.boundingBox())!.x + 500);
+  await page.screenshot({ path: 'test-results/server-console-tall.png', fullPage: true });
+  await page.reload();
+  await expect(page.locator('.gp-server-overview')).toHaveClass(/gp-server-overview-tall/);
+  await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
+  await expect(panel).toHaveAttribute('data-fullscreen', 'true');
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveAttribute('data-fullscreen', 'false');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () => Math.abs((await charts.boundingBox())!.x - (await panel.boundingBox())!.x))
+    .toBeLessThan(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 for (const theme of ['light', 'dark']) {
   test(`metrics cards are compact and chart tooltips are readable in ${theme} mode`, async ({
     page,

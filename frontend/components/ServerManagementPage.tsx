@@ -121,6 +121,18 @@ export function ServerManagementPage({
   const [pending, setPending] = useState(false);
   const [confirm, setConfirm] = useState<'stop' | 'restart' | null>(null);
   const [feedback, setFeedback] = useState('');
+  const consoleSectionRef = useRef<HTMLElement>(null);
+  const [tallConsole, setTallConsole] = useState(false);
+  useEffect(() => {
+    const panel = consoleSectionRef.current?.querySelector<HTMLElement>('.gp-console-panel');
+    if (!panel) return;
+    const observer = new ResizeObserver(() => {
+      if (panel.dataset.fullscreen === 'true') return;
+      setTallConsole(panel.getBoundingClientRect().height > 660);
+    });
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [tab, canLogs, server.id]);
   const [resolvedNodeName, setResolvedNodeName] = useState(nodeName);
   useEffect(() => {
     if (!currentUser?.isRoot) return;
@@ -264,8 +276,8 @@ export function ServerManagementPage({
       </nav>
       {tab === 'console' && (
         <>
-          <div className="gp-server-overview">
-            <section className="min-w-0">
+          <div className={`gp-server-overview${tallConsole ? ' gp-server-overview-tall' : ''}`}>
+            <section className="gp-server-console min-w-0" ref={consoleSectionRef}>
               {canLogs ? (
                 consoleContent
               ) : (
@@ -314,53 +326,53 @@ export function ServerManagementPage({
                 </strong>
               </div>
             </aside>
-          </div>
-          <div className="gp-server-charts">
-            {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
-              <section className="gp-server-stat" key={metric}>
-                <h2>{['CPU usage', 'Memory usage', 'Network traffic'][index]}</h2>
-                {metrics.length ? (
-                  <div style={{ height: 180 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={metrics.slice(-120)}>
-                        <XAxis dataKey="timestamp" hide />
-                        <YAxis
-                          width={62}
-                          tick={{ fontSize: 11, fill: 'var(--gp-muted)' }}
-                          axisLine={false}
-                          tickLine={false}
-                          tickFormatter={(value) =>
-                            index === 2 ? formatNetworkSpeed(Number(value)) : `${value}%`
-                          }
-                        />
-                        <Tooltip
-                          content={<MetricTooltip />}
-                          cursor={{ stroke: 'var(--gp-muted)', strokeDasharray: '3 3' }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey={metric}
-                          stroke="#00c8e5"
-                          fill="#00c8e5"
-                          fillOpacity={0.12}
-                          isAnimationActive={false}
-                        />
-                        {index === 2 && (
+            <div className="gp-server-charts">
+              {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
+                <section className="gp-server-stat" key={metric}>
+                  <h2>{['CPU usage', 'Memory usage', 'Network traffic'][index]}</h2>
+                  {metrics.length ? (
+                    <div className="gp-server-chart-canvas">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={metrics.slice(-120)}>
+                          <XAxis dataKey="timestamp" hide />
+                          <YAxis
+                            width={62}
+                            tick={{ fontSize: 11, fill: 'var(--gp-muted)' }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(value) =>
+                              index === 2 ? formatNetworkSpeed(Number(value)) : `${value}%`
+                            }
+                          />
+                          <Tooltip
+                            content={<MetricTooltip />}
+                            cursor={{ stroke: 'var(--gp-muted)', strokeDasharray: '3 3' }}
+                          />
                           <Area
-                            dataKey="networkOut"
-                            stroke="#eab308"
-                            fillOpacity={0}
+                            type="monotone"
+                            dataKey={metric}
+                            stroke="#00c8e5"
+                            fill="#00c8e5"
+                            fillOpacity={0.12}
                             isAnimationActive={false}
                           />
-                        )}
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p>Waiting for metric history…</p>
-                )}
-              </section>
-            ))}
+                          {index === 2 && (
+                            <Area
+                              dataKey="networkOut"
+                              stroke="#eab308"
+                              fillOpacity={0}
+                              isAnimationActive={false}
+                            />
+                          )}
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p>Waiting for metric history…</p>
+                  )}
+                </section>
+              ))}
+            </div>
           </div>
         </>
       )}

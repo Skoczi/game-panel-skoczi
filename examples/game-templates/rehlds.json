@@ -89,7 +89,7 @@
     "startup": [
       "/bin/bash",
       "-c",
-      "cd /data/serverfiles && export LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin && exec ./hlds_linux \"$@\"",
+      "set -euo pipefail\ncd /data/serverfiles\n[[ \"$MAX_PLAYERS\" =~ ^[0-9]{1,2}$ ]] && (( MAX_PLAYERS >= 1 && MAX_PLAYERS <= 32 )) || { echo 'Player limit must be 1-32'; exit 2; }\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || { echo 'Invalid map name'; exit 2; }\n# GoldSrc config syntax does not safely quote these characters. Never evaluate\n# user input as shell code or permit it to introduce another game command.\n[[ \"$SERVER_NAME\" != *\\\"* && \"$SERVER_NAME\" != *\\\\* && \"$SERVER_NAME\" != *';'* && \"$SERVER_NAME\" != *$'\\n'* && \"$SERVER_NAME\" != *$'\\r'* ]] || { echo 'Server name cannot contain quotes, backslashes, semicolons or line breaks'; exit 2; }\n# Stock Steam server.cfg contains its own hostname. Keep the owner's config\n# untouched, then apply the template variable on startup and every map change.\nprintf 'exec server.cfg\\nhostname \"%s\"\\n' \"$SERVER_NAME\" > cstrike/gamepanel-startup.cfg\nexport LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin\nexec ./hlds_linux \"$@\"\n",
       "hlds",
       "-console",
       "-game",
@@ -99,12 +99,12 @@
       "-port",
       "{{SERVER_PORT}}",
       "-strictportbind",
+      "+servercfgfile",
+      "gamepanel-startup.cfg",
       "+maxplayers",
       "{{MAX_PLAYERS}}",
       "+map",
-      "{{MAP}}",
-      "+hostname",
-      "{{SERVER_NAME}}"
+      "{{MAP}}"
     ],
     "stopSignal": "SIGINT",
     "stopTimeoutSeconds": 30,

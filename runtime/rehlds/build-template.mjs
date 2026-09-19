@@ -20,7 +20,7 @@ const document = {
   ],
   lifecycle: {
     installerImage: 'gamepanel-installer:steamcmd-v1', workdir: '/data',
-    startup: ['/bin/bash', '-c', 'cd /data/serverfiles && export LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin && exec ./hlds_linux "$@"', 'hlds', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}', '+hostname', '{{SERVER_NAME}}'],
+    startup: ['/bin/bash', '-c', readFileSync(new URL('./start.sh', import.meta.url), 'utf8'), 'hlds', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+servercfgfile', 'gamepanel-startup.cfg', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}'],
     stopSignal: 'SIGINT', stopTimeoutSeconds: 30,
     install: [{ name: 'Install Steam legacy files and verified ReHLDS', timeoutSeconds: 1800, script: readFileSync(new URL('./install.sh', import.meta.url), 'utf8') }], update: []
   }

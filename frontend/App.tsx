@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { ACTIVE_SERVER } from './utils/nodeContext';
+import { ACTIVE_SERVER, ACTIVE_NODE } from './utils/nodeContext';
 import { Login } from './components/Login';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { type GameServer } from './types/gameServer';
@@ -348,6 +348,31 @@ function AppContent() {
 
   useInstallAutoOpenLogs(installServerId, installStatus, openInstallLogs);
 
+  const nativeSubscriptions = useRef(new Set<string>());
+  useEffect(() => {
+    for (const server of gameServers) {
+      if (nativeSubscriptions.current.has(server.id)) continue;
+      let native = false;
+      try { native = JSON.parse(server.providerMetadataJson || '{}')?.template?.document?.schemaVersion === 2; } catch {}
+      if (!native || !canAccessServer(Number(server.id), 'container.logs.read') || !canAccessServer(Number(server.id), 'server.edit')) continue;
+      nativeSubscriptions.current.add(server.id);
+      apiClient.subscribeActions(Number(server.id), 200);
+      if (server.installStatus && !['completed', 'failed'].includes(server.installStatus)) apiClient.subscribeInstall(Number(server.id));
+    }
+  }, [gameServers, canAccessServer]);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('native-install-open-console');
+    if (!raw) return;
+    try {
+      const target = JSON.parse(raw);
+      if (target.nodeId !== ACTIVE_NODE || !gameServers.some(s => s.id === String(target.id))) return;
+      if (!canAccessServer(target.id, 'container.logs.read')) return;
+      sessionStorage.removeItem('native-install-open-console');
+      openServerConsole(target.id);
+    } catch { sessionStorage.removeItem('native-install-open-console'); }
+  }, [gameServers, canAccessServer, openServerConsole]);
+
   const removeServerFromUi = useCallback(
     (serverId: string) => {
       const numericServerId = Number(serverId);
@@ -443,6 +468,7 @@ function AppContent() {
       id: String(server.id),
       name: server.name,
       game:
+        server.providerMetadata?.template?.document?.name ??
         server.catalogId ??
         (server.provider === 'external' ? server.dockerImage : null) ??
         server.provider ??
@@ -497,6 +523,7 @@ function AppContent() {
   };
 
   const handleLogout = () => {
+    nativeSubscriptions.current.clear();
     apiClient.logout();
     clearAppCache();
     resetSession();

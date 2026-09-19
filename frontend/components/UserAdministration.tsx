@@ -23,7 +23,7 @@ import {
 } from './userAdministration/utils';
 
 interface UserAdministrationProps {
-  servers: Array<{ id: string; name: string; provider?: string; catalogId?: string }>;
+  servers: Array<{ id: string; name: string; provider?: string; catalogId?: string; providerMetadataJson?: string | null }>;
   currentUserId?: number | null;
   canManageUsers?: boolean;
 }
@@ -534,4 +534,3 @@ export function UserAdministration({
     </div>
   );
 }
-

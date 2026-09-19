@@ -32,6 +32,7 @@ import {
   toggleServerPermission,
 } from './utils';
 import { getSupportedWipeModes } from '../serverSettings/wipeModes';
+import { isNativeTemplate } from '../../utils/providerCapabilities';
 
 interface SelectedUserRef {
   id: number;
@@ -60,7 +61,7 @@ interface UserEditDialogProps {
   setGlobalKnown: Dispatch<SetStateAction<string[]>>;
   selectedServerId: string;
   setSelectedServerId: (serverId: string) => void;
-  servers: Array<{ id: string; name: string; provider?: string; catalogId?: string }>;
+  servers: Array<{ id: string; name: string; provider?: string; catalogId?: string; providerMetadataJson?: string | null }>;
   selectedAccessUser: SelectedAccessUser | null;
   addMemberPerms: string[];
   addMemberKnown: string[];
@@ -118,7 +119,7 @@ export function UserEditDialog({
   const isProjectZomboidOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'project-zomboid';
   const isRustOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'rust';
   const isValheimOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'valheim';
-  const isExternalServer = selectedServer?.provider === 'external';
+  const isExternalServer = selectedServer?.provider === 'external' && !isNativeTemplate(selectedServer.providerMetadataJson);
   const isBusy = saveLoading;
 
   const wipeFamily = isMinecraftOvhcloudServer ? 'minecraft'

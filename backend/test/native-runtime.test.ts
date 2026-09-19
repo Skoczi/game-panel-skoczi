@@ -74,8 +74,9 @@ function runtimeHarness(mode: 'success' | 'failure' | 'timeout' | 'cleanup' | 'u
     const module = loadWithMocks('../src/services/nativeRuntime.ts', {
         'node:crypto': { randomUUID },
         '../utils/docker/client.js': { docker: { createContainer: async (spec: any) => { calls.push(spec); return container; } } },
-        '../utils/docker/ownership.js': {},
-        '../database/index.js': { serverRepository: { findById: async () => ({ id: 1 }) }, actionsRepository: { create: async () => {} } },
+        '../utils/docker/ownership.js': { runtimeLabels: () => ({}) },
+        '../database/index.js': { serverRepository: { findById: async () => ({ id: 1 }) }, actionsRepository: { create: async () => {} }, installProgressRepository: { update: async () => {} } },
+        './nativeLogs.js': { captureNativeLogs: async () => ({ finish: async () => {} }) },
         '../templates/nativeContract.js': { renderNativeArgv },
         './nativeScript.js': { nativeScriptArchive },
     }, { setTimeout: (fn: () => void) => setTimeout(fn, 10), clearTimeout });
@@ -103,6 +104,7 @@ test('boot recovery stops only owned maintenance, preserves data and blocks auto
     const calls: string[] = [];
     let stored: any;
     const module = loadWithMocks('../src/services/nativeRuntime.ts', {
+        './nativeLogs.js': {},
         'node:crypto': { randomUUID },
         '../utils/docker/client.js': { docker: {
             listContainers: async () => [

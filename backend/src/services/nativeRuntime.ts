@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { docker } from '../utils/docker/client.js';
-import { ownsContainer } from '../utils/docker/ownership.js';
+import { ownsContainer, runtimeLabels } from '../utils/docker/ownership.js';
 import { serverRepository, actionsRepository, installProgressRepository } from '../database/index.js';
 import type { ServerMountPath } from '../utils/storage.js';
 import type { GameTemplate } from '../templates/types.js';
 import { renderNativeArgv } from '../templates/nativeContract.js';
 import { nativeScriptArchive } from './nativeScript.js';
+import { captureNativeLogs } from './nativeLogs.js';
 
 export class NativeCleanupError extends Error {}
 
@@ -18,6 +19,7 @@ export async function runNativeSteps(params: {
     for (const [index, step] of t.lifecycle![phase].entries()) {
         if (!(await serverRepository.findById(serverId))) throw new Error('Native operation cancelled: server no longer exists');
         await actionsRepository.create(serverId, 'info', `Native ${phase}: step ${index + 1} · ${step.name}`, '');
+        if (phase === 'install') await installProgressRepository.update(serverId, 25 + Math.floor(index / t.lifecycle!.install.length * 25), `native_step_${index}`);
         const scriptName = `gamepanel-script-${randomUUID()}.sh`;
         const scripted = step.script !== undefined;
         const container = await docker.createContainer({
@@ -30,7 +32,7 @@ export async function runNativeSteps(params: {
             Env: Object.entries(params.env).map(([key, value]) => `${key}=${value}`),
             User: `${identity.uid}:${identity.gid}`,
             WorkingDir: t.lifecycle!.workdir,
-            Labels: { 'gamepanel.managed': 'true', 'gamepanel.oneshot': 'true', 'gamepanel.nativeOperation': phase, 'gamepanel.serverId': String(serverId) },
+            Labels: { ...runtimeLabels(), 'gamepanel.managed': 'true', 'gamepanel.oneshot': 'true', 'gamepanel.nativeOperation': phase, 'gamepanel.serverId': String(serverId) },
             HostConfig: {
                 Binds: params.mounts.map(m => `${m.hostPath}:${m.containerPath}`),
                 RestartPolicy: { Name: 'no' },
@@ -40,6 +42,7 @@ export async function runNativeSteps(params: {
             },
         });
         let timer: ReturnType<typeof setTimeout> | undefined;
+        let capture: Awaited<ReturnType<typeof captureNativeLogs>> | undefined;
         try {
             const expired = new Promise<never>((_, reject) => {
                 timer = setTimeout(() => reject(new Error(`Native ${phase} step ${index + 1} timed out after ${step.timeoutSeconds}s`)), step.timeoutSeconds * 1000);
@@ -51,6 +54,7 @@ export async function runNativeSteps(params: {
                         await container.putArchive(archive, { path: '/tmp' });
                     }
                     await container.start();
+                    capture = await captureNativeLogs(container, serverId, t.variables.filter(v => v.secret).map(v => params.env[v.key] || ''));
                     return container.wait();
                 })().catch(() => { throw new Error(`Native ${phase} step ${index + 1} could not execute. Check the installer image, Bash and node Docker service.`); }),
                 expired,
@@ -58,12 +62,16 @@ export async function runNativeSteps(params: {
             if (Number(result.StatusCode) !== 0) throw new Error(`Native ${phase} step ${index + 1} failed (exit ${Number(result.StatusCode)})`);
         } finally {
             if (timer) clearTimeout(timer);
+            // Persist output even on a failed installer, before cleanup.
+            let logError: unknown;
+            try { await capture?.finish(); } catch (error) { logError = error; }
             // Never include raw installer output, argv or env in public errors (may contain secrets).
             // Fail closed if cleanup fails: leave the persistent operation marker for boot recovery.
             try { await container.remove({ force: true }); }
             catch (error: any) {
                 if (error?.statusCode !== 404) throw new NativeCleanupError('Native maintenance container could not be removed. Restart the agent to recover before changing this server.');
             }
+            if (logError) throw new Error('Installer log persistence failed; inspect node storage before retrying.');
         }
     }
 }

@@ -27,6 +27,15 @@ interface BroadcasterCleanup {
 
 // Bridges internal realtime bus -> WebSocket broadcasts
 export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
+    const onNativeLogs = (e: { serverId: number; lines: string[] }) => {
+        for (const client of wss.clients) {
+            const ws = client as AuthenticatedWebSocket;
+            // Subscription admission already checks server log permissions.
+            if (!ws.userId || !ws.subs?.logs.has(e.serverId)) continue;
+            sendSafe(ws, { type: 'logs:new', serverId: e.serverId, lines: e.lines, timestamp: nowIso() });
+        }
+    };
+    bus.on('server.native.logs', onNativeLogs);
     const broadcastToServersSubscribers = async (
         serverId: number,
         type: 'servers:created' | 'servers:updated' | 'servers:deleted'
@@ -254,6 +263,7 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
                 bus.off('server.created', onServerCreated);
                 bus.off('server.deleted', onServerDeleted);
                 bus.off('server.install.progress', onInstallProgress);
+                bus.off('server.native.logs', onNativeLogs);
                 bus.off('server.install.interaction', onInstallInteraction);
                 bus.off('server.file.transfer', onFileTransfer);
                 bus.off('system.rebooting', onSystemRebooting);

@@ -36,6 +36,7 @@ import {
 import { buildMetricsHistory, METRICS_HISTORY_RAW_LIMIT } from '../utils/metrics.js';
 import { parseLimit } from '../utils/number.js';
 import { getServerMetricsSamples } from '../utils/serverMetricsCache.js';
+import { nativeLogHistory } from '../services/nativeLogs.js';
 
 export function ensureSubs(ws: AuthenticatedWebSocket): SubscriptionsState {
     ws.subs ??= {
@@ -154,7 +155,7 @@ export async function reattachLogStreamsForServer(wss: WebSocketServer, serverId
         sendSafe(ws, {
             type: 'logs:history',
             serverId,
-            logs: containerLogs,
+            logs: [...await nativeLogHistory(serverId), ...containerLogs],
             limit: REATTACH_LOG_HISTORY_LIMIT,
             timestamp: nowIso(),
         });
@@ -210,12 +211,13 @@ export async function handleSubscribeLogs(
     subs.logs.add(serverId);
 
     const limit = parseLimit(message?.data?.limit, 200, 1000);
+    const installLogs = await nativeLogHistory(serverId);
 
     if (server.docker_container_id) {
         const containerLogs = await dockerUtils.getContainerLogs(server.docker_container_id, limit);
-        sendSafe(ws, { type: 'logs:history', serverId, logs: containerLogs, limit, timestamp: nowIso() });
+        sendSafe(ws, { type: 'logs:history', serverId, logs: [...installLogs, ...containerLogs], limit, timestamp: nowIso() });
     } else {
-        sendSafe(ws, { type: 'logs:history', serverId, logs: [], limit, timestamp: nowIso() });
+        sendSafe(ws, { type: 'logs:history', serverId, logs: installLogs, limit, timestamp: nowIso() });
     }
 
     sendSafe(ws, { type: 'logs:subscribed', serverId, timestamp: nowIso() });

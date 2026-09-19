@@ -179,6 +179,30 @@ test('remote installation sends a signed ticket and explicit bindings, never a c
   expect(body.bindings).toEqual([{ key: 'game', host: 'auto', hostIp: '192.0.2.10' }]);
   expect(body.dockerImage).toBeUndefined();
 });
+test('native installation uses the shared progress modal and resumes status after reload', async ({ page }) => {
+  await mock(page, 'published');
+  const document = { ...definition, schemaVersion: 2, runtime: { ...definition.runtime, provider: 'external' }, lifecycle: {
+    startup: ['/data/server'], workdir: '/data', install: [{ name: 'Download Steam files and install ReHLDS', script: 'echo install', timeoutSeconds: 30 }], update: [], stopSignal: 'SIGTERM', stopTimeoutSeconds: 30,
+  } };
+  await page.route('**/api/game-templates', r => r.fulfill({ json: { templates: [{ ...row, status: 'published', document }] } }));
+  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1 } }));
+  await page.route('**/prepare', r => r.fulfill({ json: { ticket: 'test' } }));
+  await page.route('**/api/servers/install', r => r.fulfill({ json: { server: { id: 8 } } }));
+  let status = 'native_step_0';
+  await page.route('**/api/servers/8', r => r.fulfill({ json: { server: { installProgress: { progress: status === 'completed' ? 100 : 25, status } } } }));
+  await openNetwork(page);
+  await page.getByRole('button', { name: 'Create server', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByText('Download Steam files and install ReHLDS', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open Logs / Console', exact: true })).toBeEnabled();
+  await page.reload();
+  await page.getByRole('button', { name: 'Install server' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  status = 'completed';
+  await expect(page.getByRole('heading', { name: 'Installation completed', exact: true })).toBeVisible();
+  await page.screenshot({ path: 'test-results/native-install-completed.png' });
+});
+
 test('old agents are rejected before submitting an installation', async ({ page }) => {
   await mock(page, 'published');
   let sends = 0;

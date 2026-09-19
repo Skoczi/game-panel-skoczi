@@ -279,21 +279,7 @@ async function createSchema(database: Database): Promise<void> {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         server_id INTEGER NOT NULL,
         progress_percent INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'pending' CHECK(status IN (
-          'pending',
-          'pulling_image',
-          'preparing_files',
-          'hytale_downloader_auth',
-          'downloading_server_files',
-          'extracting_server_files',
-          'hytale_account_auth',
-          'hytale_profile_selection',
-          'configuring_hytale_auth',
-          'creating_container',
-          'starting_container',
-          'completed',
-          'failed'
-        )),
+        status TEXT DEFAULT 'pending',
         error_message TEXT,
         started_at TEXT NOT NULL,
         completed_at TEXT,
@@ -375,6 +361,13 @@ async function createSchema(database: Database): Promise<void> {
         finished_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+    `);
+
+    await database.exec(`
+      CREATE TABLE IF NOT EXISTS native_operation_logs (
+        server_id INTEGER PRIMARY KEY REFERENCES game_servers(id) ON DELETE CASCADE,
+        lines_json TEXT NOT NULL
       );
     `);
 

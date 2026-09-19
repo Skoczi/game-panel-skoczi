@@ -3,6 +3,7 @@ export interface PortBinding { host: number; container: number; label: string; h
 export interface InstallStep {
   key: string;
   optional: boolean;
+  label?: string;
 }
 
 export interface InstallInteraction {

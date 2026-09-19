@@ -10,7 +10,6 @@ import { installProgressRepository, serverRepository } from '../../database/inde
 import type { GameServerRow } from '../../types/gameServer.js';
 import {
     redactServerEnv,
-    serializeGameServer,
     serializeGameServerWithInstallProgress,
 } from '../../utils/apiSerialization.js';
 import { sendRouteError } from '../../utils/routeErrors.js';
@@ -68,7 +67,7 @@ export function createServerReadRoutes(): Router {
                 serverId,
                 PERMISSIONS.server.env,
             );
-            const serialized = serializeGameServer(server);
+            const serialized = serializeGameServerWithInstallProgress(server, await installProgressRepository.getByServerId(serverId));
 
             return res.json({
                 server: canSeeEnv ? serialized : redactServerEnv(serialized),

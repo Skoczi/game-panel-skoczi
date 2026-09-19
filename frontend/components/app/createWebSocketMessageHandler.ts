@@ -483,6 +483,9 @@ export function createWebSocketMessageHandler({
           );
           if (nextEntry) {
             addServerHistoryEntries(targetServerId, [nextEntry]);
+            if (String(message.action.message || '').startsWith('Native ')) {
+              addCLIMessage('info', message.action.message, resolveServerName(targetServerId), 'install');
+            }
           }
         }
         break;

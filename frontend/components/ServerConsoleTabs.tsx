@@ -4,7 +4,7 @@ import { AppButton, AppToggle } from '../src/ui/components';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { ansiToHtml, stripAnsi } from '../utils/ansi';
 import { isServerDownLike, formatLogDisplayTime } from '../utils/serverRuntime';
-import { supportsConsoleCommand } from '../utils/providerCapabilities';
+import { supportsConsoleCommand, isNativeTemplate } from '../utils/providerCapabilities';
 import type { GameServer } from '../types/gameServer';
 import type { CLIMessage } from '../types/cli';
 
@@ -415,7 +415,7 @@ export function ServerConsoleTabs({
     if (!activeTab || !commandValue.trim() || commandSending) return;
     // External images have no console script and some games expose no command interface at
     // all — the backend returns 501, so never call it.
-    if (activeServer?.provider === 'external') return;
+    if (activeServer?.provider === 'external' && !isNativeTemplate(activeServer.providerMetadataJson)) return;
     if (!supportsConsoleCommand(activeServer?.providerMetadataJson)) return;
     const cmd = commandValue.trim();
     setCommandHistory((prev) => [cmd, ...prev].slice(0, 100));
@@ -789,8 +789,8 @@ export function ServerConsoleTabs({
               </div>
               {(() => {
                 const canSend = canSendCommandByServer?.[activeServer.id] ?? false;
-                const isStopped = isServerDownLike(activeServer.status);
-                const isExternal = activeServer.provider === 'external';
+                const isStopped = isServerDownLike(activeServer.status) || (isNativeTemplate(activeServer.providerMetadataJson) && !['running', 'unhealthy'].includes(activeServer.status));
+                const isExternal = activeServer.provider === 'external' && !isNativeTemplate(activeServer.providerMetadataJson);
                 const hasConsole = supportsConsoleCommand(activeServer.providerMetadataJson);
                 const noConsole = isExternal || !hasConsole;
                 const isInputDisabled = commandSending || !canSend || isStopped || noConsole;
@@ -824,7 +824,7 @@ export function ServerConsoleTabs({
                     />
                     <button
                       onClick={() => void handleSendCommand()}
-                      disabled={commandSending || !commandValue.trim() || !canSend || noConsole}
+                      disabled={isInputDisabled || !commandValue.trim()}
                       title="Send command (Enter)"
                       className="shrink-0 rounded p-1.5 text-gray-600 transition-colors hover:bg-[var(--color-cyan-400)]/10 hover:text-[var(--color-cyan-400)] disabled:cursor-not-allowed disabled:opacity-30"
                     >
@@ -856,4 +856,3 @@ export function ServerConsoleTabs({
     </div>
   );
 }
-

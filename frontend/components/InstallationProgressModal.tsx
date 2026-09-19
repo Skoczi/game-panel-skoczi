@@ -22,6 +22,8 @@ interface InstallationProgressModalProps {
   onClose: () => void;
   onOpenConsole?: (serverId: number) => void;
   onRetryInstall?: () => void;
+  nativeRuntime?: boolean;
+  connectionWarning?: string;
 }
 
 type StepStatus = 'pending' | 'in-progress' | 'completed' | 'failed';
@@ -48,6 +50,8 @@ export function InstallationProgressModal({
   onClose,
   onOpenConsole,
   onRetryInstall,
+  nativeRuntime = false,
+  connectionWarning,
 }: InstallationProgressModalProps) {
   useBodyScrollLock(isOpen);
 
@@ -92,7 +96,7 @@ export function InstallationProgressModal({
     if (normalizedStatus === 'completed') {
       return installPlan.map((step) => ({
         id: step.key,
-        label: getInstallStepLabel(step.key),
+        label: step.label || getInstallStepLabel(step.key),
         optional: step.optional,
         status: 'completed' as StepStatus,
       }));
@@ -101,7 +105,7 @@ export function InstallationProgressModal({
     if (normalizedStatus === 'failed') {
       return installPlan.map((step) => ({
         id: step.key,
-        label: getInstallStepLabel(step.key),
+        label: step.label || getInstallStepLabel(step.key),
         optional: step.optional,
         status: 'failed' as StepStatus,
       }));
@@ -122,7 +126,7 @@ export function InstallationProgressModal({
       }
       return {
         id: step.key,
-        label: getInstallStepLabel(step.key),
+        label: step.label || getInstallStepLabel(step.key),
         optional: step.optional,
         status: stepStatus,
       };
@@ -176,7 +180,7 @@ export function InstallationProgressModal({
         <div className={`px-6 py-5 border-b ${borderColor}`}>
           <h2 id="gp-install-progress-title" className={`text-2xl font-semibold ${textPrimary} mb-1`}>
             {installationStatus === 'success'
-              ? `${gameName} Installation Started`
+              ? `${gameName} Installation ${nativeRuntime ? 'Completed' : 'Started'}`
               : installationStatus === 'failed'
                 ? `${gameName} Installation Failed`
                 : `Installing ${gameName}`}
@@ -191,6 +195,7 @@ export function InstallationProgressModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          {connectionWarning && <p role="alert" className="mb-4 text-amber-500">{connectionWarning}</p>}
           {installationStatus === 'installing' && (
             <>
               <div className="mb-6">
@@ -359,9 +364,9 @@ export function InstallationProgressModal({
           {installationStatus === 'success' && (
             <div className="text-center py-8">
               <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h3 className={`text-xl font-semibold ${textPrimary} mb-2`}>Installation started</h3>
+              <h3 className={`text-xl font-semibold ${textPrimary} mb-2`}>Installation {nativeRuntime ? 'completed' : 'started'}</h3>
               <p className={`${textSecondary} mb-6`}>
-                You can follow the installation progress in the logs.
+                {nativeRuntime ? 'Installation finished and the server process was started. Open the console to check game readiness.' : 'You can follow the installation progress in the logs.'}
               </p>
 
               <div className="flex justify-center">
@@ -422,8 +427,9 @@ export function InstallationProgressModal({
           )}
         </div>
 
-        {installationStatus === 'failed' && (
+        {installationStatus !== 'success' && (
           <div className={`px-6 py-4 border-t ${borderColor} flex justify-end`}>
+            {canOpenLogs && <AppButton tone="neutral" onClick={() => { if (serverId) onOpenConsole?.(serverId); onClose(); }}>Open Logs / Console</AppButton>}
             <AppButton
               tone="neutral"
               onClick={onClose}
@@ -437,4 +443,3 @@ export function InstallationProgressModal({
     </div>
   );
 }
-

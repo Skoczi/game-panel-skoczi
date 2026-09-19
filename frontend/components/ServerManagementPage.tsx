@@ -210,11 +210,15 @@ export function ServerManagementPage({
           </button>
           <span className="gp-server-heading-divider" aria-hidden="true" />
           <div className="gp-server-identity">
-            <h1>{server.name}</h1>
-            <span className="gp-server-game">
-              <span aria-hidden="true">— </span>
-              {gameDisplayName(gameName || server.game)}
-            </span>
+            <div className="gp-server-titles">
+              <h1>{server.name}</h1>
+              <span className="gp-server-game">
+                <span className="gp-server-title-separator" aria-hidden="true">
+                  –
+                </span>
+                {gameDisplayName(gameName || server.game)}
+              </span>
+            </div>
             <span className={`gp-server-status ${status.className}`}>{status.label}</span>
           </div>
         </div>

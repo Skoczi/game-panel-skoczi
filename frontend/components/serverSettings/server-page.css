@@ -150,7 +150,7 @@
   align-items: center;
   flex: 1;
   min-width: 0;
-  gap: 20px;
+  gap: 16px;
 }
 .gp-server-heading-divider {
   width: 1px;
@@ -166,16 +166,27 @@
   min-width: 0;
 }
 .gp-server-heading h1 {
-  font-size: 21px;
-  line-height: 1.35;
+  font-size: 20px;
+  line-height: 28px;
   font-weight: 700;
   overflow-wrap: anywhere;
   margin: 0;
 }
+.gp-server-titles {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  min-width: 0;
+}
 .gp-server-game {
   color: var(--gp-muted);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 24px;
   overflow-wrap: anywhere;
+}
+.gp-server-title-separator {
+  margin-right: 7px;
 }
 .gp-server-status {
   display: inline-block;

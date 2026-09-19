@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Server, Plus, RefreshCw, Shield, ExternalLink, Network } from 'lucide-react';
-import { nodesRequest, type ExecutionNode } from '../utils/nodesApi';
+import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
+import { LocalNodeProfile, LocalRuntimeInfo } from './LocalNodeProfile';
 import { ACTIVE_NODE, openFleet, selectNode } from '../utils/nodeContext';
 import { GlobalSettings } from './GlobalSettings';
 import {
@@ -26,6 +27,9 @@ const colors = {
 };
 export function Nodes() {
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
+  const [localNode, setLocalNode] = useState<LocalNode>();
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [runtimeUnavailable, setRuntimeUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -40,10 +44,13 @@ export function Nodes() {
   const [deleteError, setDeleteError] = useState('');
   async function refresh() {
     try {
-      const value = await nodesRequest<{ nodes: ExecutionNode[] }>('/api/nodes');
+      const value = await nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes');
       setNodes(value.nodes);
+      setLocalNode(value.local);
+      setRuntimeUnavailable(false);
       setError('');
     } catch (err) {
+      setRuntimeUnavailable(true);
       setError(err instanceof Error ? err.message : 'Cannot load nodes');
     } finally {
       setLoading(false);
@@ -67,7 +74,7 @@ export function Nodes() {
     }
   }
   const leaveAllocations = () =>
-    !allocationDirty || window.confirm('Discard unsaved allocation changes?');
+    !(allocationDirty || profileDirty) || window.confirm('Discard unsaved node settings?');
   if (selected) {
     const node = nodes.find((n) => n.id === selected.id);
     const local = selected.id === 'local';
@@ -79,6 +86,7 @@ export function Nodes() {
             if (leaveAllocations()) {
               setSelected(null);
               setAllocationDirty(false);
+              setProfileDirty(false);
             }
           }}
         >
@@ -89,9 +97,13 @@ export function Nodes() {
             <p className="text-xs uppercase tracking-widest text-blue-600 dark:text-blue-400">
               Node settings
             </p>
-            <h1 className="mt-1 text-2xl font-semibold">{selected.name}</h1>
+            <h1 className="mt-1 text-2xl font-semibold">
+              {local ? localNode?.name || 'Local' : selected.name}
+            </h1>
             <p className="mt-1 text-sm text-slate-500">
-              {local ? 'Panel host · Built-in runtime' : node?.location || 'Remote runtime'}
+              {local
+                ? localNode?.location || 'Panel host · Built-in runtime'
+                : node?.location || 'Remote runtime'}
             </p>
           </div>
           <button
@@ -116,6 +128,7 @@ export function Nodes() {
               onClick={() => {
                 if (nodeTab !== tab && leaveAllocations()) {
                   setAllocationDirty(false);
+                  setProfileDirty(false);
                   setNodeTab(tab);
                 }
               }}
@@ -128,32 +141,44 @@ export function Nodes() {
           <GlobalSettings
             key={selected.id}
             nodeId={selected.id}
-            nodeName={selected.name}
+            nodeName={local ? localNode?.name || 'Local' : selected.name}
             onDirtyChange={setAllocationDirty}
           />
         ) : (
           <section className={`${card} space-y-4`}>
             <h2 className="text-lg font-semibold">Runtime information</h2>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
-              <dt>Status</dt>
-              <dd>{local ? 'Built in' : node?.status || 'Unavailable'}</dd>
-              <dt>Agent</dt>
-              <dd>
-                {local ? 'No additional agent required' : node?.agent_version || 'Not enrolled'}
-              </dd>
-              {!local && (
-                <>
-                  <dt>Origin</dt>
-                  <dd className="break-all font-mono">{node?.origin || 'Unavailable'}</dd>
-                  <dt>Last heartbeat</dt>
-                  <dd>
-                    {node?.last_seen
-                      ? new Date(node.last_seen).toLocaleString()
-                      : 'Waiting for agent'}
-                  </dd>
-                </>
-              )}
-            </dl>
+            {local ? (
+              <>
+                <LocalRuntimeInfo node={localNode} unavailable={runtimeUnavailable} />
+                <p className="text-sm text-slate-500">No additional agent required</p>
+                <LocalNodeProfile
+                  node={localNode}
+                  onSaved={refresh}
+                  onDirtyChange={setProfileDirty}
+                />
+              </>
+            ) : (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
+                <dt>Status</dt>
+                <dd>{local ? 'Built in' : node?.status || 'Unavailable'}</dd>
+                <dt>Agent</dt>
+                <dd>
+                  {local ? 'No additional agent required' : node?.agent_version || 'Not enrolled'}
+                </dd>
+                {!local && (
+                  <>
+                    <dt>Origin</dt>
+                    <dd className="break-all font-mono">{node?.origin || 'Unavailable'}</dd>
+                    <dt>Last heartbeat</dt>
+                    <dd>
+                      {node?.last_seen
+                        ? new Date(node.last_seen).toLocaleString()
+                        : 'Waiting for agent'}
+                    </dd>
+                  </>
+                )}
+              </dl>
+            )}
             <p className="text-sm text-slate-500">
               IP addresses and TCP/UDP ranges belong to this node. Existing servers stay on their
               current runtime.
@@ -310,21 +335,27 @@ export function Nodes() {
         <article className={card}>
           <div className="flex items-center gap-3">
             <Server className="text-blue-600" />
-            <h2 className="font-semibold">Local</h2>
+            <div className="min-w-0">
+              <h2 className="break-words font-semibold">{localNode?.name || 'Local'}</h2>
+              <p className="text-xs text-slate-500">{localNode?.location || 'No location set'}</p>
+            </div>
             <span className="ml-auto rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-              Built in
+              {runtimeUnavailable ? 'Unavailable' : localNode ? 'online' : 'Built in'}
             </span>
           </div>
           <p className="my-4 text-sm text-slate-500">
             Create and manage servers on the panel host. No additional agent is required.
           </p>
+          <div className="mb-4">
+            <LocalRuntimeInfo node={localNode} unavailable={runtimeUnavailable} />
+          </div>
           <button className={button} disabled={busy} onClick={() => selectNode('local')}>
             Open local servers
           </button>
           <button
             className={`${button} ml-2`}
             onClick={() => {
-              setSelected({ id: 'local', name: 'Local' });
+              setSelected({ id: 'local', name: localNode?.name || 'Local' });
               setNodeTab('overview');
             }}
           >

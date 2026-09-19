@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AppSelect } from '../src/ui/components/AppSelect';
-import { nodesRequest, type ExecutionNode } from '../utils/nodesApi';
+import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
 import { emptyTemplate, type GameTemplate, type TemplateVersion } from '../utils/gameTemplates';
 import { getLinuxGsmGames, type LinuxGsmGame } from '../utils/linuxGsmCatalog';
 import { OVHCLOUD_IMAGES } from '../utils/ovhcloudCatalog';
@@ -988,9 +988,11 @@ export function GameTemplates() {
   );
 }
 
-function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () => void }) {
+export function TemplateInstall({ row, onClose, fixedNodeId }: { row: TemplateVersion; onClose: () => void; fixedNodeId?: string }) {
+  const installStorageKey = `template-install-${row.id}${fixedNodeId ? `-${fixedNodeId}` : ''}`;
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
-  const [nodeId, setNodeId] = useState('local');
+  const [localNode, setLocalNode] = useState<LocalNode>();
+  const [nodeId, setNodeId] = useState(fixedNodeId || 'local');
   const [allocations, setAllocations] = useState<
     Array<{ ip: string; alias: string; tcp: string; udp: string }>
   >([]);
@@ -1010,7 +1012,7 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
   const [uncertain, setUncertain] = useState(false);
   const [installedServer, setInstalledServer] = useState<{ id: number; nodeId: string } | null>(() => {
     try {
-      const value = JSON.parse(sessionStorage.getItem(`template-install-${row.id}`) || 'null');
+      const value = JSON.parse(sessionStorage.getItem(installStorageKey) || 'null');
       return Number.isSafeInteger(value?.id) && value.id > 0 && /^(local|[0-9a-f-]{36})$/.test(value.nodeId) ? value : null;
     } catch { return null; }
   });
@@ -1048,8 +1050,8 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
     return () => { cancelled = true; clearTimeout(timer); };
   }, [installedServer]);
   useEffect(() => {
-    nodesRequest<{ nodes: ExecutionNode[] }>('/api/nodes')
-      .then((v) => setNodes(v.nodes))
+    nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes')
+      .then((v) => { setNodes(v.nodes); setLocalNode(v.local); })
       .catch(() => setError('Cannot load execution nodes'));
   }, []);
   useEffect(() => {
@@ -1124,7 +1126,7 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
       });
       setVariables({});
       const target = { id: response.server.id, nodeId };
-      sessionStorage.setItem(`template-install-${row.id}`, JSON.stringify(target));
+      sessionStorage.setItem(installStorageKey, JSON.stringify(target));
       setInstalledServer(target);
       setProgress({ progress: 0, status: 'pending' });
       setShowProgress(true);
@@ -1186,7 +1188,7 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
             Open node servers
           </button>
           {['completed', 'failed'].includes(progress.status) && <button className={button} onClick={() => {
-            sessionStorage.removeItem(`template-install-${row.id}`);
+            sessionStorage.removeItem(installStorageKey);
             setInstalledServer(null); setResult(''); setShowProgress(false);
           }}>Create another server</button>}
         </>
@@ -1207,19 +1209,19 @@ function TemplateInstall({ row, onClose }: { row: TemplateVersion; onClose: () =
               onChange={setCpu}
             />
           </div>
-          <Choice
+          {fixedNodeId ? <p className="text-sm">Execution node: <strong>{nodeId === 'local' ? localNode?.name || 'Local' : nodes.find(n => n.id === nodeId)?.name || nodeId}</strong></p> : <Choice
             label="Execution node"
             value={nodeId}
             onChange={setNodeId}
             options={[
-              { value: 'local', label: 'Local' },
+              { value: 'local', label: localNode?.name || 'Local' },
               ...nodes.map((n) => ({
                 value: n.id,
                 label: `${n.name} · ${n.location || n.status}`,
                 disabled: n.status !== 'online',
               })),
             ]}
-          />
+          />}
           {loading ? (
             <p>Loading node allocations…</p>
           ) : (

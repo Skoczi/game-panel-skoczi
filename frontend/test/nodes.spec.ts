@@ -10,6 +10,45 @@ const node = {
   last_seen: Date.now(),
   agent_version: '1.5.0-skoczi.7',
 };
+test('local identity saves metadata, survives reload and reports real response health', async ({
+  page,
+}) => {
+  let local = {
+    id: 'local',
+    name: 'Local',
+    location: '',
+    origin: '',
+    status: 'online',
+    agent_version: '1.5.0-skoczi.16',
+    last_seen: Date.now(),
+    heartbeat_kind: 'panel-response',
+  };
+  await page.route('**/api/nodes', (r) => r.fulfill({ json: { nodes: [node], local } }));
+  await page.route('**/api/nodes/local/profile', (r) => {
+    expect(r.request().method()).toBe('PUT');
+    local = { ...local, ...r.request().postDataJSON() };
+    return r.fulfill({ json: { local } });
+  });
+  await page.goto('/test/nodes.fixture.html');
+  await page.getByRole('button', { name: 'Node settings', exact: true }).first().click();
+  await page.getByLabel('Name', { exact: true }).fill('WAW2');
+  await page.getByLabel('Location', { exact: true }).fill('Warsaw, PL');
+  await page.getByLabel('Origin', { exact: true }).fill('https://eserv.pl');
+  await page.getByRole('button', { name: 'Save local node' }).click();
+  await expect(page.getByRole('status')).toHaveText('Local node saved.');
+  await expect(page.getByRole('heading', { name: 'WAW2', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'WAW2', exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox')).toContainText('WAW2');
+  await expect(page.getByText('https://eserv.pl', { exact: true })).toBeVisible();
+  await page.route('**/api/nodes', (r) =>
+    r.fulfill({ status: 503, json: { error: 'Unavailable' } })
+  );
+  await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect(page.getByText('Status unavailable', { exact: true }).first()).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 test('Local and remote node settings open distinct allocation endpoints and protect unsaved edits', async ({
   page,
 }) => {

@@ -10,6 +10,7 @@ import * as protocol from '../src/nodes/protocol.js';
 import { FleetStore } from '../src/fleet/store.js';
 import { loadWithMocks } from './loadWithMocks.js';
 import { NodeAllocations, AllocationError } from '../src/nodes/allocations.js';
+import { LocalProfileStore } from '../src/nodes/localProfile.js';
 
 test('node deletion API is root-only and preserves registrations on rejected removal', async () => {
     const native = new DatabaseSync(':memory:');
@@ -42,6 +43,7 @@ test('node deletion API is root-only and preserves registrations on rejected rem
         },
         '../database/index.js': {}, '../utils/auth.js': {},
         './store.js': { NodeStore, NodeRemovalError }, './protocol.js': protocol,
+        './localProfile.js': { LocalProfileStore }, '../utils/appInfo.js': { getAppVersion: () => 'test-version' },
         './transport.js': {}, './delegation.js': {},
         './allocations.js': { NodeAllocations, AllocationError },
         './allocationRuntime.js': { allocationRuntime: () => ({}) },
@@ -61,10 +63,17 @@ test('node deletion API is root-only and preserves registrations on rejected rem
         body: JSON.stringify({ confirmationName: name }),
     });
     try {
-        for (const [suffix, method] of [['local/allocations', 'GET'], ['local/allocations', 'PUT'], ['local/allocations/retry', 'POST']]) {
+        for (const [suffix, method] of [['local/profile', 'PUT'], ['local/allocations', 'GET'], ['local/allocations', 'PUT'], ['local/allocations/retry', 'POST']]) {
             assert.equal((await fetch(`${base}/${suffix}`, { method })).status, 401);
             assert.equal((await fetch(`${base}/${suffix}`, { method, headers: { 'x-test-role': 'user' } })).status, 403);
         }
+        const profile = { name: 'WAW2', location: 'Warsaw, PL', origin: 'https://eserv.pl' };
+        assert.equal((await fetch(`${base}/local/profile`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-test-role': 'root' }, body: JSON.stringify(profile) })).status, 200);
+        const inventory = await (await fetch(base, { headers: { 'x-test-role': 'root' } })).json() as any;
+        assert.equal(inventory.local.name, 'WAW2');
+        assert.equal(inventory.local.agent_version, 'test-version');
+        assert.equal(inventory.local.heartbeat_kind, 'panel-response');
+        assert.ok(Date.now() - inventory.local.last_seen < 5000);
         assert.equal((await remove(node.id, node.name)).status, 401);
         assert.equal((await remove(node.id, node.name, 'user')).status, 403);
         assert.equal((await remove('local', 'Local', 'root')).status, 400);

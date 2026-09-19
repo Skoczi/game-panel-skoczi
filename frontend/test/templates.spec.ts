@@ -361,9 +361,12 @@ test('large pools use bounded custom options with search and fit a dark mobile v
   await page.evaluate(() => document.documentElement.classList.add('dark'));
   await page.getByRole('combobox', { name: /Public port/ }).click();
   expect(await page.getByRole('option').count()).toBeLessThanOrEqual(51);
-  await page.keyboard.press('Escape');
-  await page.getByLabel(/Find port/).fill('65535');
+  await expect(page.getByRole('option', { name: 'Assign automatically', exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: /Public port/ }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await page.getByLabel(/Find port/).fill('65535');
+  await page.getByRole('combobox', { name: /Public port/ }).focus();
+  await page.getByRole('combobox', { name: /Public port/ }).press('ArrowDown');
   await page.getByRole('option', { name: '65535', exact: true }).click();
   await expect(page.getByText('192.0.2.10:65535', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Server, Radio } from 'lucide-react';
 import { ACTIVE_NODE, selectNode } from '../utils/nodeContext';
-import { nodesRequest, type ExecutionNode } from '../utils/nodesApi';
+import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
 
 export function NodeSelector() {
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
+  const [local, setLocal] = useState<LocalNode>();
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -12,7 +13,12 @@ export function NodeSelector() {
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const options = [
-    { id: 'local', name: 'Local', detail: 'Panel host', status: 'local' },
+    {
+      id: 'local',
+      name: local?.name || 'Local',
+      detail: local?.location || 'Panel host',
+      status: 'local',
+    },
     ...(ACTIVE_NODE !== 'local' && !nodes.some((node) => node.id === ACTIVE_NODE)
       ? [{ id: ACTIVE_NODE, name: 'Selected node', detail: 'Unavailable', status: 'offline' }]
       : []),
@@ -52,10 +58,11 @@ export function NodeSelector() {
   useEffect(() => {
     let active = true;
     const refresh = () => {
-      void nodesRequest<{ nodes: ExecutionNode[] }>('/api/nodes')
+      void nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes')
         .then((result) => {
           if (active) {
             setNodes(result.nodes);
+            setLocal(result.local);
             setError(false);
           }
         })

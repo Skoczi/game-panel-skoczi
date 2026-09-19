@@ -1,5 +1,8 @@
 // Modified by Skoczi: explicit host IPv4 selection for every port binding.
 import { HostIpSelect } from './HostIpSelect';
+import { NativeTemplatePicker } from './NativeTemplatePicker';
+import type { TemplateVersion } from '../utils/gameTemplates';
+import { ACTIVE_NODE } from '../utils/nodeContext';
 import React, { useEffect, useState } from 'react';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Eye, EyeOff, Package, Plus, Search, Settings2, Trash2, X } from 'lucide-react';
@@ -20,6 +23,7 @@ import { fetchProjectZomboidBranches, type ProjectZomboidBranch } from '../utils
 interface PortRow { host: string; container: string; label: string; hostIp?: string }
 interface EnvRow { key: string; value: string }
 interface MountRow { key: string; containerPath: string }
+const NativeTemplateInstall = React.lazy(() => import('./GameTemplates').then(module => ({ default: module.TemplateInstall })));
 
 interface InstallGameServerProps {
   isOpen: boolean;
@@ -992,6 +996,11 @@ export function InstallGameServer({
 
   const [unifiedSearch, setUnifiedSearch] = useState('');
   const [showExternal, setShowExternal] = useState(false);
+  const [showCommunity, setShowCommunity] = useState(false);
+  const [nativeTemplate, setNativeTemplate] = useState<TemplateVersion | null>(null);
+  useEffect(() => {
+    if (!isOpen) { setShowCommunity(false); setNativeTemplate(null); setShowExternal(false); setUnifiedSearch(''); }
+  }, [isOpen]);
   const [installWasExternal, setInstallWasExternal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [versionModalImages, setVersionModalImages] = useState<OvhcloudImage[]>([]);
@@ -1050,7 +1059,7 @@ export function InstallGameServer({
   const [pickerJavaImages, setPickerJavaImages] = useState<JavaImageOption[]>([]);
 
   useEffect(() => {
-    if (!isOpen || lgsmGames.length > 0 || lgsmLoading) return;
+    if (!isOpen || !showCommunity || lgsmGames.length > 0) return;
     let cancelled = false;
     setLgsmLoading(true);
     setLgsmError(null);
@@ -1067,8 +1076,8 @@ export function InstallGameServer({
       setLgsmFlags(flags);
     }).catch(() => { if (!cancelled) setLgsmError('Unable to load the game list.'); })
       .finally(() => { if (!cancelled) setLgsmLoading(false); });
-    return () => { cancelled = true; };
-  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; setLgsmLoading(false); };
+  }, [isOpen, showCommunity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (Object.keys(pickerEnv).length === 0) return;
@@ -1350,12 +1359,13 @@ export function InstallGameServer({
 
             <div className="flex-1 flex flex-col overflow-hidden">
 
-              {!showExternal && (
+              {nativeTemplate && <div className="flex-1 overflow-y-auto p-4"><React.Suspense fallback={<p>Loading installer…</p>}><NativeTemplateInstall row={nativeTemplate} fixedNodeId={ACTIVE_NODE} onClose={() => setNativeTemplate(null)} /></React.Suspense></div>}
+              {!showExternal && !nativeTemplate && (
                 <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
                   <div className="space-y-4">
 
-                    <div className="flex gap-3 items-stretch">
-                      <div className="relative flex-1">
+                    <div className="flex flex-wrap gap-3 items-stretch">
+                      <div className="relative min-w-[180px] flex-1">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         <input
                           type="text"
@@ -1374,6 +1384,9 @@ export function InstallGameServer({
                           </button>
                         )}
                       </div>
+                      <button type="button" aria-pressed={showCommunity} onClick={() => { setShowCommunity(v => !v); setUnifiedSearch(''); }} className="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                        {showCommunity ? 'Panel Templates' : 'Community Images'}
+                      </button>
                       <button
                         type="button"
                         onClick={() => setShowExternal(true)}
@@ -1384,6 +1397,9 @@ export function InstallGameServer({
                       </button>
                     </div>
 
+                    {!showCommunity && <NativeTemplatePicker search={unifiedSearch} canInstall={canInstall} onSelect={setNativeTemplate} />}
+                    {showCommunity && <>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Community Images · third-party game images and installers.</p>
                     {lgsmLoading && (
                       <div className="flex items-center justify-center py-10">
                         <div className="flex flex-col items-center gap-3">
@@ -1480,6 +1496,7 @@ export function InstallGameServer({
                         )}
                       </div>
                     )}
+                    </>}
                   </div>
                 </div>
               )}

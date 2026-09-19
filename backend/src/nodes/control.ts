@@ -14,9 +14,12 @@ import { serverDelegation, verifyNodeEmpty } from '../fleet/control.js';
 import { delegatedPath, type Delegation } from './delegation.js';
 import { NodeAllocations, AllocationError } from './allocations.js';
 import { allocationRuntime } from './allocationRuntime.js';
+import { LocalProfileStore } from './localProfile.js';
+import { getAppVersion } from '../utils/appInfo.js';
 
 let store: NodeStore;
 let allocations: NodeAllocations;
+let localProfile: LocalProfileStore;
 const verifier = new RequestVerifier();
 const enrollmentAttempts = new Map<string, { until: number; count: number }>();
 const downloads = new Map<
@@ -39,6 +42,8 @@ export async function initializeNodes() {
     );
     await store.initialize();
     const db = await getDatabase();
+    localProfile = new LocalProfileStore(db);
+    await localProfile.initialize();
     allocations = new NodeAllocations(db, allocationRuntime(db, store));
     await allocations.initialize();
 }
@@ -225,10 +230,15 @@ export function mountNodeControl(app: express.Application) {
         safe(async (_req, res) =>
             res.json({
                 nodes: await store.list(),
-                local: { id: 'local', name: 'Local', status: 'local' },
+                local: { ...await localProfile.read(), id: 'local', status: 'online', agent_version: getAppVersion(), last_seen: Date.now(), heartbeat_kind: 'panel-response' },
             }),
         ),
     );
+    // Display metadata only: origin is never used for local routing or authentication.
+    router.put('/local/profile', safe(async (req, res) => {
+        try { res.json({ local: await localProfile.save(req.body) }); }
+        catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Cannot save local profile' }); }
+    }));
     router.post(
         '/',
         safe(async (req, res) => {

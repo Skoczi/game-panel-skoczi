@@ -34,6 +34,7 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
   const mutations: { url: string; scope: string }[] = [];
   await page.addInitScript(() => {
     localStorage.setItem('auth_token', 'test-token');
+    sessionStorage.setItem('test-admin', '1');
     localStorage.setItem('theme', 'dark');
   });
   await page.route('**/api/fleet', (r) =>
@@ -104,19 +105,19 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
   });
   await page.setViewportSize({ width: 1600, height: 1100 });
   await page.goto('/test/fleet.fixture.html');
-  await expect(page.getByText('SRV-1', { exact: true })).toBeVisible();
+  await expect(page.getByText('SRV-1', { exact: true })).toHaveCount(0);
   await expect(page.getByText('12.3%')).toHaveCount(2);
   await page.screenshot({ path: 'test-results/fleet-premium-cards-dark.png', fullPage: true });
-  await page.getByRole('button', { name: 'Table view' }).click();
-  await expect(page.getByRole('button', { name: 'Table view' })).toHaveAttribute(
+  await page.getByRole('button', { name: 'List view' }).click();
+  await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute(
     'aria-pressed',
     'true'
   );
-  const first = page.getByRole('article').filter({ hasText: 'Community Arena' });
-  const other = page.getByRole('article').filter({ hasText: 'Survival World' });
-  await first.getByRole('button', { name: 'Quick console', exact: true }).click();
+  const first = page.getByRole('row').filter({ hasText: 'Community Arena' });
+  const other = page.getByRole('row').filter({ hasText: 'Survival World' });
+  await first.getByRole('button', { name: 'Log/Console', exact: true }).click();
   await expect(page.getByText('FIRST NODE LOG', { exact: true })).toBeVisible();
-  await other.getByRole('button', { name: 'Quick console', exact: true }).click();
+  await other.getByRole('button', { name: 'Log/Console', exact: true }).click();
   await expect(page.getByText('SECOND NODE LOG', { exact: true })).toBeVisible();
   await expect(page.getByText('FIRST NODE LOG', { exact: true })).not.toBeVisible();
   expect(
@@ -344,7 +345,7 @@ test('users get one workspace with locations, no node selector or infrastructure
   await page.goto('/test/fleet.fixture.html');
   await expect(page.getByRole('heading', { name: 'Community Arena' })).toBeVisible();
   await expect(
-    page.locator('.gp-fleet-location').filter({ hasText: 'Amsterdam, NL' })
+    page.locator('.fleet-node-location').filter({ hasText: 'Amsterdam, NL' })
   ).toBeVisible();
   await expect(page.getByRole('combobox', { name: /Execution node/ })).toHaveCount(0);
   for (const name of ['Nodes', 'Manage nodes', 'Host Status', 'Settings', 'User Administration'])
@@ -354,7 +355,7 @@ test('users get one workspace with locations, no node selector or infrastructure
     page
       .getByRole('article')
       .filter({ hasText: 'Survival World' })
-      .getByRole('button', { name: 'Open server' })
+      .getByRole('button', { name: 'Manage', exact: true })
   ).toBeDisabled();
   await page.getByRole('textbox', { name: 'Search servers and locations' }).fill('Helsinki');
   await expect(page.getByRole('heading', { name: 'Community Arena' })).toHaveCount(0);
@@ -377,7 +378,7 @@ test('opening a server automatically binds requests to its node and global ident
   await page
     .getByRole('article')
     .filter({ hasText: 'Community Arena' })
-    .getByRole('button', { name: 'Open server' })
+    .getByRole('button', { name: 'Manage', exact: true })
     .click();
   await expect(page).toHaveURL(new RegExp(`server=${serverId}`));
   await page.getByRole('button', { name: 'Test server route' }).click();
@@ -482,7 +483,7 @@ test('an open server refreshes grants, retains context on outage and exits after
   await page
     .getByRole('article')
     .filter({ hasText: 'Community Arena' })
-    .getByRole('button', { name: 'Open server' })
+    .getByRole('button', { name: 'Manage', exact: true })
     .click();
   await expect(page.getByTestId('session-permissions')).toContainText('server.power');
   permissions = ['fs.read'];

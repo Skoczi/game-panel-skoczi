@@ -1,21 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import {
-  ArrowUpRight,
-  MapPin,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  Server,
-  Users,
-  GripVertical,
-  List,
-  LayoutGrid,
-  Terminal,
-  Copy,
-  Play,
-  Square,
-  RotateCw,
-} from 'lucide-react';
+import { MapPin, RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -41,7 +25,7 @@ import {
   type FleetLayout,
 } from '../utils/fleetLayout';
 import { nodesRequest } from '../utils/nodesApi';
-import { openServer, type ServerContext } from '../utils/nodeContext';
+import { openServer } from '../utils/nodeContext';
 import {
   AppModal,
   AppModalContent,
@@ -53,7 +37,17 @@ import {
   AppSelect,
 } from '../src/ui/components';
 import './fleet.css';
+import './fleet-node-views.css';
 import { FleetSelect } from './FleetSelect';
+import {
+  FleetAddress,
+  FleetMetrics,
+  FleetPower,
+  FleetManagement,
+  FleetStatus,
+} from './FleetServerPresentation';
+import { ArrowUpDown, Plus } from 'lucide-react';
+import { ViewModeToggle } from './gameServersTable/ViewModeToggle';
 import { FleetQuickConsole } from './FleetQuickConsole';
 import { ConfirmationModal } from './ConfirmationModal';
 import {
@@ -149,78 +143,49 @@ export function FleetWorkspace({
     );
     setActiveConsole(server.id);
   };
-  const runtimeDetails = (server: FleetServer) => {
-    const runtime = runtimes[server.id];
-    const metric = (value?: number) => (value == null ? '—' : `${value.toFixed(1)}%`);
-    return (
-      <div className="gp-fleet-runtime">
-        <div className="gp-fleet-address">
-          <code>{runtime?.address || 'Address unavailable'}</code>
-          {runtime?.address && (
-            <button
-              aria-label={`Copy address for ${server.name}`}
-              onClick={() => void run(async () => navigator.clipboard.writeText(runtime.address!))}
-            >
-              <Copy size={14} />
-            </button>
-          )}
-        </div>
-        <div className="gp-fleet-meters">
-          {(['cpuUsage', 'memoryUsage'] as const).map((key, i) => (
-            <div key={key}>
-              <span>
-                {i ? 'Memory' : 'CPU'} <strong>{metric(runtime?.server[key])}</strong>
-              </span>
-              <div className="gp-fleet-meter">
-                <i style={{ width: `${Math.max(0, Math.min(100, runtime?.server[key] || 0))}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+  const connection = (server: FleetServer) => (
+    <FleetAddress
+      runtime={runtimes[server.id]}
+      name={server.name}
+      onCopy={() =>
+        void run(async () => {
+          const address = runtimes[server.id]?.address;
+          if (address) await navigator.clipboard.writeText(address);
+        })
+      }
+    />
+  );
+  const metrics = (server: FleetServer, compact = false) => (
+    <FleetMetrics runtime={runtimes[server.id]} compact={compact} />
+  );
+  const powerButtons = (server: FleetServer, compact = false) => (
+    <FleetPower
+      runtime={runtimes[server.id]}
+      name={server.name}
+      disabled={busy || !server.available}
+      compact={compact}
+      onAction={(action) => setPower({ server, action })}
+    />
+  );
+  const management = (server: FleetServer) => (
+    <FleetManagement
+      runtime={runtimes[server.id]}
+      disabled={busy || !server.available}
+      onManage={() => void run(async () => openServer(await fleetContext(server.id)))}
+      onConsole={() => openConsole(server)}
+    />
+  );
+  const access = (server: FleetServer) =>
+    administrator && (
+      <button
+        className="fleet-node-access"
+        onClick={() => setMembers(server)}
+        aria-label={`Access for ${server.name}`}
+      >
+        <Users size={16} />
+        Access
+      </button>
     );
-  };
-  const quickActions = (server: FleetServer) => {
-    const runtime = runtimes[server.id];
-    return (
-      <div className="gp-fleet-quick-actions">
-        {runtime && fleetAllowed(runtime.context, 'server.power') && (
-          <div className="gp-fleet-power-actions">
-            {(runtime.server.status === 'running' ? ['stop', 'restart'] : ['start']).map(
-              (action) => (
-                <button
-                  key={action}
-                  className={`${button} gp-fleet-power-${action}`}
-                  disabled={busy || !server.available}
-                  aria-label={`${action} ${server.name}`}
-                  onClick={() => setPower({ server, action })}
-                >
-                  {action === 'start' ? (
-                    <Play size={15} />
-                  ) : action === 'stop' ? (
-                    <Square size={15} />
-                  ) : (
-                    <RotateCw size={15} />
-                  )}
-                  {action}
-                </button>
-              )
-            )}
-          </div>
-        )}
-        <button
-          className={`${button} gp-fleet-console-button`}
-          disabled={
-            !server.available || !runtime || !fleetAllowed(runtime.context, 'container.logs.read')
-          }
-          onClick={() => openConsole(server)}
-        >
-          <Terminal size={16} />
-          Quick console
-        </button>
-      </div>
-    );
-  };
   const load = async () => {
     try {
       const data = await nodesRequest<{ servers: FleetServer[] }>('/api/fleet');
@@ -295,13 +260,19 @@ export function FleetWorkspace({
     changeLayout({ ...layout, order: arrayMove(ids, ids.indexOf(from.id), ids.indexOf(to.id)) });
   };
   return (
-    <section className="gp-fleet" aria-label="Game servers workspace">
+    <section className="gp-fleet gp-fleet-node-workspace" aria-label="Game servers workspace">
       <header className="gp-fleet-heading">
         <div>
           <h1>Game Servers</h1>
           <p className="gp-fleet-muted">Your servers, across every location.</p>
         </div>
         <div className="gp-fleet-actions">
+          <ViewModeToggle
+            value={layout.view === 'table' ? 'list' : 'grid'}
+            onChange={(view) =>
+              changeLayout({ ...layout, view: view === 'list' ? 'table' : 'cards' })
+            }
+          />
           <button
             className={button}
             disabled={busy}
@@ -324,29 +295,13 @@ export function FleetWorkspace({
         </div>
       </header>
       <div className="gp-fleet-toolbar">
-        <div className="gp-fleet-view-toggle" aria-label="Server view">
-          <button
-            aria-label="Table view"
-            aria-pressed={layout.view === 'table'}
-            onClick={() => changeLayout({ ...layout, view: 'table' })}
-          >
-            <List size={18} />
-          </button>
-          <button
-            aria-label="Card view"
-            aria-pressed={layout.view !== 'table'}
-            onClick={() => changeLayout({ ...layout, view: 'cards' })}
-          >
-            <LayoutGrid size={18} />
-          </button>
-        </div>
         <label className="gp-fleet-search">
           <Search size={18} />
           <input
             aria-label="Search servers and locations"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, SRV ID or location…"
+            placeholder="Search servers or locations…"
           />
         </label>
         <span className="gp-fleet-muted">
@@ -450,8 +405,76 @@ export function FleetWorkspace({
                 : 'Your administrator can assign a server and its permissions to your account.'}
           </p>
         </div>
+      ) : layout.view === 'table' ? (
+        <div className="fleet-node-tables">
+          {groups.map(([label, items]) => (
+            <section key={label || 'all'} aria-label={label || 'All servers'}>
+              {label && (
+                <h2 className="gp-fleet-group-title">
+                  {label}
+                  <span>{items.length}</span>
+                </h2>
+              )}
+              <div className="fleet-node-table-scroll">
+                <table className="fleet-node-table">
+                  <thead>
+                    <tr>
+                      <th>
+                        <button onClick={() => changeLayout({ ...layout, sort: 'name' })}>
+                          Server name <ArrowUpDown size={14} />
+                        </button>
+                      </th>
+                      <th>
+                        <button onClick={() => changeLayout({ ...layout, sort: 'type' })}>
+                          Game <ArrowUpDown size={14} />
+                        </button>
+                      </th>
+                      <th>Connection</th>
+                      <th>
+                        <button onClick={() => changeLayout({ ...layout, sort: 'status' })}>
+                          Status <ArrowUpDown size={14} />
+                        </button>
+                      </th>
+                      <th>Server metrics</th>
+                      <th>Power</th>
+                      <th>Management</th>
+                      {administrator && <th>Access</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((server) => (
+                      <tr key={server.id}>
+                        <td>
+                          <strong>{server.name}</strong>
+                          <small>
+                            {server.node.name} · {server.node.location}
+                          </small>
+                        </td>
+                        <td>{game(server).label}</td>
+                        <td>{connection(server)}</td>
+                        <td>
+                          <FleetStatus status={server.status} available={server.available} />
+                        </td>
+                        <td>{metrics(server, true)}</td>
+                        <td>{powerButtons(server, true)}</td>
+                        <td>{management(server)}</td>
+                        {administrator && <td>{access(server)}</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+          {administrator && (
+            <button className="fleet-node-add" onClick={onNodes}>
+              <Plus size={20} />
+              Add Game Server
+            </button>
+          )}
+        </div>
       ) : (
-        <div className={layout.view === 'table' ? 'gp-fleet-list-view' : ''}>
+        <div className="fleet-node-cards">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -489,28 +512,30 @@ export function FleetWorkspace({
                         server={server}
                         disabled={layout.sort !== 'custom'}
                       >
-                        <div className="gp-fleet-card-top">
-                          <span
-                            className={`gp-fleet-status ${server.available ? (server.status === 'running' ? 'is-running' : '') : 'is-unknown'}`}
-                          >
-                            <i />
-                            {server.status}
-                          </span>
-                          <span className="gp-fleet-provider">{game(server).label}</span>
+                        <div className="fleet-node-card-heading">
+                          <div>
+                            <h3>
+                              <i
+                                className={
+                                  server.status === 'running' && server.available
+                                    ? 'is-running'
+                                    : ''
+                                }
+                              />
+                              {server.name}
+                            </h3>
+                            <p>{game(server).label}</p>
+                          </div>
+                          <FleetStatus status={server.status} available={server.available} />
                         </div>
-                        <h3>{server.name}</h3>
-                        {server.displayId && (
-                          <span className="gp-fleet-server-id">{server.displayId}</span>
-                        )}
-                        <p className="gp-fleet-location">
-                          <MapPin size={16} />
-                          <span>
-                            {server.node.location}
-                            <small>{server.node.name}</small>
-                          </span>
+                        <p className="fleet-node-location">
+                          <MapPin size={13} />
+                          {server.node.name} · {server.node.location}
                         </p>
-                        {runtimeDetails(server)}
-                        {quickActions(server)}
+                        {connection(server)}
+                        {metrics(server)}
+                        {powerButtons(server)}
+                        {management(server)}
                         {!server.available && (
                           <p className="gp-fleet-notice">
                             Node unavailable. Last observed{' '}
@@ -518,41 +543,26 @@ export function FleetWorkspace({
                             running.
                           </p>
                         )}
-                        <div className="gp-fleet-card-footer">
-                          <button
-                            className={`${button} gp-fleet-primary`}
-                            disabled={busy || !server.available}
-                            onClick={() =>
-                              void run(async () =>
-                                openServer(
-                                  await nodesRequest<ServerContext>(
-                                    `/api/fleet/${server.id}/context`
-                                  )
-                                )
-                              )
-                            }
-                          >
-                            Open server
-                            <ArrowUpRight size={16} />
-                          </button>
-                          {administrator && (
-                            <button
-                              className={button}
-                              onClick={() => setMembers(server)}
-                              aria-label={`Access for ${server.name}`}
-                            >
-                              <Users size={16} />
-                              Access
-                            </button>
-                          )}
-                        </div>
+                        {access(server)}
                       </SortableCard>
                     ))}
+                    {administrator && !label && (
+                      <button className="fleet-node-add fleet-node-add-tile" onClick={onNodes}>
+                        <Plus size={26} />
+                        Add Game Server
+                      </button>
+                    )}
                   </div>
                 </SortableContext>
               </section>
             ))}
           </DndContext>
+          {administrator && layout.group !== 'none' && (
+            <button className="fleet-node-add" onClick={onNodes}>
+              <Plus size={20} />
+              Add Game Server
+            </button>
+          )}
         </div>
       )}
       {consoleTabs.length > 0 && (

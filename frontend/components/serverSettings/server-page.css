@@ -462,3 +462,8 @@
     padding: 12px;
   }
 }
+.gp-server-display-id {
+  font: 500 12px/1.4 ui-monospace, monospace;
+  color: var(--text-secondary, #94a3b8);
+  white-space: nowrap;
+}

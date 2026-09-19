@@ -1,6 +1,7 @@
 import { gameDisplayName } from './gameDisplayName';
 
 export type FleetLayout = {
+  view?: 'cards' | 'table';
   order: string[];
   sort: 'custom' | 'name' | 'type' | 'location' | 'status';
   group: 'none' | 'type';
@@ -20,6 +21,7 @@ export function readFleetLayout(userId: number): FleetLayout {
   try {
     const stored = JSON.parse(localStorage.getItem(fleetLayoutKey(userId)) || 'null');
     if (!stored || typeof stored !== 'object') return result;
+    if (stored.view === 'table' || stored.view === 'cards') result.view = stored.view;
     if (Array.isArray(stored.order))
       result.order = [
         ...new Set<string>(
@@ -42,7 +44,11 @@ export function fleetGame(
   server: { provider: string; catalogId?: string | null },
   names: Record<string, string>
 ) {
-  if (server.provider === 'native') return { key: `native:${server.catalogId || 'unknown'}`, label: gameDisplayName(server.catalogId || 'Native Runtime') };
+  if (server.provider === 'native')
+    return {
+      key: `native:${server.catalogId || 'unknown'}`,
+      label: gameDisplayName(server.catalogId || 'Native Runtime'),
+    };
   if (server.catalogId)
     return {
       key: `${server.provider}:${server.catalogId}`,

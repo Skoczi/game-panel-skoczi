@@ -8,6 +8,13 @@ import {
   Server,
   Users,
   GripVertical,
+  List,
+  LayoutGrid,
+  Terminal,
+  Copy,
+  Play,
+  Square,
+  RotateCw,
 } from 'lucide-react';
 import {
   DndContext,
@@ -47,8 +54,18 @@ import {
 } from '../src/ui/components';
 import './fleet.css';
 import { FleetSelect } from './FleetSelect';
+import { FleetQuickConsole } from './FleetQuickConsole';
+import { ConfirmationModal } from './ConfirmationModal';
+import {
+  loadFleetRuntime,
+  fleetContext,
+  fleetAllowed,
+  fleetRequest,
+  type FleetRuntime,
+} from '../utils/fleetRuntime';
 
 type FleetServer = {
+  displayId?: string;
   id: string;
   name: string;
   provider: string;
@@ -94,6 +111,116 @@ export function FleetWorkspace({
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [members, setMembers] = useState<FleetServer | null>(null);
+  const [runtimes, setRuntimes] = useState<Record<string, FleetRuntime>>({});
+  const [consoleTabs, setConsoleTabs] = useState<FleetServer[]>([]);
+  const [activeConsole, setActiveConsole] = useState('');
+  const [power, setPower] = useState<{ server: FleetServer; action: string } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const availableIds = new Set(servers.filter((s) => s.available).map((s) => s.id));
+    const queue = servers.filter((s) => s.available);
+    setRuntimes((previous) =>
+      Object.fromEntries(Object.entries(previous).filter(([id]) => availableIds.has(id)))
+    );
+    const worker = async () => {
+      while (!cancelled && queue.length) {
+        const item = queue.shift()!;
+        try {
+          const runtime = await loadFleetRuntime(item.id);
+          if (!cancelled) setRuntimes((previous) => ({ ...previous, [item.id]: runtime }));
+        } catch {
+          if (!cancelled)
+            setRuntimes((previous) => {
+              const next = { ...previous };
+              delete next[item.id];
+              return next;
+            });
+        }
+      }
+    };
+    void Promise.all(Array.from({ length: 4 }, worker));
+    return () => {
+      cancelled = true;
+    };
+  }, [servers]);
+  const openConsole = (server: FleetServer) => {
+    setConsoleTabs((previous) =>
+      previous.some((s) => s.id === server.id) ? previous : [...previous, server]
+    );
+    setActiveConsole(server.id);
+  };
+  const runtimeDetails = (server: FleetServer) => {
+    const runtime = runtimes[server.id];
+    const metric = (value?: number) => (value == null ? '—' : `${value.toFixed(1)}%`);
+    return (
+      <div className="gp-fleet-runtime">
+        <div className="gp-fleet-address">
+          <code>{runtime?.address || 'Address unavailable'}</code>
+          {runtime?.address && (
+            <button
+              aria-label={`Copy address for ${server.name}`}
+              onClick={() => void run(async () => navigator.clipboard.writeText(runtime.address!))}
+            >
+              <Copy size={14} />
+            </button>
+          )}
+        </div>
+        <div className="gp-fleet-meters">
+          {(['cpuUsage', 'memoryUsage'] as const).map((key, i) => (
+            <div key={key}>
+              <span>
+                {i ? 'Memory' : 'CPU'} <strong>{metric(runtime?.server[key])}</strong>
+              </span>
+              <div className="gp-fleet-meter">
+                <i style={{ width: `${Math.max(0, Math.min(100, runtime?.server[key] || 0))}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  const quickActions = (server: FleetServer) => {
+    const runtime = runtimes[server.id];
+    return (
+      <div className="gp-fleet-quick-actions">
+        {runtime && fleetAllowed(runtime.context, 'server.power') && (
+          <div className="gp-fleet-power-actions">
+            {(runtime.server.status === 'running' ? ['stop', 'restart'] : ['start']).map(
+              (action) => (
+                <button
+                  key={action}
+                  className={`${button} gp-fleet-power-${action}`}
+                  disabled={busy || !server.available}
+                  aria-label={`${action} ${server.name}`}
+                  onClick={() => setPower({ server, action })}
+                >
+                  {action === 'start' ? (
+                    <Play size={15} />
+                  ) : action === 'stop' ? (
+                    <Square size={15} />
+                  ) : (
+                    <RotateCw size={15} />
+                  )}
+                  {action}
+                </button>
+              )
+            )}
+          </div>
+        )}
+        <button
+          className={`${button} gp-fleet-console-button`}
+          disabled={
+            !server.available || !runtime || !fleetAllowed(runtime.context, 'container.logs.read')
+          }
+          onClick={() => openConsole(server)}
+        >
+          <Terminal size={16} />
+          Quick console
+        </button>
+      </div>
+    );
+  };
   const load = async () => {
     try {
       const data = await nodesRequest<{ servers: FleetServer[] }>('/api/fleet');
@@ -149,7 +276,7 @@ export function FleetWorkspace({
     (s) =>
       (!layout.type || game(s).key === layout.type) &&
       (!layout.status || s.status === layout.status) &&
-      `${s.name} ${s.node.name} ${s.node.location} ${game(s).label}`
+      `${s.displayId || ''} ${s.name} ${s.node.name} ${s.node.location} ${game(s).label}`
         .toLowerCase()
         .includes(search.toLowerCase())
   );
@@ -171,7 +298,6 @@ export function FleetWorkspace({
     <section className="gp-fleet" aria-label="Game servers workspace">
       <header className="gp-fleet-heading">
         <div>
-          <p className="gp-fleet-eyebrow">Your workspace</p>
           <h1>Game Servers</h1>
           <p className="gp-fleet-muted">Your servers, across every location.</p>
         </div>
@@ -198,13 +324,29 @@ export function FleetWorkspace({
         </div>
       </header>
       <div className="gp-fleet-toolbar">
+        <div className="gp-fleet-view-toggle" aria-label="Server view">
+          <button
+            aria-label="Table view"
+            aria-pressed={layout.view === 'table'}
+            onClick={() => changeLayout({ ...layout, view: 'table' })}
+          >
+            <List size={18} />
+          </button>
+          <button
+            aria-label="Card view"
+            aria-pressed={layout.view !== 'table'}
+            onClick={() => changeLayout({ ...layout, view: 'cards' })}
+          >
+            <LayoutGrid size={18} />
+          </button>
+        </div>
         <label className="gp-fleet-search">
           <Search size={18} />
           <input
             aria-label="Search servers and locations"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search servers or locations…"
+            placeholder="Search by name, SRV ID or location…"
           />
         </label>
         <span className="gp-fleet-muted">
@@ -309,100 +451,137 @@ export function FleetWorkspace({
           </p>
         </div>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={reorder}
-          accessibility={{
-            announcements: {
-              onDragStart: ({ active }) =>
-                `Picked up ${servers.find((s) => s.id === active.id)?.name || 'server'}.`,
-              onDragOver: ({ over }) =>
-                over
-                  ? `Over server ${servers.find((s) => s.id === over.id)?.name || ''}.`
-                  : 'Outside a reorder target.',
-              onDragEnd: () => 'Reordering finished.',
-              onDragCancel: () => 'Reordering cancelled.',
-            },
-          }}
-        >
-          {groups.map(([label, items]) => (
-            <section
-              key={layout.group === 'none' ? 'all' : game(items[0]).key}
-              className="gp-fleet-group"
-              aria-label={label ? `${label} servers` : 'All server cards'}
-            >
-              {label && (
-                <h2 className="gp-fleet-group-title">
-                  {label}
-                  <span>{items.length}</span>
-                </h2>
-              )}
-              <SortableContext items={items.map((s) => s.id)} strategy={rectSortingStrategy}>
-                <div className="gp-fleet-grid">
-                  {items.map((server) => (
-                    <SortableCard
-                      key={server.id}
-                      server={server}
-                      disabled={layout.sort !== 'custom'}
-                    >
-                      <div className="gp-fleet-card-top">
-                        <span
-                          className={`gp-fleet-status ${server.available ? (server.status === 'running' ? 'is-running' : '') : 'is-unknown'}`}
-                        >
-                          <i />
-                          {server.status}
-                        </span>
-                        <span className="gp-fleet-provider">{game(server).label}</span>
-                      </div>
-                      <h3>{server.name}</h3>
-                      <p className="gp-fleet-location">
-                        <MapPin size={16} />
-                        <span>
-                          {server.node.location}
-                          <small>{server.node.name}</small>
-                        </span>
-                      </p>
-                      {!server.available && (
-                        <p className="gp-fleet-notice">
-                          Node unavailable. Last observed{' '}
-                          {new Date(server.observedAt).toLocaleString()}. The game may still be
-                          running.
-                        </p>
-                      )}
-                      <div className="gp-fleet-card-footer">
-                        <button
-                          className={`${button} gp-fleet-primary`}
-                          disabled={busy || !server.available}
-                          onClick={() =>
-                            void run(async () =>
-                              openServer(
-                                await nodesRequest<ServerContext>(`/api/fleet/${server.id}/context`)
-                              )
-                            )
-                          }
-                        >
-                          Open server
-                          <ArrowUpRight size={16} />
-                        </button>
-                        {administrator && (
-                          <button
-                            className={button}
-                            onClick={() => setMembers(server)}
-                            aria-label={`Access for ${server.name}`}
+        <div className={layout.view === 'table' ? 'gp-fleet-list-view' : ''}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={reorder}
+            accessibility={{
+              announcements: {
+                onDragStart: ({ active }) =>
+                  `Picked up ${servers.find((s) => s.id === active.id)?.name || 'server'}.`,
+                onDragOver: ({ over }) =>
+                  over
+                    ? `Over server ${servers.find((s) => s.id === over.id)?.name || ''}.`
+                    : 'Outside a reorder target.',
+                onDragEnd: () => 'Reordering finished.',
+                onDragCancel: () => 'Reordering cancelled.',
+              },
+            }}
+          >
+            {groups.map(([label, items]) => (
+              <section
+                key={layout.group === 'none' ? 'all' : game(items[0]).key}
+                className="gp-fleet-group"
+                aria-label={label ? `${label} servers` : 'All server cards'}
+              >
+                {label && (
+                  <h2 className="gp-fleet-group-title">
+                    {label}
+                    <span>{items.length}</span>
+                  </h2>
+                )}
+                <SortableContext items={items.map((s) => s.id)} strategy={rectSortingStrategy}>
+                  <div className="gp-fleet-grid">
+                    {items.map((server) => (
+                      <SortableCard
+                        key={server.id}
+                        server={server}
+                        disabled={layout.sort !== 'custom'}
+                      >
+                        <div className="gp-fleet-card-top">
+                          <span
+                            className={`gp-fleet-status ${server.available ? (server.status === 'running' ? 'is-running' : '') : 'is-unknown'}`}
                           >
-                            <Users size={16} />
-                            Access
-                          </button>
+                            <i />
+                            {server.status}
+                          </span>
+                          <span className="gp-fleet-provider">{game(server).label}</span>
+                        </div>
+                        <h3>{server.name}</h3>
+                        {server.displayId && (
+                          <span className="gp-fleet-server-id">{server.displayId}</span>
                         )}
-                      </div>
-                    </SortableCard>
-                  ))}
-                </div>
-              </SortableContext>
-            </section>
-          ))}
-        </DndContext>
+                        <p className="gp-fleet-location">
+                          <MapPin size={16} />
+                          <span>
+                            {server.node.location}
+                            <small>{server.node.name}</small>
+                          </span>
+                        </p>
+                        {runtimeDetails(server)}
+                        {quickActions(server)}
+                        {!server.available && (
+                          <p className="gp-fleet-notice">
+                            Node unavailable. Last observed{' '}
+                            {new Date(server.observedAt).toLocaleString()}. The game may still be
+                            running.
+                          </p>
+                        )}
+                        <div className="gp-fleet-card-footer">
+                          <button
+                            className={`${button} gp-fleet-primary`}
+                            disabled={busy || !server.available}
+                            onClick={() =>
+                              void run(async () =>
+                                openServer(
+                                  await nodesRequest<ServerContext>(
+                                    `/api/fleet/${server.id}/context`
+                                  )
+                                )
+                              )
+                            }
+                          >
+                            Open server
+                            <ArrowUpRight size={16} />
+                          </button>
+                          {administrator && (
+                            <button
+                              className={button}
+                              onClick={() => setMembers(server)}
+                              aria-label={`Access for ${server.name}`}
+                            >
+                              <Users size={16} />
+                              Access
+                            </button>
+                          )}
+                        </div>
+                      </SortableCard>
+                    ))}
+                  </div>
+                </SortableContext>
+              </section>
+            ))}
+          </DndContext>
+        </div>
+      )}
+      {consoleTabs.length > 0 && (
+        <FleetQuickConsole
+          tabs={consoleTabs}
+          active={activeConsole}
+          onActive={setActiveConsole}
+          onClose={(id) => {
+            const next = consoleTabs.filter((s) => s.id !== id);
+            setConsoleTabs(next);
+            if (activeConsole === id) setActiveConsole(next[0]?.id || '');
+          }}
+        />
+      )}
+      {power && (
+        <ConfirmationModal
+          isOpen
+          title={`${power.action} ${power.server.name}?`}
+          message={`This will ${power.action} ${power.server.displayId || power.server.name}. Connected players may be disconnected.`}
+          confirmText={power.action}
+          onClose={() => setPower(null)}
+          onConfirm={async () => {
+            const context = await fleetContext(power.server.id);
+            if (!fleetAllowed(context, 'server.power')) throw new Error('Power access denied');
+            await fleetRequest(context, `/${power.action}`, {});
+            setPower(null);
+            await load();
+          }}
+        />
       )}
       {members && <FleetAccess server={members} onClose={() => setMembers(null)} />}
     </section>

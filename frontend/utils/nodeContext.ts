@@ -5,6 +5,7 @@ const SERVER_KEY = 'gamepanel_active_server';
 const ADMIN_KEY = 'gamepanel_admin_runtime';
 const valid = /^(?:local|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 export type ServerContext = {
+  displayId?: string;
   id: string;
   nodeId: string;
   runtimeId: number;

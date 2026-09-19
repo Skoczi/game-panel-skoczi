@@ -27,6 +27,42 @@ function database() {
     return { native, db };
 }
 const instance = 'a'.repeat(32);
+test('global server numbers are stable, unique across nodes and never recycled', async () => {
+    const { native, db } = database();
+    const store = new FleetStore(db);
+    await store.initialize();
+    const item = { id: 1, runtimeKey: instance, name: 'Arena', provider: 'native', status: 'running' };
+    await Promise.all([store.observe('node-a', [item]), store.observe('node-b', [item])]);
+    const rows = await store.list();
+    assert.deepEqual(rows.map(r => r.server_number).sort(), [1, 2]);
+    const original = rows[0];
+    await store.grant(original.id, 2, ['server.power'], 1);
+    await store.initialize();
+    await store.observe(original.node_id, [{ ...item, name: 'Renamed', id: 42 }]);
+    assert.equal((await store.get(original.id))!.server_number, original.server_number);
+    await db.run('UPDATE fleet_servers SET node_id=? WHERE id=?', 'node-moved', original.id);
+    assert.equal((await store.get(original.id))!.server_number, original.server_number);
+    assert.deepEqual(await store.permissions(original.id, 2), ['server.power']);
+    await db.run('DELETE FROM fleet_servers');
+    await store.observe('node-c', [item]);
+    assert.equal((await store.list())[0].server_number, 3);
+    native.close();
+});
+
+test('global number backfill preserves existing UUIDs and grants and is repeatable', async () => {
+    const { native, db } = database();
+    const store = new FleetStore(db);
+    await store.initialize();
+    await store.observe('local', [{ id: 1, runtimeKey: instance, name: 'Old', provider: 'native', status: 'running' }]);
+    const original = (await store.list())[0];
+    await store.grant(original.id, 2, ['server.power'], 1);
+    native.exec('DROP TRIGGER fleet_allocate_server_number; DROP TABLE fleet_server_numbers');
+    await store.initialize();
+    await store.initialize();
+    assert.equal((await store.get(original.id))!.server_number, 1);
+    assert.deepEqual(await store.permissions(original.id, 2), ['server.power']);
+    native.close();
+});
 const scope = {
     actorId: 2,
     serverId: 1,

@@ -8,6 +8,7 @@ const serverId = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 const servers = [
   {
     id: serverId,
+    displayId: 'SRV-1',
     name: 'Community Arena',
     provider: 'external',
     status: 'running',
@@ -26,6 +27,127 @@ const servers = [
     node: { name: 'North-02', location: 'Helsinki, FI' },
   },
 ];
+test('global IDs, premium views and quick consoles stay scoped across identical local IDs', async ({
+  page,
+}) => {
+  const second = servers[1].id;
+  const mutations: { url: string; scope: string }[] = [];
+  await page.addInitScript(() => {
+    localStorage.setItem('auth_token', 'test-token');
+    localStorage.setItem('theme', 'dark');
+  });
+  await page.route('**/api/fleet', (r) =>
+    r.fulfill({
+      json: {
+        servers: [
+          servers[0],
+          { ...servers[1], displayId: 'SRV-2', status: 'running', available: true },
+        ],
+      },
+    })
+  );
+  for (const [id, node, number] of [
+    [serverId, nodeId, 1],
+    [second, 'local', 2],
+  ] as const) {
+    await page.route(`**/api/fleet/${id}/context`, (r) =>
+      r.fulfill({
+        json: {
+          id,
+          displayId: `SRV-${number}`,
+          nodeId: node,
+          runtimeId: 1,
+          permissions: ['server.power', 'container.logs.read', 'server.command.send'],
+          placementRevision: 1,
+        },
+      })
+    );
+  }
+  await page.route('**/api/servers/1**', (r) => {
+    if (r.request().method() === 'POST') {
+      mutations.push({
+        url: r.request().url(),
+        scope: r.request().headers()['x-gamepanel-server'],
+      });
+      return r.fulfill({ json: { ok: true } });
+    }
+    return r.fulfill({
+      json: r.request().url().includes('/metrics')
+        ? { metrics: [{ cpuUsage: 12.3, memoryUsage: 24.5 }] }
+        : {
+            server: {
+              id: 1,
+              name: 'Arena',
+              status: 'running',
+              provider: 'native',
+              ports: { udp: [{ hostIp: '192.0.2.10', host: 27015 }] },
+              providerMetadata: { template: { document: { schemaVersion: 2 } } },
+            },
+          },
+    });
+  });
+  const sockets: string[] = [];
+  await page.routeWebSocket(/\/api(?:\?|\/nodes\/)/, (ws) => {
+    sockets.push(ws.url());
+    ws.onMessage((raw) => {
+      const message = JSON.parse(String(raw));
+      if (message.type === 'auth') ws.send(JSON.stringify({ type: 'auth:success' }));
+      if (message.type === 'subscribe:logs')
+        ws.send(
+          JSON.stringify({
+            type: 'logs:history',
+            serverId: 1,
+            logs: [ws.url().includes(second) ? 'SECOND NODE LOG' : 'FIRST NODE LOG'],
+          })
+        );
+    });
+  });
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await page.goto('/test/fleet.fixture.html');
+  await expect(page.getByText('SRV-1', { exact: true })).toBeVisible();
+  await expect(page.getByText('12.3%')).toHaveCount(2);
+  await page.screenshot({ path: 'test-results/fleet-premium-cards-dark.png', fullPage: true });
+  await page.getByRole('button', { name: 'Table view' }).click();
+  await expect(page.getByRole('button', { name: 'Table view' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  const first = page.getByRole('article').filter({ hasText: 'Community Arena' });
+  const other = page.getByRole('article').filter({ hasText: 'Survival World' });
+  await first.getByRole('button', { name: 'Quick console', exact: true }).click();
+  await expect(page.getByText('FIRST NODE LOG', { exact: true })).toBeVisible();
+  await other.getByRole('button', { name: 'Quick console', exact: true }).click();
+  await expect(page.getByText('SECOND NODE LOG', { exact: true })).toBeVisible();
+  await expect(page.getByText('FIRST NODE LOG', { exact: true })).not.toBeVisible();
+  expect(
+    sockets.some((url) => url.includes(`/nodes/${nodeId}/ws?server=${serverId}`))
+  ).toBeTruthy();
+  expect(sockets.some((url) => url.includes(`/api?server=${second}`))).toBeTruthy();
+  expect(mutations).toHaveLength(0);
+  const command = page.getByPlaceholder('Type a command and press Enter…');
+  await command.fill('status');
+  await command.press('Enter');
+  await expect.poll(() => mutations.length).toBe(1);
+  expect(mutations[0].scope).toBe(second);
+  expect(new URL(mutations[0].url).pathname).toBe('/api/servers/1/console/commands');
+  await first.getByRole('button', { name: 'restart Community Arena', exact: true }).click();
+  expect(mutations).toHaveLength(1);
+  await page.getByRole('dialog').getByRole('button', { name: 'restart', exact: true }).click();
+  await expect.poll(() => mutations.length).toBe(2);
+  expect(mutations[1].scope).toBe(serverId);
+  expect(new URL(mutations[1].url).pathname).toBe(
+    `/api/nodes/${nodeId}/runtime/api/servers/1/restart`
+  );
+  await page.screenshot({ path: 'test-results/fleet-premium-list-dark.png', fullPage: true });
+  await page.evaluate(() => document.documentElement.classList.remove('dark'));
+  await expect(page.locator('.gp-fleet')).toHaveCSS('color', 'rgb(23, 35, 61)');
+  await page.screenshot({ path: 'test-results/fleet-premium-list-light.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(390);
+  await page.screenshot({ path: 'test-results/fleet-premium-mobile.png', fullPage: true });
+});
 test('custom dropdown supports keyboard, typeahead, cancellation and focus', async ({ page }) => {
   await page.goto('/test/fleet.fixture.html');
   const sort = page.getByRole('combobox', { name: 'Sort servers' });
@@ -259,7 +381,7 @@ test('opening a server automatically binds requests to its node and global ident
     .click();
   await expect(page).toHaveURL(new RegExp(`server=${serverId}`));
   await page.getByRole('button', { name: 'Test server route' }).click();
-  await expect.poll(() => remote).toBe(1);
+  await expect.poll(() => remote).toBe(2); // Workspace metrics hydrate the scoped runtime before navigation.
   expect(local).toBe(0);
   await page.getByRole('button', { name: 'All servers' }).click();
   await expect(page.getByRole('heading', { name: 'Game Servers', exact: true })).toBeVisible();
@@ -300,7 +422,9 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
   await expect(accessDialog.getByText('Console & terminal', { exact: true })).toBeVisible();
   await expect(accessDialog.getByLabel('View console logs', { exact: true })).toBeVisible();
   await page.evaluate(() => document.documentElement.classList.add('dark'));
-  await expect(accessDialog.locator('.gp-app-modal-footer').getByRole('button', { name: 'Close', exact: true })).toHaveCSS('background-color', 'rgb(17, 28, 48)');
+  await expect(
+    accessDialog.locator('.gp-app-modal-footer').getByRole('button', { name: 'Close', exact: true })
+  ).toHaveCSS('background-color', 'rgb(17, 28, 48)');
   await page.screenshot({ path: 'test-results/server-access-dark.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Save access' })).toBeVisible();

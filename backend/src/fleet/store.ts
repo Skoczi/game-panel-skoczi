@@ -4,6 +4,7 @@ import { ASSIGNABLE_SERVER_PERMISSIONS } from '../permissions.js';
 
 export type FleetRow = {
     id: string;
+    server_number: number;
     node_id: string;
     runtime_id: number;
     name: string;
@@ -43,6 +44,22 @@ export class FleetStore {
         const columns = await this.db.all<{ name: string }[]>('PRAGMA table_info(fleet_servers)');
         if (!columns.some(column => column.name === 'catalog_id'))
             await this.db.exec('ALTER TABLE fleet_servers ADD COLUMN catalog_id TEXT');
+        // Keep allocations after deletion: human-readable IDs must never be recycled.
+        // The trigger allocates atomically with insertion, including concurrent inventories.
+        await this.db.exec(`CREATE TABLE IF NOT EXISTS fleet_server_numbers (
+            number INTEGER PRIMARY KEY AUTOINCREMENT,
+            server_id TEXT NOT NULL UNIQUE
+        );
+        INSERT INTO fleet_server_numbers(server_id)
+            SELECT id FROM fleet_servers
+            WHERE id NOT IN (SELECT server_id FROM fleet_server_numbers)
+            ORDER BY observed_at,id;
+        CREATE TRIGGER IF NOT EXISTS fleet_allocate_server_number
+            AFTER INSERT ON fleet_servers BEGIN
+                INSERT INTO fleet_server_numbers(server_id)
+                    SELECT NEW.id WHERE NOT EXISTS
+                    (SELECT 1 FROM fleet_server_numbers WHERE server_id=NEW.id);
+            END;`);
     }
     async observe(node: string, inventory: InventoryItem[], requireEnabledNode = false) {
         // Validate the complete snapshot before changing any state; a failed/partial read never marks servers missing.
@@ -92,10 +109,10 @@ export class FleetStore {
                 await this.db.run('UPDATE fleet_servers SET missing=1 WHERE id=?', row.id);
     }
     get(id: string): Promise<FleetRow | undefined> {
-        return this.db.get('SELECT * FROM fleet_servers WHERE id=?', id);
+        return this.db.get('SELECT s.*,n.number AS server_number FROM fleet_servers s JOIN fleet_server_numbers n ON n.server_id=s.id WHERE s.id=?', id);
     }
     list(): Promise<FleetRow[]> {
-        return this.db.all('SELECT * FROM fleet_servers ORDER BY name,id');
+        return this.db.all('SELECT s.*,n.number AS server_number FROM fleet_servers s JOIN fleet_server_numbers n ON n.server_id=s.id ORDER BY s.name,s.id');
     }
     async grants(id: string) {
         return this.db.all<{ user_id: number; username: string; permissions_json: string }[]>(

@@ -28,7 +28,7 @@ export class RealtimeGateway {
   private wsAuthed = false;
   private wsListeners = new Set<WebSocketListener>();
 
-  constructor(private readonly getAuthToken: () => string | null) {}
+  constructor(private readonly getAuthToken: () => string | null, private readonly socketUrl = WS_URL) {}
 
   resetState() {
     this.pendingServersMetricsSubscription = false;
@@ -163,7 +163,7 @@ export class RealtimeGateway {
 
     const connectPromise = new Promise<void>((resolve, reject) => {
       try {
-        const ws = new WebSocket(WS_URL);
+        const ws = new WebSocket(this.socketUrl);
         this.ws = ws;
 
         ws.onmessage = (event) => {
@@ -446,7 +446,7 @@ export class RealtimeGateway {
     }
 
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(this.socketUrl);
       let settled = false;
 
       const cleanup = () => {
@@ -519,6 +519,6 @@ export class RealtimeGateway {
   }
 
   getWebSocketUrl(): string {
-    return WS_URL;
+    return this.socketUrl;
   }
 }

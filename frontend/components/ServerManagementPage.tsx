@@ -17,7 +17,7 @@ import type { AuthUser } from '../utils/permissions';
 import type { ServerMetricHistoryPoint, ServerHistoryEntry } from '../utils/serverRuntime';
 import { isServerDownLike, isServerUpLike } from '../utils/serverRuntime';
 import { apiClient, PUBLIC_CONNECTION_HOST } from '../utils/api';
-import { ACTIVE_NODE } from '../utils/nodeContext';
+import { ACTIVE_NODE, ACTIVE_SERVER } from '../utils/nodeContext';
 import { isNativeTemplate } from '../utils/providerCapabilities';
 import { gameDisplayName } from '../utils/gameDisplayName';
 import {
@@ -212,6 +212,7 @@ export function ServerManagementPage({
           <div className="gp-server-identity">
             <div className="gp-server-titles">
               <h1>{server.name}</h1>
+              {ACTIVE_SERVER?.displayId && <small className="gp-server-display-id">{ACTIVE_SERVER.displayId}</small>}
               <span className="gp-server-game">
                 <span className="gp-server-title-separator" aria-hidden="true">
                   –

@@ -261,6 +261,7 @@ export function mountFleet(app: express.Application) {
                     Date.now() - (reachable.get(row.node_id) || 0) < 75000;
                 servers.push({
                     id: row.id,
+                    displayId: `SRV-${row.server_number}`,
                     name: row.name,
                     provider: row.provider,
                     catalogId: row.catalog_id,
@@ -296,6 +297,7 @@ export function mountFleet(app: express.Application) {
                 return res.status(503).json({ error: 'Node unavailable' });
             res.json({
                 id: row.id,
+                displayId: `SRV-${row.server_number}`,
                 runtimeId: row.runtime_id,
                 nodeId: row.node_id,
                 name: row.name,

@@ -41,6 +41,9 @@
 }
 .gp-editor-tab[data-active='true'] {
   background: var(--color-cyan-400, #00c8df);
+  color: #fff;
+}
+.dark .gp-editor-tab[data-active='true'] {
   color: #071525;
 }
 .gp-editor-tab:not([data-active='true']):hover {

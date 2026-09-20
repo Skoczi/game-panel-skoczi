@@ -1,6 +1,6 @@
 {
   "name": "game-panel-backend",
-  "version": "1.5.0-skoczi.36",
+  "version": "1.5.0-skoczi.37",
   "description": "Game Panel Backend",
   "type": "module",
   "main": "dist/index.js",

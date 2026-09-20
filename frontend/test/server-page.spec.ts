@@ -346,6 +346,7 @@ test('editor tabs keep drafts, save the selected path and confirm closing dirty 
   await page.screenshot({ path: 'test-results/editor-session-dark-hover.png', fullPage: true });
   await page.getByRole('button', { name: 'Switch to light mode' }).click();
   await expect(visibleEditor).toHaveClass(/vs/);
+  await expect(page.getByRole('tab', { name: 'server.cfg' })).toHaveCSS('color', 'rgb(255, 255, 255)');
   await page.screenshot({ path: 'test-results/editor-session-light.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

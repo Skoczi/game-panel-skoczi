@@ -155,6 +155,27 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
   }
 }
 
+test('restart confirmation follows the settings pane with the console open', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/containerconfig');
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  await page.getByPlaceholder('e.g. 2', { exact: true }).fill('2');
+  await page.getByRole('button', { name: 'Save container config' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Restart required' });
+  await expect(dialog).toBeVisible();
+  const pane = await page.locator('.gp-server-workspace-main').boundingBox();
+  const box = await dialog.boundingBox();
+  expect(Math.abs(box!.x + box!.width / 2 - pane!.x - pane!.width / 2)).toBeLessThan(2);
+  expect(box!.x + box!.width).toBeLessThan(pane!.x + pane!.width);
+  expect(await dialog.evaluate(el => el.contains(document.elementFromPoint(el.getBoundingClientRect().right - 10, el.getBoundingClientRect().top + 10)))).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await dialog.boundingBox();
+  expect(mobile!.x).toBeGreaterThanOrEqual(0);
+  expect(mobile!.x + mobile!.width).toBeLessThanOrEqual(390);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     sessionStorage.setItem('gamepanel_admin_runtime', '1');

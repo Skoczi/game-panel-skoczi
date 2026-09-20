@@ -1,5 +1,6 @@
 // Modified by Skoczi: retain and edit host IPv4 allocations without widening bindings.
 import { HostIpSelect } from '../HostIpSelect';
+import { WorkspaceModalOverlay } from './WorkspaceModalOverlay';
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Save, AlertTriangle, Loader2, RefreshCw, X } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
@@ -684,8 +685,8 @@ export function ContainerConfigTab({
       </div>
 
       {showRestartConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className={`${contentBg} border ${borderColor} w-full max-w-md rounded-xl shadow-2xl`}>
+        <WorkspaceModalOverlay>
+          <div role="dialog" aria-modal="true" aria-label="Restart required" className={`${contentBg} border ${borderColor} w-full max-w-md rounded-xl shadow-2xl`}>
             <div className={`flex items-center justify-between border-b ${borderColor} px-6 py-4`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
@@ -728,7 +729,7 @@ export function ContainerConfigTab({
               </AppButton>
             </div>
           </div>
-        </div>
+        </WorkspaceModalOverlay>
       )}
     </div>
   );

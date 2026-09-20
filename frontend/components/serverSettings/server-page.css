@@ -128,9 +128,13 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 11px 16px;
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
   border: 1px solid var(--gp-border, #334155);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--gp-surface, #111c30);
   color: inherit;
 }
@@ -142,8 +146,8 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 .gp-server-heading-main {
   display: flex;
@@ -166,9 +170,9 @@
   min-width: 0;
 }
 .gp-server-heading h1 {
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 700;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
   overflow-wrap: anywhere;
   margin: 0;
 }
@@ -181,7 +185,7 @@
 }
 .gp-server-game {
   color: var(--gp-muted);
-  font-size: 15px;
+  font-size: 13px;
   line-height: 24px;
   overflow-wrap: anywhere;
 }
@@ -199,7 +203,7 @@
 .gp-server-power {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 @media (max-width: 700px) {
@@ -226,7 +230,7 @@
   display: flex;
   align-items: stretch;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   border-bottom: 1px solid #334155;
 }
 .gp-server-navigation .gp-server-tabs {
@@ -383,7 +387,9 @@
   color: inherit;
   text-decoration: none;
   white-space: nowrap;
-  padding: 15px 16px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 20px;
   border-bottom: 3px solid transparent;
 }
 .gp-server-tabs a[aria-current] {

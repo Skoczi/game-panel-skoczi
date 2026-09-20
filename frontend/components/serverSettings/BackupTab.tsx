@@ -132,7 +132,7 @@ export function BackupTab({
   const toggleRowClass = `p-4 rounded-lg border ${borderColor} bg-gray-50 dark:bg-gray-900/30 flex items-center justify-between gap-4`;
 
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6">
+    <div className="h-full overflow-y-auto p-4 sm:p-5">
       <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -169,7 +169,7 @@ export function BackupTab({
         )}
 
         {isLinuxGSMGame && (
-          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6 space-y-6 sm:space-y-8`}>
+          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5 space-y-6 sm:space-y-5`}>
             <h4 className={`text-lg font-semibold ${textPrimary}`}>Retention Policy</h4>
             {backupSettingsError && <div className="text-sm text-red-400">{backupSettingsError}</div>}
             <div className="space-y-5">
@@ -249,7 +249,7 @@ export function BackupTab({
         )}
 
         {!backupsNotSupported && (
-          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6 space-y-3 sm:space-y-4`}>
+          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5 space-y-3 sm:space-y-4`}>
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
               <div>
                 <h4 className={`text-lg font-semibold ${textPrimary} mb-1`}>Available Backups</h4>

@@ -16,6 +16,11 @@ test('server header is a compact toolbar and wraps cleanly on mobile', async ({ 
   await expect(page.getByText(/SERVER MANAGEMENT/)).toHaveCount(0);
   expect((await heading.boundingBox())!.height).toBeLessThan(65);
   const backBox = (await back.boundingBox())!;
+  expect(backBox.height).toBeLessThanOrEqual(38);
+  await expect(back).toHaveCSS('font-size', '14px');
+  for (const button of await power.getByRole('button').all()) {
+    expect((await button.boundingBox())!.height).toBeLessThanOrEqual(38);
+  }
   const nameBox = (await name.boundingBox())!;
   const gameBox = (await heading.locator('.gp-server-game').boundingBox())!;
   expect(gameBox.x - (nameBox.x + nameBox.width)).toBeCloseTo(7, 0);

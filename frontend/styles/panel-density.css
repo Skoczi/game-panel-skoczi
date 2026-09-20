@@ -1,9 +1,9 @@
 /* Shared density for page controls, not editor/terminal content or navigation. */
-.gp-page-layout {
+:is(.gp-page-layout, .gp-app-modal-content) {
   --gp-control-height: 36px;
   --gp-control-font: 14px;
 }
-.gp-page-layout .gp-app-button[data-ods='button'] {
+:is(.gp-page-layout, .gp-app-modal-content) .gp-app-button[data-ods='button'] {
   min-height: var(--gp-control-height);
   font-size: var(--gp-control-font);
   line-height: 20px;
@@ -12,7 +12,7 @@
   border-radius: 8px;
   font-weight: 500;
 }
-.gp-page-layout .gp-app-button[data-ods='button'] > svg,
+:is(.gp-page-layout, .gp-app-modal-content) .gp-app-button[data-ods='button'] > svg,
 .gp-server-heading button > svg {
   width: 16px;
   height: 16px;
@@ -36,12 +36,12 @@
   font-size: 14px;
 }
 /* Keep icon-only actions compact; their enclosing row already supplies spacing. */
-.gp-page-layout .gp-app-button[data-ods='button']:has(> svg:only-child) {
+:is(.gp-page-layout, .gp-app-modal-content) .gp-app-button[data-ods='button']:has(> svg:only-child) {
   padding: 7px;
   min-width: var(--gp-control-height);
 }
 @media (pointer: coarse) {
-  .gp-page-layout { --gp-control-height: 44px; }
+  :is(.gp-page-layout, .gp-app-modal-content) { --gp-control-height: 44px; }
   .gp-server-back, .gp-server-power button, .gp-console-dock-toggle,
   .gp-server-tabs a { min-height: 44px; }
   .gp-page-layout .gp-app-input { font-size: 16px; }

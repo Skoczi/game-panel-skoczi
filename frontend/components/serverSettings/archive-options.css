@@ -1,0 +1,64 @@
+.gp-archive-options[data-ods='modal-content'] {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: auto;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.gp-archive-options .gp-app-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 64px 18px 20px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+.gp-archive-options .gp-app-modal-title { font-size: 16px; line-height: 24px; margin: 0; }
+.gp-archive-options .gp-app-modal-description {
+  font-size: 12px;
+  line-height: 18px;
+  margin: 4px 0 0;
+  color: inherit;
+  opacity: .65;
+  overflow-wrap: anywhere;
+}
+.gp-archive-options-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  color: var(--gp-primary-300, #06b6d4);
+  background: color-mix(in srgb, var(--gp-primary-300, #06b6d4) 10%, transparent);
+}
+.gp-archive-options[data-ods='modal-content'] [data-part='close-trigger'] {
+  top: 18px; right: 16px; width: 30px; min-width: 30px; height: 30px; border-radius: 8px;
+}
+.gp-archive-options .gp-app-modal-body { padding: 20px; display: grid; gap: 18px; }
+.gp-archive-option-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.gp-archive-option-row strong, .gp-archive-retention strong { font-size: 13px; font-weight: 500; }
+.gp-archive-option-row p, .gp-archive-retention small { display: block; font-size: 12px; margin: 3px 0 0; opacity: .65; }
+.gp-archive-option-row .gp-app-toggle { flex-shrink: 0; }
+.gp-archive-retention { display: grid; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.gp-archive-retention legend { padding: 0 0 8px; font-size: 12px; opacity: .65; }
+.gp-archive-retention label {
+  display: flex; align-items: center; gap: 12px; padding: 12px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 9px; cursor: pointer;
+}
+.gp-archive-retention label:has(input:checked) {
+  border-color: var(--gp-primary-300, #06b6d4);
+  background: color-mix(in srgb, var(--gp-primary-300, #06b6d4) 7%, transparent);
+}
+.gp-archive-retention input { width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--gp-primary-300, #06b6d4); }
+.gp-archive-options-note { font-size: 12px; margin: 0; opacity: .65; }
+.gp-archive-options .gp-app-modal-footer {
+  padding: 14px 20px;
+  gap: 8px;
+  border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+}
+@media (pointer: coarse) {
+  .gp-archive-options[data-ods='modal-content'] [data-part='close-trigger'] { width: 44px; height: 44px; top: 12px; right: 12px; }
+}

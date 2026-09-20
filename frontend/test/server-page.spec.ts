@@ -205,7 +205,7 @@ test('workspace and dock fill the viewport with matching bottom edges across tab
   }).toBeLessThan(2);
 });
 
-for (const remove of [false, true]) test(`ZIP upload waits for extraction and retention choice (delete=${remove})`, async ({ page }) => {
+for (const remove of [false, true]) test(`ZIP upload waits for extraction and retention choice (delete=${remove})`, async ({ page }, testInfo) => {
   const extracted: any[] = [];
   await page.route('**/files/upload?**', route => route.fulfill({ json: { ok: true } }));
   await page.route('**/files/extract', route => {
@@ -217,8 +217,14 @@ for (const remove of [false, true]) test(`ZIP upload waits for extraction and re
   await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles({ name: 'maps.zip', mimeType: 'application/zip', buffer: Buffer.from('mock archive') });
   await expect(page.getByText('Upload options', { exact: true })).toBeVisible();
   expect(extracted).toHaveLength(0);
-  await page.getByLabel('Extract ZIP after upload', { exact: true }).check();
+  const dialog = page.locator('.gp-archive-options');
+  await expect(dialog).toHaveCSS('border-radius', '14px');
+  await expect(dialog.getByRole('button', { name: 'Upload', exact: true })).toHaveCSS('font-size', '14px');
+  await expect(dialog.getByRole('button', { name: 'Upload', exact: true })).toHaveCSS('padding', '7px 12px');
+  await expect(dialog.locator('[data-part="close-trigger"]')).toHaveCSS('width', '30px');
+  await page.getByRole('switch', { name: 'Extract ZIP after upload', exact: true }).click();
   await expect(page.getByLabel('Keep ZIP archive', { exact: true })).toBeChecked();
+  await dialog.screenshot({ path: testInfo.outputPath('archive-options.png') });
   if (remove) await page.getByLabel('Delete ZIP only after successful extraction').check();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect.poll(() => extracted.length).toBe(1);

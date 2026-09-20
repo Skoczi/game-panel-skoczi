@@ -23,7 +23,8 @@ import {
 import type { DragEvent, MouseEvent } from 'react';
 import { lazy, Suspense, useCallback, useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { AppButton, AppInput, AppModal, AppModalContent, AppModalBody } from '../../src/ui/components';
+import { AppButton, AppInput, AppModal, AppModalContent, AppModalBody, AppModalHeader, AppModalTitle, AppModalDescription, AppModalFooter, AppToggle } from '../../src/ui/components';
+import './archive-options.css';
 import { useCoarsePointer } from '../../src/ui/utils/useCoarsePointer';
 import { EditorSessionView } from './EditorSessionView';
 import type { EditorSession } from './useEditorSession';
@@ -289,28 +290,40 @@ export function FileManagerTab({
         event.target.value = '';
       }} />
       <AppModal open={pendingUpload.length > 0 || pendingExtract !== null} onOpenChange={open => { if (!open) { setPendingUpload([]); setPendingExtract(null); } }}>
-        <AppModalContent>
+        <AppModalContent className="gp-archive-options">
+          <AppModalHeader>
+            <span className="gp-archive-options-icon"><FileArchive size={18} aria-hidden="true" /></span>
+            <div>
+              <AppModalTitle>{pendingExtract ? 'Extract archive' : 'Upload options'}</AppModalTitle>
+              <AppModalDescription>{pendingExtract ?? `${pendingUpload.length} ${pendingUpload.length === 1 ? 'file' : 'files'} selected · Choose how to handle ZIP archives`}</AppModalDescription>
+            </div>
+          </AppModalHeader>
           <AppModalBody>
-            <div className="space-y-4 p-4">
-              <h2 className="text-lg font-semibold pr-12">{pendingExtract ? 'Extract archive' : 'Upload options'}</h2>
-              <p className="text-sm">{pendingExtract ?? `${pendingUpload.length} files selected. ZIP archives can be extracted into their upload directory.`}</p>
-              {!pendingExtract && <label className="flex items-center gap-2"><input type="checkbox" checked={uploadOptions.extractZip} onChange={e => setUploadOptions(o => ({ ...o, extractZip: e.target.checked }))} />Extract ZIP after upload</label>}
+              {!pendingExtract && <div className="gp-archive-option-row">
+                <div><strong>Automatic extraction</strong><p>Unpack ZIP files into their upload directory.</p></div>
+                <AppToggle size="compact" ariaLabel="Extract ZIP after upload" checked={uploadOptions.extractZip} onChange={checked => setUploadOptions(o => ({ ...o, extractZip: checked }))} />
+              </div>}
               {uploadOptions.extractZip && <>
-                <label className="flex items-center gap-2"><input type="radio" name="archive-retention" checked={!uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: false }))} />Keep ZIP archive</label>
-                <label className="flex items-center gap-2"><input type="radio" name="archive-retention" checked={uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: true }))} />Delete ZIP only after successful extraction</label>
-                <label className="flex items-center gap-2"><input type="checkbox" checked={uploadOptions.overwrite} onChange={e => setUploadOptions(o => ({ ...o, overwrite: e.target.checked }))} />Allow extraction to overwrite existing files</label>
-                <p className="text-sm">If extraction fails, the ZIP is kept. Existing files are preserved unless overwrite is enabled.</p>
+                <fieldset className="gp-archive-retention">
+                  <legend>After extraction</legend>
+                  <label><input type="radio" name="archive-retention" aria-label="Keep ZIP archive" checked={!uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: false }))} /><span><strong>Keep archive</strong><small>Leave the original file on the server.</small></span></label>
+                  <label><input type="radio" name="archive-retention" aria-label="Delete ZIP only after successful extraction" checked={uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: true }))} /><span><strong>Delete after success</strong><small>Remove the archive only when extraction finishes.</small></span></label>
+                </fieldset>
+                <div className="gp-archive-option-row">
+                  <div><strong>Overwrite existing files</strong><p>Replace files with matching names.</p></div>
+                  <AppToggle size="compact" ariaLabel="Allow extraction to overwrite existing files" checked={uploadOptions.overwrite} onChange={checked => setUploadOptions(o => ({ ...o, overwrite: checked }))} />
+                </div>
+                <p className="gp-archive-options-note">If extraction fails, the archive is kept. Existing files are preserved unless overwrite is enabled.</p>
               </>}
-              <div className="flex justify-end gap-2">
+          </AppModalBody>
+              <AppModalFooter>
                 <AppButton onClick={() => { setPendingUpload([]); setPendingExtract(null); }}>Cancel</AppButton>
                 <AppButton tone="primary" onClick={() => {
                   if (pendingExtract) onExtractFile?.(pendingExtract, uploadOptions);
                   else onUploadFiles?.(pendingUpload, uploadOptions);
                   setPendingUpload([]); setPendingExtract(null);
                 }}>{pendingExtract ? 'Extract' : 'Upload'}</AppButton>
-              </div>
-            </div>
-          </AppModalBody>
+              </AppModalFooter>
         </AppModalContent>
       </AppModal>
 

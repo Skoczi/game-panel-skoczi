@@ -529,6 +529,11 @@ function AppContent() {
   }, [activeTab, canManageUsers]);
 
   const handleLogin = () => {
+    if (window.location.pathname.startsWith('/s/')) {
+      // Resolve the destination before mounting clients bound to a particular runtime.
+      window.location.reload();
+      return;
+    }
     if (window.location.pathname !== '/') {
       window.history.replaceState(null, '', '/');
     }

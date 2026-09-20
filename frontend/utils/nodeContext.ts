@@ -1,4 +1,5 @@
 import { clearAppCache } from './appStorage';
+import { appRootPath, serverNumber, shortServerRoute, shortServerUrl } from './serverLinks';
 
 const KEY = 'gamepanel_active_node';
 const SERVER_KEY = 'gamepanel_active_server';
@@ -48,7 +49,7 @@ export function selectNode(id: string, preserveServerPage = false) {
   sessionStorage.removeItem(SERVER_KEY);
   const hash =
     preserveServerPage && location.hash.startsWith(`#/nodes/${id}/servers/`) ? location.hash : '';
-  history.replaceState(null, '', `${location.pathname}${hash}`);
+  history.replaceState(null, '', `${appRootPath()}${hash}`);
   clearAppCache();
   window.location.reload();
 }
@@ -63,17 +64,21 @@ export function openServer(context: ServerContext) {
   const hash = location.hash.startsWith(`#/nodes/${context.nodeId}/servers/${context.runtimeId}/`)
     ? location.hash
     : '';
+  const number = serverNumber(context.displayId);
+  const tab = shortServerRoute()?.tab || hash.split('/').pop() || 'console';
   history.replaceState(
     null,
     '',
-    `${location.pathname}?server=${encodeURIComponent(context.id)}${hash}`
+    number
+      ? shortServerUrl(number, tab)
+      : `${appRootPath()}?server=${encodeURIComponent(context.id)}${hash}`
   );
   clearAppCache();
   window.location.reload();
 }
 export function openFleet() {
   clearNodeSelection();
-  history.replaceState(null, '', location.pathname);
+  history.replaceState(null, '', appRootPath());
   clearAppCache();
   window.location.reload();
 }

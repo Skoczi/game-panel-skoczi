@@ -27,6 +27,58 @@ function database() {
     return { native, db };
 }
 const instance = 'a'.repeat(32);
+test('short context aliases use the same scoped grants and unavailable checks as UUID links', async () => {
+    const { native, db } = database();
+    const store = new FleetStore(db);
+    await store.initialize();
+    const item = { id: 8, runtimeKey: instance, name: 'Arena', provider: 'native', status: 'running' };
+    await store.observe('node-a', [item]);
+    await store.observe('node-b', [item]);
+    const [a, b] = await store.list();
+    await store.grant(a.id, 2, ['server.power'], 1);
+    let enabled = 1;
+    const routes = new Map<string, any>();
+    const router = {
+        use() {}, post() {}, put() {}, delete() {},
+        get(path: string, handler: any) { routes.set(path, handler); },
+    };
+    const control = loadWithMocks('../src/fleet/control.ts', {
+        express: { Router: () => router, json: () => () => {} },
+        'node:http': {}, 'node:https': {},
+        '../database/init.js': { getDatabase: async () => db },
+        '../database/index.js': { serverRepository: { listAll: async () => [] } },
+        '../middleware/auth.js': { authMiddleware() {}, rootOnly() {} },
+        '../nodes/control.js': { nodes: () => ({ list: async () => [], get: async () => ({ enabled, key_encrypted: 'test' }) }) },
+        '../nodes/store.js': {}, '../nodes/transport.js': {}, '../nodes/protocol.js': {},
+        '../nodes/delegation.js': {}, '../permissions.js': { ASSIGNABLE_SERVER_PERMISSIONS: ['server.power'] },
+        './store.js': { FleetStore: class { constructor() { return store; } } },
+        './displayIdentity.js': {},
+    }, { setInterval: () => ({ unref() {} }) });
+    await control.initializeFleet();
+    control.mountFleet({ use() {} });
+    const request = (id: string, userId = 2) => new Promise<any>((resolve, reject) => {
+        let status = 200;
+        routes.get('/:id/context')({ params: { id }, user: { userId, isRoot: false } }, {
+            status(code: number) { status = code; return this; },
+            json(body: unknown) { resolve({ status, body }); },
+        }, reject);
+    });
+    const numeric = await request(String(a.server_number));
+    assert.equal(numeric.status, 200);
+    assert.equal(numeric.body.id, a.id);
+    assert.equal(numeric.body.nodeId, a.node_id);
+    assert.equal(numeric.body.runtimeId, 8);
+    assert.deepEqual(JSON.parse(JSON.stringify(numeric)), JSON.parse(JSON.stringify(await request(a.id))));
+    assert.equal((await request(String(b.server_number))).status, 404);
+    assert.equal((await request(String(a.server_number), 3)).status, 404);
+    enabled = 0;
+    assert.equal((await request(String(a.server_number))).status, 503);
+    enabled = 1;
+    await store.observe(a.node_id, []);
+    assert.equal((await request(String(a.server_number))).status, 404);
+    for (const id of ['0', '01', '-1', '9007199254740992']) assert.equal((await request(id)).status, 404);
+    native.close();
+});
 test('global server numbers are stable, unique across nodes and never recycled', async () => {
     const { native, db } = database();
     const store = new FleetStore(db);
@@ -36,6 +88,8 @@ test('global server numbers are stable, unique across nodes and never recycled',
     const rows = await store.list();
     assert.deepEqual(rows.map(r => r.server_number).sort(), [1, 2]);
     const original = rows[0];
+    assert.equal((await store.getByNumber(original.server_number!))!.id, original.id);
+    assert.notEqual((await store.getByNumber(rows[1].server_number!))!.id, original.id);
     await store.grant(original.id, 2, ['server.power'], 1);
     await store.initialize();
     await store.observe(original.node_id, [{ ...item, name: 'Renamed', id: 42 }]);
@@ -43,7 +97,9 @@ test('global server numbers are stable, unique across nodes and never recycled',
     await db.run('UPDATE fleet_servers SET node_id=? WHERE id=?', 'node-moved', original.id);
     assert.equal((await store.get(original.id))!.server_number, original.server_number);
     assert.deepEqual(await store.permissions(original.id, 2), ['server.power']);
+    assert.equal((await store.getByNumber(original.server_number!))!.node_id, 'node-moved');
     await db.run('DELETE FROM fleet_servers');
+    assert.equal(await store.getByNumber(original.server_number!), undefined);
     await store.observe('node-c', [item]);
     assert.equal((await store.list())[0].server_number, 3);
     native.close();

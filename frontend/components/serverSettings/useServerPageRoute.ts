@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ACTIVE_NODE, ACTIVE_SERVER } from '../../utils/nodeContext';
+import { ACTIVE_NODE, ACTIVE_SERVER, openFleet } from '../../utils/nodeContext';
 import type { SettingsTab } from './access';
+import { serverNumber, shortServerRoute, shortServerUrl } from '../../utils/serverLinks';
 
 export type ServerPageTab = SettingsTab | 'console' | 'activity' | 'network';
 export const SERVER_PAGE_TABS: ServerPageTab[] = [
@@ -20,6 +21,13 @@ export interface ServerPageRoute {
   tab: ServerPageTab;
 }
 function readRoute(): ServerPageRoute | null {
+  const shortRoute = shortServerRoute();
+  if (shortRoute && ACTIVE_SERVER && shortRoute.number === serverNumber(ACTIVE_SERVER.displayId))
+    return {
+      node: ACTIVE_NODE,
+      id: String(ACTIVE_SERVER.runtimeId),
+      tab: shortRoute.tab as ServerPageTab,
+    };
   const match = /^#\/nodes\/([^/]+)\/servers\/(\d+)\/([^/]+)$/.exec(location.hash);
   if (match)
     return {
@@ -34,6 +42,9 @@ function readRoute(): ServerPageRoute | null {
     : null;
 }
 export function serverPageHash(route: ServerPageRoute) {
+  const number = serverNumber(ACTIVE_SERVER?.displayId);
+  if (number && route.node === ACTIVE_NODE && route.id === String(ACTIVE_SERVER?.runtimeId))
+    return shortServerUrl(number, route.tab);
   return `#/nodes/${route.node}/servers/${route.id}/${route.tab}`;
 }
 export function useServerPageRoute() {
@@ -53,7 +64,9 @@ export function useServerPageRoute() {
       history.pushState(
         null,
         '',
-        `${location.pathname}${location.search}${next ? serverPageHash(next) : ''}`
+        next && serverPageHash(next).startsWith('/')
+          ? serverPageHash(next)
+          : `${location.pathname}${location.search}${next ? serverPageHash(next) : ''}`
       );
       acceptedUrl.current = location.href;
       setRoute(next);
@@ -69,6 +82,21 @@ export function useServerPageRoute() {
         return;
       }
       acceptedUrl.current = location.href;
+      const shortRoute = shortServerRoute();
+      const requestedServer = new URLSearchParams(location.search).get('server');
+      if (
+        (location.pathname.startsWith('/s/') &&
+          (!shortRoute || shortRoute.number !== serverNumber(ACTIVE_SERVER?.displayId))) ||
+        (requestedServer && requestedServer !== ACTIVE_SERVER?.id)
+      ) {
+        // Runtime clients are bound at module load; never reuse them for another server.
+        window.location.reload();
+        return;
+      }
+      if (ACTIVE_SERVER && !shortRoute && !requestedServer && !location.hash) {
+        openFleet();
+        return;
+      }
       setRoute(readRoute());
     };
     const unloading = (event: BeforeUnloadEvent) => {

@@ -281,7 +281,12 @@ export function mountFleet(app: express.Application) {
     router.get(
         '/:id/context',
         safe(async (req, res) => {
-            const row = await store.get(req.params.id);
+            // Both aliases enter the same missing-server and grant checks below.
+            // A public number is global, never a runtime ID on the selected node.
+            const number = /^[1-9]\d*$/.test(req.params.id) ? Number(req.params.id) : null;
+            const row = number !== null && Number.isSafeInteger(number)
+                ? await store.getByNumber(number)
+                : await store.get(req.params.id);
             const permissions =
                 row && !row.missing
                     ? await fleetPermissions(row, req.user!)

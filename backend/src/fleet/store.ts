@@ -111,6 +111,9 @@ export class FleetStore {
     get(id: string): Promise<FleetRow | undefined> {
         return this.db.get('SELECT s.*,n.number AS server_number FROM fleet_servers s JOIN fleet_server_numbers n ON n.server_id=s.id WHERE s.id=?', id);
     }
+    getByNumber(number: number): Promise<FleetRow | undefined> {
+        return this.db.get('SELECT s.*,n.number AS server_number FROM fleet_servers s JOIN fleet_server_numbers n ON n.server_id=s.id WHERE n.number=?', number);
+    }
     list(): Promise<FleetRow[]> {
         return this.db.all('SELECT s.*,n.number AS server_number FROM fleet_servers s JOIN fleet_server_numbers n ON n.server_id=s.id ORDER BY s.name,s.id');
     }

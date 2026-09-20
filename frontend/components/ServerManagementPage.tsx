@@ -19,6 +19,7 @@ import type { ServerMetricHistoryPoint, ServerHistoryEntry } from '../utils/serv
 import { isServerDownLike, isServerUpLike } from '../utils/serverRuntime';
 import { apiClient, PUBLIC_CONNECTION_HOST } from '../utils/api';
 import { ACTIVE_NODE, ACTIVE_SERVER } from '../utils/nodeContext';
+import { serverPageHash } from './serverSettings/useServerPageRoute';
 import { isNativeTemplate } from '../utils/providerCapabilities';
 import { gameDisplayName } from '../utils/gameDisplayName';
 import {
@@ -271,7 +272,7 @@ export function ServerManagementPage({
         {tabs.map((key) => (
           <a
             key={key}
-            href={`#/nodes/${ACTIVE_NODE}/servers/${server.id}/${key}`}
+            href={serverPageHash({ node: ACTIVE_NODE, id: String(server.id), tab: key })}
             aria-current={tab === key ? 'page' : undefined}
             onClick={(event) => {
               if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

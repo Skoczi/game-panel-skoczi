@@ -318,7 +318,11 @@ test('editor tabs keep drafts, save the selected path and confirm closing dirty 
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type('hostname draft');
   await page.getByRole('button', { name: 'Browse files' }).click();
+  const browserTabsHeight = (await page.getByRole('tablist', { name: 'Open files' }).boundingBox())!.height;
   await page.getByText('other.cfg', { exact: true }).dblclick();
+  expect((await page.getByRole('tablist', { name: 'Open files' }).boundingBox())!.height).toBe(browserTabsHeight);
+  expect((await page.locator('.gp-editor-toolbar:visible').boundingBox())!.height).toBe(52);
+  expect((await page.getByRole('button', { name: 'Save', exact: true }).boundingBox())!.height).toBe(30);
   await expect(page.getByRole('tab', { name: 'other.cfg' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'server.cfg' }).click();
   await expect(visibleEditor).toContainText('hostname draft');

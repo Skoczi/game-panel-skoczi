@@ -21,9 +21,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { DragEvent, MouseEvent } from 'react';
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { AppButton, AppInput } from '../../src/ui/components';
+import { AppButton, AppInput, AppModal, AppModalContent, AppModalBody } from '../../src/ui/components';
 import { useCoarsePointer } from '../../src/ui/utils/useCoarsePointer';
 import { EditorSessionView } from './EditorSessionView';
 import type { EditorSession } from './useEditorSession';
@@ -57,6 +57,7 @@ export interface UploadQueueItem {
   error?: string;
   done: boolean;
 }
+export interface UploadOptions { extractZip: boolean; deleteArchive: boolean; overwrite: boolean }
 
 interface FileRoot {
   key: string;
@@ -114,10 +115,10 @@ interface FileManagerTabProps {
   handleDownloadFile: () => void;
   handleCopyContent: () => void;
   copyContentSuccess: boolean;
-  onUploadFiles?: (files: File[]) => void;
+  onUploadFiles?: (files: File[], options?: UploadOptions) => void;
   uploadQueue?: UploadQueueItem[];
   onRetryFailedUploads?: () => void;
-  onExtractFile?: (fileName: string) => void;
+  onExtractFile?: (fileName: string, options?: UploadOptions) => void;
   extractStatus?: ExtractStatus | null;
 }
 
@@ -188,8 +189,19 @@ export function FileManagerTab({
     [canWriteFiles, onUploadFiles]
   );
 
+  const folderInput = useRef<HTMLInputElement | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<File[]>([]);
+  const [pendingExtract, setPendingExtract] = useState<string | null>(null);
+  const [uploadOptions, setUploadOptions] = useState<UploadOptions>({ extractZip: false, deleteArchive: false, overwrite: false });
+  const prepareUpload = (files: File[]) => {
+    if (!canWriteFiles || !files.length) return;
+    if (files.some(file => /\.zip$/i.test(file.name))) {
+      setUploadOptions({ extractZip: false, deleteArchive: false, overwrite: false });
+      setPendingUpload(files);
+    } else onDrop(files);
+  };
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    onDrop,
+    onDrop: prepareUpload,
     noClick: true,
     noKeyboard: true,
     disabled: !canWriteFiles || !onUploadFiles,
@@ -269,6 +281,38 @@ export function FileManagerTab({
     <div className="h-full flex flex-col" {...getRootProps()}>
       {editorSession && <EditorSessionView session={editorSession} embedded={embeddedEditor} />}
       <input {...getInputProps()} />
+      <input type="file" multiple hidden aria-label="Upload folder" ref={element => {
+        folderInput.current = element;
+        element?.setAttribute('webkitdirectory', '');
+      }} onChange={event => {
+        prepareUpload(Array.from(event.target.files ?? []));
+        event.target.value = '';
+      }} />
+      <AppModal open={pendingUpload.length > 0 || pendingExtract !== null} onOpenChange={open => { if (!open) { setPendingUpload([]); setPendingExtract(null); } }}>
+        <AppModalContent>
+          <AppModalBody>
+            <div className="space-y-4 p-4">
+              <h2 className="text-lg font-semibold pr-12">{pendingExtract ? 'Extract archive' : 'Upload options'}</h2>
+              <p className="text-sm">{pendingExtract ?? `${pendingUpload.length} files selected. ZIP archives can be extracted into their upload directory.`}</p>
+              {!pendingExtract && <label className="flex items-center gap-2"><input type="checkbox" checked={uploadOptions.extractZip} onChange={e => setUploadOptions(o => ({ ...o, extractZip: e.target.checked }))} />Extract ZIP after upload</label>}
+              {uploadOptions.extractZip && <>
+                <label className="flex items-center gap-2"><input type="radio" name="archive-retention" checked={!uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: false }))} />Keep ZIP archive</label>
+                <label className="flex items-center gap-2"><input type="radio" name="archive-retention" checked={uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: true }))} />Delete ZIP only after successful extraction</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={uploadOptions.overwrite} onChange={e => setUploadOptions(o => ({ ...o, overwrite: e.target.checked }))} />Allow extraction to overwrite existing files</label>
+                <p className="text-sm">If extraction fails, the ZIP is kept. Existing files are preserved unless overwrite is enabled.</p>
+              </>}
+              <div className="flex justify-end gap-2">
+                <AppButton onClick={() => { setPendingUpload([]); setPendingExtract(null); }}>Cancel</AppButton>
+                <AppButton tone="primary" onClick={() => {
+                  if (pendingExtract) onExtractFile?.(pendingExtract, uploadOptions);
+                  else onUploadFiles?.(pendingUpload, uploadOptions);
+                  setPendingUpload([]); setPendingExtract(null);
+                }}>{pendingExtract ? 'Extract' : 'Upload'}</AppButton>
+              </div>
+            </div>
+          </AppModalBody>
+        </AppModalContent>
+      </AppModal>
 
       <div
         className={`h-[52px] px-3 border-b ${borderColor} ${contentBg} flex items-center gap-1 flex-shrink-0`}
@@ -367,6 +411,11 @@ export function FileManagerTab({
           >
             <FilePlus className="w-3 h-3" />
           </AppButton>
+          {onUploadFiles && (
+            <AppButton tone="ghost" title="Upload folder" aria-label="Upload folder" disabled={!canWriteFiles} onClick={() => folderInput.current?.click()} className="h-7 w-7 min-w-0 !min-h-0 rounded p-0 text-gray-400">
+              <Folder className="w-3 h-3" />
+            </AppButton>
+          )}
           {onUploadFiles && (
             <AppButton
               tone="ghost"
@@ -558,7 +607,7 @@ export function FileManagerTab({
                         {file.type === 'file' && isExtractableArchive(file.name) && onExtractFile && (
                           <AppButton
                             tone="ghost"
-                            onClick={(e) => { e.stopPropagation(); onExtractFile(file.name); }}
+                            onClick={(e) => { e.stopPropagation(); setUploadOptions({ extractZip: true, deleteArchive: false, overwrite: false }); setPendingExtract(file.name); }}
                             disabled={!canWriteFiles || isExtracting}
                             className={`h-7 w-6 min-w-0 !min-h-0 rounded-md border-none bg-transparent p-0 transition-colors ${
                               canWriteFiles && !isExtracting

@@ -370,10 +370,10 @@ export function ServerManagementPage({
                   )}
                 </section>
                 <aside className="gp-server-stats" aria-label="Server details">
-                  <div className="gp-server-stat">
+                  <div className="gp-server-stat gp-server-runtime-status">
                     <Activity className="gp-stat-icon" size={19} aria-hidden="true" />
-                    <small>Server status{ACTIVE_SERVER?.displayId ? ` · ${ACTIVE_SERVER.displayId}` : ''}</small>
-                    <span className={`gp-server-status ${status.className}`}>{status.label}</span>
+                    <small>Server status <span className="gp-runtime-id">{ACTIVE_SERVER?.displayId}</span></small>
+                    <span className={`gp-server-status ${status.className}`}><span className="gp-runtime-dot" aria-hidden="true" />{status.label}</span>
                   </div>
                   <div className="gp-server-stat" title={uptime === null ? 'Uptime unavailable from this runtime' : 'Time since the server container started'}>
                     <Clock className="gp-stat-icon" size={19} aria-hidden="true" />

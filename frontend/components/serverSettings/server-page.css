@@ -632,6 +632,9 @@
   color: var(--text-secondary, #94a3b8);
   white-space: nowrap;
 }
+.gp-server-runtime-status .gp-runtime-id { float: right; font: 11px/18px ui-monospace, monospace; opacity: .7; }
+.gp-server-runtime-status .gp-server-status { display: inline-flex; align-items: center; gap: 9px; border: 0; padding: 0; background: transparent; font-size: 17px; font-weight: 600; }
+.gp-runtime-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 10%, transparent); }
 
 @media (min-width: 1001px) {
   .gp-server-workspace.is-viewport-workspace {

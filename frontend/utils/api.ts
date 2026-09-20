@@ -820,10 +820,11 @@ class ApiClient {
     return response.data;
   }
 
-  async extractServerArchive(serverId: number, path: string, root?: string) {
+  async extractServerArchive(serverId: number, path: string, root?: string, options?: { deleteArchive: boolean; overwrite: boolean }) {
     const response = await this.client.post(`/api/servers/${serverId}/files/extract`, {
       path,
       ...(root ? { root } : {}),
+      ...options,
     });
     return (response.data as { job: FileTransferJob }).job;
   }

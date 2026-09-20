@@ -205,6 +205,26 @@ test('workspace and dock fill the viewport with matching bottom edges across tab
   }).toBeLessThan(2);
 });
 
+for (const remove of [false, true]) test(`ZIP upload waits for extraction and retention choice (delete=${remove})`, async ({ page }) => {
+  const extracted: any[] = [];
+  await page.route('**/files/upload?**', route => route.fulfill({ json: { ok: true } }));
+  await page.route('**/files/extract', route => {
+    extracted.push(route.request().postDataJSON());
+    return route.fulfill({ json: { job: { id: 91, status: 'pending' } } });
+  });
+  await page.route('**/files/transfers/91', route => route.fulfill({ json: { job: { id: 91, status: 'completed', completedFiles: 2 } } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.locator('input[type=file]:not([webkitdirectory])').setInputFiles({ name: 'maps.zip', mimeType: 'application/zip', buffer: Buffer.from('mock archive') });
+  await expect(page.getByText('Upload options', { exact: true })).toBeVisible();
+  expect(extracted).toHaveLength(0);
+  await page.getByLabel('Extract ZIP after upload', { exact: true }).check();
+  await expect(page.getByLabel('Keep ZIP archive', { exact: true })).toBeChecked();
+  if (remove) await page.getByLabel('Delete ZIP only after successful extraction').check();
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await expect.poll(() => extracted.length).toBe(1);
+  expect(extracted[0]).toMatchObject({ path: '/maps.zip', root: 'data', deleteArchive: remove, overwrite: false });
+});
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     sessionStorage.setItem('gamepanel_admin_runtime', '1');

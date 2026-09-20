@@ -8,7 +8,7 @@ const ServerSshTerminal = lazy(() =>
 );
 import { ConfirmationModal } from './ConfirmationModal';
 import { ServerSettingsActionModals } from './serverSettings/ServerSettingsActionModals';
-import { FileManagerTab, type UploadQueueItem } from './serverSettings/FileManagerTab';
+import { FileManagerTab, type UploadQueueItem, type UploadOptions } from './serverSettings/FileManagerTab';
 import { BackupTab } from './serverSettings/BackupTab';
 import { ContainerConfigTab } from './serverSettings/ContainerConfigTab';
 import { ScheduledTasksTab } from './serverSettings/ScheduledTasksTab';
@@ -501,7 +501,7 @@ export function ServerSettingsModal({
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const uploadQueueRef = useRef<UploadQueueItem[]>([]);
   useEffect(() => { uploadQueueRef.current = uploadQueue; }, [uploadQueue]);
-  const uploadTasksRef = useRef<Map<string, { file: File; relativePath: string; dirPath: string; root?: string }>>(new Map());
+  const uploadTasksRef = useRef<Map<string, { file: File; relativePath: string; dirPath: string; root?: string; options?: UploadOptions; uploaded?: boolean; extractionId?: number }>>(new Map());
 
   // A folder upload (e.g. a Minecraft map) is often hundreds of small files.
   // Uploading them all at once saturates the browser's ~6-connections-per-host
@@ -516,11 +516,24 @@ export function ServerSettingsModal({
         prev.map((it) => (it.id === queueId ? { ...it, progress: 0, done: false, error: undefined } : it))
       );
       try {
-        await retryWithBackoff(() =>
+        if (!task.uploaded) await retryWithBackoff(() =>
           apiClient.uploadServerFile(serverId, task.dirPath, task.relativePath, task.file, (pct) => {
             setUploadQueue((prev) => prev.map((it) => (it.id === queueId ? { ...it, progress: pct } : it)));
           }, task.root)
         );
+        task.uploaded = true;
+        if (task.options?.extractZip && /\.zip$/i.test(task.relativePath)) {
+          if (!task.extractionId) {
+            const job = await apiClient.extractServerArchive(serverId, `${task.dirPath}/${task.relativePath}`, task.root, task.options);
+            task.extractionId = job.id;
+          }
+          let job = await apiClient.getFileTransfer(serverId, task.extractionId);
+          while (job.status === 'pending' || job.status === 'running') {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            job = await apiClient.getFileTransfer(serverId, task.extractionId);
+          }
+          if (job.status !== 'completed') throw new Error(job.errorMessage || 'Extraction failed; ZIP retained.');
+        }
         setUploadQueue((prev) =>
           prev.map((it) => (it.id === queueId ? { ...it, progress: 100, done: true, error: undefined } : it))
         );
@@ -554,11 +567,11 @@ export function ServerSettingsModal({
   );
 
   const handleUploadFiles = useCallback(
-    async (dropped: File[]) => {
+    async (dropped: File[], options?: UploadOptions) => {
       if (!serverId || !canWriteFiles) return;
 
       const relativePathOf = (file: File): string => {
-        const raw = String((file as any).path || (file as any).webkitRelativePath || file.name || '')
+        const raw = String((file as any).webkitRelativePath || (file as any).path || file.name || '')
           .replace(/\\/g, '/');
         let rel = raw.startsWith('./') ? raw.slice(2) : raw.startsWith('/') ? raw.slice(1) : raw;
         rel = rel.replace(/\/{2,}/g, '/');
@@ -577,7 +590,7 @@ export function ServerSettingsModal({
           done: false,
         }));
         uploads.forEach(({ file, relativePath }, i) => {
-          uploadTasksRef.current.set(newItems[i].id, { file, relativePath, dirPath, root: currentRoot });
+          uploadTasksRef.current.set(newItems[i].id, { file, relativePath, dirPath, root: currentRoot, options });
         });
         setUploadQueue((prev) => [...prev, ...newItems]);
         await runUploads(newItems.map((it) => it.id));
@@ -614,14 +627,14 @@ export function ServerSettingsModal({
   >(null);
   const extractingRef = useRef(false);
 
-  const handleExtractFile = useCallback(async (fileName: string) => {
+  const handleExtractFile = useCallback(async (fileName: string, options?: UploadOptions) => {
     if (!serverId || !canWriteFiles || extractingRef.current) return;
     extractingRef.current = true;
     const dirPath = currentPath.replace(/\/$/, '');
     const path = `${dirPath}/${fileName}`;
     setExtractStatus({ name: fileName, status: 'running', completedFiles: 0 });
     try {
-      const job = await apiClient.extractServerArchive(serverId, path, currentRoot);
+      const job = await apiClient.extractServerArchive(serverId, path, currentRoot, options);
       let current = job;
       let pollErrors = 0;
       while (current.status === 'pending' || current.status === 'running') {

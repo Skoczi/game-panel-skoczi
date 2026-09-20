@@ -99,7 +99,9 @@ function Fixture() {
     handleClearInstallError: noop,
     openInstallLogs: noop,
     serverLogs: {
-      '7': [
+      '7': new URLSearchParams(location.search).has('longLogs') ? Array.from({ length: 300 }, (_, index) => ({
+        id: index + 1, timestamp: new Date().toISOString(), message: `Console history line ${index + 1}`, type: 'info',
+      })) : [
         {
           id: 1,
           timestamp: new Date().toISOString(),

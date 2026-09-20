@@ -400,7 +400,7 @@ test('side console shrinks the workspace without remounting dirty editor and clo
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(editor).toContainText('unsaved-side-console');
-  await page.getByRole('button', { name: 'Hide side console' }).click();
+  await page.getByRole('button', { name: 'Close side console' }).click();
   await expect(dock).toHaveCount(0);
   await expect(editor).toContainText('unsaved-side-console');
   await expect(page.getByRole('button', { name: 'Open side console' })).toBeFocused();
@@ -410,4 +410,53 @@ test('side console is unavailable without log permissions', async ({ page }) => 
   await page.goto('/test/server-page.fixture.html?restricted#/nodes/local/servers/7/containerconfig');
   await expect(page.getByRole('button', { name: 'Open side console' })).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: 'Side server console' })).toHaveCount(0);
+});
+
+test('side console divider resizes both panes and remembers its width', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/containerconfig');
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  await expect(page.getByText('Live console', { exact: true })).toHaveCount(0);
+  const splitter = page.getByRole('separator', { name: 'Resize side console' });
+  const dock = page.getByRole('complementary', { name: 'Side server console' });
+  const width = (await dock.boundingBox())!.width;
+  const handle = (await splitter.boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 130, handle.y + 150, { steps: 12 });
+  await page.mouse.up();
+  expect((await dock.boundingBox())!.width).toBeGreaterThan(width + 100);
+  const persisted = await splitter.getAttribute('aria-valuenow');
+  await page.reload();
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  await expect(splitter).toHaveAttribute('aria-valuenow', persisted!);
+  await splitter.focus();
+  await splitter.press('Home');
+  await expect(splitter).toHaveAttribute('aria-valuenow', '25');
+  await splitter.press('End');
+  await expect(splitter).toHaveAttribute('aria-valuenow', '60');
+  await splitter.dblclick();
+  await expect(splitter).toHaveAttribute('aria-valuenow', '38');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/side-console-resizable.png', fullPage: true });
+});
+
+test('opening either console starts at latest logs and commands opt out of credential autofill', async ({ page }) => {
+  await page.goto('/test/server-page.fixture.html?longLogs#/nodes/local/servers/7/console');
+  const output = page.locator('.gp-console-terminal:visible');
+  const remaining = () => output.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
+  await expect.poll(remaining).toBeLessThan(2);
+  await page.getByRole('link', { name: 'Files', exact: true }).click();
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  await expect.poll(remaining).toBeLessThan(2);
+  const command = page.getByRole('searchbox', { name: 'Server console command' });
+  await expect(command).toHaveAttribute('autocomplete', 'off');
+  await expect(command).toHaveAttribute('data-1p-ignore', 'true');
+  await output.hover();
+  await page.mouse.wheel(0, -900);
+  await expect.poll(remaining).toBeGreaterThan(100);
+  await expect(page.getByRole('button', { name: 'Scroll to latest logs' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close side console' }).click();
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  await expect.poll(remaining).toBeLessThan(2);
 });

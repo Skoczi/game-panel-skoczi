@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import {
   ArrowLeft,
   Copy,
@@ -12,7 +12,6 @@ import {
   Globe,
   Users,
   Terminal,
-  X,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import type { GameServer } from '../types/gameServer';
@@ -124,7 +123,29 @@ export function ServerManagementPage({
   const [pending, setPending] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
   const [consoleDockOpen, setConsoleDockOpen] = useState(false);
-  const consoleToggleRef = useRef<HTMLButtonElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const splitKey = `gamepanel_console_split:${currentUser?.id ?? 'guest'}`;
+  const [dockWidth, setDockWidth] = useState(() => {
+    try {
+      const value = Number(localStorage.getItem(splitKey));
+      return value >= 25 && value <= 60 ? value : 38;
+    } catch {
+      return 38;
+    }
+  });
+  const [resizingDock, setResizingDock] = useState(false);
+  useEffect(() => {
+    try {
+      localStorage.setItem(splitKey, String(dockWidth));
+    } catch {
+      /* optional preference */
+    }
+  }, [dockWidth, splitKey]);
+  const resizeDock = (clientX: number) => {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    if (bounds?.width)
+      setDockWidth(Math.max(25, Math.min(60, ((bounds.right - clientX) / bounds.width) * 100)));
+  };
   const dockVisible = consoleDockOpen && canLogs && tab !== 'console';
   const [confirm, setConfirm] = useState<'stop' | 'restart' | null>(null);
   const [feedback, setFeedback] = useState('');
@@ -292,7 +313,6 @@ export function ServerManagementPage({
         </nav>
         {canLogs && tab !== 'console' && (
           <button
-            ref={consoleToggleRef}
             className="gp-console-dock-toggle"
             aria-label={dockVisible ? 'Close side console' : 'Open side console'}
             title={dockVisible ? 'Close side console' : 'Open side console'}
@@ -304,7 +324,11 @@ export function ServerManagementPage({
           </button>
         )}
       </div>
-      <div className={`gp-server-workspace${dockVisible ? ' has-console-dock' : ''}`}>
+      <div
+        ref={workspaceRef}
+        style={{ '--gp-dock-width': `${dockWidth}%` } as CSSProperties}
+        className={`gp-server-workspace${dockVisible ? ' has-console-dock' : ''}${resizingDock ? ' is-resizing-dock' : ''}`}
+      >
         <div className="gp-server-workspace-main">
           {tab === 'console' && (
             <>
@@ -483,24 +507,60 @@ export function ServerManagementPage({
           )}
         </div>
         {dockVisible && (
+          <div
+            className="gp-console-splitter"
+            role="separator"
+            tabIndex={0}
+            aria-label="Resize side console"
+            aria-orientation="vertical"
+            aria-valuemin={25}
+            aria-valuemax={60}
+            aria-valuenow={Math.round(dockWidth)}
+            aria-controls="server-side-console"
+            title="Drag to resize console. Double-click to reset."
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.preventDefault();
+              event.currentTarget.focus();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setResizingDock(true);
+            }}
+            onPointerMove={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeDock(event.clientX);
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+              setResizingDock(false);
+            }}
+            onPointerCancel={() => setResizingDock(false)}
+            onLostPointerCapture={() => setResizingDock(false)}
+            onDoubleClick={() => setDockWidth(38)}
+            onKeyDown={(event) => {
+              const value =
+                event.key === 'ArrowLeft'
+                  ? dockWidth + 2
+                  : event.key === 'ArrowRight'
+                    ? dockWidth - 2
+                    : event.key === 'Home'
+                      ? 25
+                      : event.key === 'End'
+                        ? 60
+                        : null;
+              if (value === null) return;
+              event.preventDefault();
+              setDockWidth(Math.max(25, Math.min(60, value)));
+            }}
+          >
+            <span />
+          </div>
+        )}
+        {dockVisible && (
           <aside
             id="server-side-console"
             className="gp-console-dock"
             aria-label="Side server console"
           >
-            <div className="gp-console-dock-heading">
-              <span>Live console</span>
-              <button
-                aria-label="Hide side console"
-                title="Hide side console"
-                onClick={() => {
-                  setConsoleDockOpen(false);
-                  consoleToggleRef.current?.focus();
-                }}
-              >
-                <X size={17} />
-              </button>
-            </div>
             {consoleContent}
           </aside>
         )}

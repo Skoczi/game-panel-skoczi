@@ -183,17 +183,19 @@ export function ServerConsoleTabs({
 
     if (!element) return;
 
-    const nextScrollTop = scrollPositionsByTabRef.current[tabId] ?? Infinity;
+    const nextScrollTop = scrollPositionsByTabRef.current[tabId];
     scrollFlagRef.current = true;
 
     let restoreFrameId = 0;
     let finalizeFrameId = 0;
 
     restoreFrameId = requestAnimationFrame(() => {
-      element.scrollTop = nextScrollTop;
+      // Non-finite scrollTop values normalize to zero in browsers, not to the bottom.
+      element.scrollTop = nextScrollTop ?? element.scrollHeight;
       saveScrollPosition(tabId, element);
 
       finalizeFrameId = requestAnimationFrame(() => {
+        if (nextScrollTop === undefined) element.scrollTop = element.scrollHeight;
         scrollFlagRef.current = false;
         syncAutoScrollState(tabId, element);
       });
@@ -289,6 +291,15 @@ export function ServerConsoleTabs({
     const id = requestAnimationFrame(() => { isProgrammaticCliScrollRef.current = false; });
     return () => cancelAnimationFrame(id);
   }, [cliMessages.length, autoScrollCli, isCLIConsoleActive, isMinimized, isFullscreen]);
+
+  useLayoutEffect(() => {
+    const element = isCLIConsoleActive ? cliContainerRef.current : serverContainerRef.current;
+    const following = isCLIConsoleActive ? autoScrollCli : autoScrollServer;
+    if (!element || !following || isMinimized) return;
+    const observer = new ResizeObserver(() => { element.scrollTop = element.scrollHeight; });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [activeTab, isCLIConsoleActive, autoScrollCli, autoScrollServer, isMinimized]);
 
   const handleCliScroll = () => {
     const el = cliContainerRef.current;
@@ -818,7 +829,16 @@ export function ServerConsoleTabs({
                     </span>
                     <input
                       ref={commandInputRef}
-                      type="text"
+                      type="search"
+                      name="server-console-command"
+                      aria-label="Server console command"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      data-form-type="other"
                       value={commandValue}
                       onChange={(e) => {
                         setCommandValue(e.target.value);

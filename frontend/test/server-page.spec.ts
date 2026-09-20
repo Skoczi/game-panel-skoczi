@@ -264,6 +264,23 @@ test('file view switches to tiles, retains selection and persists after reload',
   await expect(page.locator('[data-file-view="list"]')).toBeVisible();
 });
 
+for (const name of ['picture.PNG', 'sound.mp3', 'unknown.bin']) test(`file preview handles ${name} without an editable document`, async ({ page }) => {
+  await page.route('**/files?**', route => route.fulfill({ json: { entries: [{ name, type: 'file', size: 4000000 }] } }));
+  await page.route('**/files/download-token', route => route.fulfill({ json: { path: '/preview-test' } }));
+  await page.route('**/preview-test', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=', 'base64') }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByText(name, { exact: true }).dblclick();
+  const session = page.getByRole('region', { name: 'File editor session' });
+  await expect(session.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+  await expect(session.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
+  if (name.endsWith('PNG')) {
+    await expect(session.getByRole('img', { name })).toBeVisible();
+    await session.getByRole('button', { name: 'Original size' }).click();
+    await expect(session.locator('.gp-image-canvas')).toHaveClass(/is-original/);
+  } else if (name.endsWith('bin')) await expect(session.getByText('No preview available')).toBeVisible();
+  else await expect(session.locator('audio')).toHaveAttribute('controls', '');
+});
+
 test('file roots selector is only shown when there is a choice', async ({ page }) => {
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await expect(page.locator('.gp-path-breadcrumb')).toBeVisible();

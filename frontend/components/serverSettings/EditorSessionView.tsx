@@ -4,6 +4,7 @@ import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
 import type { EditorSession } from './useEditorSession';
 import './editor-session.css';
+import { MediaPreview } from './MediaPreview';
 const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.CodeEditor })));
 
 export function EditorSessionView({
@@ -59,7 +60,7 @@ export function EditorSessionView({
           <span className="gp-editor-path" title={`${active?.root}:${active?.path}`}>
             {active?.path}
           </span>
-          <AppButton
+          {active?.kind === 'text' && <AppButton
             onClick={async () => {
               if (!active) return;
               try {
@@ -72,7 +73,7 @@ export function EditorSessionView({
           >
             <Copy size={16} />
             {copied === active?.id ? 'Copied' : 'Copy'}
-          </AppButton>
+          </AppButton>}
           <AppButton
             onClick={async () => {
               if (!active || !session.serverId) return;
@@ -94,7 +95,7 @@ export function EditorSessionView({
             <Download size={16} />
             Download
           </AppButton>
-          <AppButton
+          {active?.kind === 'text' && <AppButton
             disabled={
               !active ||
               !session.canWrite ||
@@ -107,7 +108,7 @@ export function EditorSessionView({
           >
             <Save size={16} />
             {active?.saving ? 'Saving…' : 'Save'}
-          </AppButton>
+          </AppButton>}
         </div>
         <div className="gp-editor-documents">
           {session.documents.map((doc) => (
@@ -118,6 +119,8 @@ export function EditorSessionView({
             >
               {doc.loading ? (
                 <p>Loading file…</p>
+              ) : doc.loaded && doc.kind !== 'text' ? (
+                doc.id === active?.id && session.serverId ? <MediaPreview key={doc.id} doc={doc} serverId={session.serverId} /> : null
               ) : doc.loaded ? (
                 <Suspense fallback={<p>Loading editor…</p>}>
                   <CodeEditor

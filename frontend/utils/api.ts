@@ -761,6 +761,13 @@ class ApiClient {
     return response.data as string;
   }
 
+  async readServerFileBytes(serverId: number, path: string, root?: string): Promise<ArrayBuffer> {
+    const response = await this.client.get(`/api/servers/${serverId}/file`, {
+      params: { path, ...(root ? { root } : {}) }, responseType: 'arraybuffer',
+    });
+    return response.data;
+  }
+
   async getServerDownloadUrl(serverId: number, path: string, root?: string): Promise<string> {
     const res = await this.client.post(`/api/servers/${serverId}/files/download-token`, {
       path,

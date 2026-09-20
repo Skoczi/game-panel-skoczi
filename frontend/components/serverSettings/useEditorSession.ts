@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '../../utils/api';
 import { MAX_INLINE_EDIT_BYTES, type FileItem } from './fileManagerHandlers';
 import { joinPath } from './utils';
+import { previewKind, decodeEditableText, type PreviewKind } from './filePreview';
 
 export interface EditorDocument {
   id: string;
   root: string;
   path: string;
   name: string;
+  kind: PreviewKind;
   content: string;
   saved: string;
   loading: boolean;
@@ -55,7 +57,8 @@ export function useEditorSession(
   };
   const open = async (file: FileItem, root: string, directory: string) => {
     if (!serverId || file.type !== 'file') return;
-    if ((file.sizeBytes ?? 0) > MAX_INLINE_EDIT_BYTES) {
+    const kind = previewKind(file.name);
+    if (kind === 'text' && (file.sizeBytes ?? 0) > MAX_INLINE_EDIT_BYTES) {
       window.alert('This file is too large to edit (over 2 MB). Download it to edit locally.');
       return;
     }
@@ -69,6 +72,7 @@ export function useEditorSession(
       root,
       path,
       name: file.name,
+      kind,
       content: '',
       saved: '',
       loading: true,
@@ -79,10 +83,14 @@ export function useEditorSession(
     current.current = [...current.current.filter((doc) => doc.id !== id), doc];
     setDocuments(current.current);
     const token = generation.current;
+    if (kind !== 'text') {
+      update(id, { loading: false, loaded: true }, instance);
+      return;
+    }
     try {
-      const content = (await apiClient.readServerFile(serverId, path, root)) ?? '';
+      const content = decodeEditableText(await apiClient.readServerFileBytes(serverId, path, root));
       if (token === generation.current)
-        update(id, { content, saved: content, loading: false, loaded: true }, instance);
+        update(id, { kind: content === null ? 'binary' : 'text', content: content ?? '', saved: content ?? '', loading: false, loaded: true }, instance);
     } catch (error: any) {
       if (token === generation.current)
         update(
@@ -101,6 +109,7 @@ export function useEditorSession(
       !serverId ||
       !canWrite ||
       !doc ||
+      doc.kind !== 'text' ||
       !doc.loaded ||
       doc.loading ||
       doc.saving ||

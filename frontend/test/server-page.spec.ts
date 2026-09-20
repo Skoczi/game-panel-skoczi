@@ -251,6 +251,19 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test('file view switches to tiles, retains selection and persists after reload', async ({ page }) => {
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByRole('checkbox', { name: 'Select server.cfg' }).click();
+  await page.getByRole('button', { name: 'Switch to tile view' }).click();
+  await expect(page.locator('[data-file-view="grid"]')).toHaveCSS('display', 'grid');
+  await expect(page.getByRole('checkbox', { name: 'Select server.cfg' })).toBeChecked();
+  await expect(page.locator('[data-file-name="server.cfg"] button[title="Download"]')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('[data-file-view="grid"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Switch to list view' }).click();
+  await expect(page.locator('[data-file-view="list"]')).toBeVisible();
+});
+
 test('file roots selector is only shown when there is a choice', async ({ page }) => {
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await expect(page.locator('.gp-path-breadcrumb')).toBeVisible();

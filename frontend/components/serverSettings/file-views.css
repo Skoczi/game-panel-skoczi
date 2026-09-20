@@ -1,0 +1,28 @@
+.gp-file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr));
+  gap: 10px;
+}
+.gp-file-grid > :not(.gp-file-entry) { grid-column: 1 / -1; }
+.gp-file-grid .gp-file-entry {
+  position: relative;
+  height: auto;
+  min-height: 156px;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 10px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 10px;
+}
+.gp-file-grid .gp-file-entry > svg { width: 28px; height: 28px; }
+.gp-file-grid .gp-file-entry > svg:last-child { display: none; }
+.gp-file-grid .gp-file-selection { position: absolute; top: 10px; left: 10px; }
+.gp-file-grid .gp-file-entry:has([aria-checked='true']) { border-color: var(--color-cyan-400); }
+.gp-file-grid .gp-file-name { flex: none; max-width: 100%; text-align: center; }
+.gp-file-grid .gp-file-actions { margin-top: auto; opacity: 1; }
+.gp-file-grid .gp-file-rename { flex-wrap: wrap; min-width: 0; width: 100%; }
+.gp-file-grid .gp-file-rename input { width: 100%; flex-basis: 100%; }
+.gp-file-actions:focus-within { opacity: 1; }
+@media (pointer: coarse) { .gp-file-actions { opacity: 1; } }

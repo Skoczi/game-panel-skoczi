@@ -449,7 +449,10 @@ test('opening either console starts at latest logs and commands opt out of crede
   await page.getByRole('link', { name: 'Files', exact: true }).click();
   await page.getByRole('button', { name: 'Open side console' }).click();
   await expect.poll(remaining).toBeLessThan(2);
-  const command = page.getByRole('searchbox', { name: 'Server console command' });
+  const command = page.getByRole('textbox', { name: 'Server console command' });
+  await expect(command).toHaveJSProperty('tagName', 'TEXTAREA');
+  await command.fill('status\nversion');
+  await expect(command).toHaveValue('status version');
   await expect(command).toHaveAttribute('autocomplete', 'off');
   await expect(command).toHaveAttribute('data-1p-ignore', 'true');
   await output.hover();

@@ -90,7 +90,7 @@ export function ServerConsoleTabs({
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [historyDraft, setHistoryDraft] = useState('');
-  const commandInputRef = useRef<HTMLInputElement>(null);
+  const commandInputRef = useRef<HTMLTextAreaElement>(null);
   const [autoScrollCli, setAutoScrollCli] = useState(true);
   const [autoScrollServer, setAutoScrollServer] = useState(true);
   const [pendingCliLogs, setPendingCliLogs] = useState(0);
@@ -452,9 +452,11 @@ export function ServerConsoleTabs({
     }
   }, [commandSending]);
 
-  const handleCommandKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !commandSending) {
-      void handleSendCommand();
+  const handleCommandKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!commandSending) void handleSendCommand();
       return;
     }
     if (e.key === 'ArrowUp') {
@@ -827,9 +829,10 @@ export function ServerConsoleTabs({
                     <span className="shrink-0 select-none font-mono text-sm font-bold text-[var(--color-cyan-400)]">
                       {commandSending ? '…' : '>'}
                     </span>
-                    <input
+                    <textarea
                       ref={commandInputRef}
-                      type="search"
+                      rows={1}
+                      wrap="off"
                       name="server-console-command"
                       aria-label="Server console command"
                       autoComplete="off"
@@ -841,14 +844,14 @@ export function ServerConsoleTabs({
                       data-form-type="other"
                       value={commandValue}
                       onChange={(e) => {
-                        setCommandValue(e.target.value);
+                        setCommandValue(e.target.value.replace(/[\r\n]+/g, ' '));
                         if (historyIndex !== -1) setHistoryIndex(-1);
                       }}
                       onKeyDown={handleCommandKeyDown}
                       disabled={isInputDisabled}
                       placeholder={inputPlaceholder}
-                      style={{ color: isInputDisabled ? '#4b5563' : '#e2e8f0' }}
-                      className="flex-1 bg-transparent font-mono text-sm caret-[var(--color-cyan-400)] placeholder-gray-600 focus:outline-none disabled:cursor-not-allowed"
+                      style={{ color: isInputDisabled ? '#4b5563' : '#e2e8f0', height: 24, minHeight: 24, padding: 0, border: 0, boxShadow: 'none' }}
+                      className="min-w-0 flex-1 resize-none overflow-hidden bg-transparent font-mono text-sm leading-6 caret-[var(--color-cyan-400)] placeholder-gray-600 focus:outline-none disabled:cursor-not-allowed"
                     />
                     <button
                       onClick={() => void handleSendCommand()}

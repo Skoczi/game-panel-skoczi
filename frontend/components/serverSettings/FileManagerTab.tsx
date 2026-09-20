@@ -25,6 +25,8 @@ import { lazy, Suspense, useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { AppButton, AppInput } from '../../src/ui/components';
 import { useCoarsePointer } from '../../src/ui/utils/useCoarsePointer';
+import { EditorSessionView } from './EditorSessionView';
+import type { EditorSession } from './useEditorSession';
 
 const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.CodeEditor })));
 
@@ -62,6 +64,7 @@ interface FileRoot {
 }
 
 interface FileManagerTabProps {
+  editorSession?: EditorSession;
   embeddedEditor?: boolean;
   borderColor: string;
   contentBg: string;
@@ -119,6 +122,7 @@ interface FileManagerTabProps {
 }
 
 export function FileManagerTab({
+  editorSession,
   embeddedEditor = false,
   borderColor,
   contentBg,
@@ -263,6 +267,7 @@ export function FileManagerTab({
 
   return (
     <div className="h-full flex flex-col" {...getRootProps()}>
+      {editorSession && <EditorSessionView session={editorSession} embedded={embeddedEditor} />}
       <input {...getInputProps()} />
 
       <div
@@ -692,7 +697,7 @@ export function FileManagerTab({
         );
       })()}
 
-      {selectedFile && (
+      {!editorSession && selectedFile && (
         <div
           className={embeddedEditor ? 'absolute inset-0 z-10 flex' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4'}
           onKeyDown={(e) => e.stopPropagation()}

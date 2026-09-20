@@ -300,3 +300,64 @@ test('light theme keeps the configuration page readable and scrollable', async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });
+
+test('editor tabs keep drafts, save the selected path and confirm closing dirty files', async ({ page }) => {
+  const writes: any[] = [];
+  await page.route('**/api/servers/7/files?**', route => route.fulfill({ json: { entries: [
+    { name: 'server.cfg', type: 'file' }, { name: 'other.cfg', type: 'file' },
+  ] } }));
+  await page.route('**/api/servers/7/file?**', route => {
+    if (route.request().method() !== 'GET') writes.push({ ...route.request().postDataJSON(), path: new URL(route.request().url()).searchParams.get('path') });
+    return route.fulfill({ json: { content: 'hostname test' } });
+  });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+  await page.getByRole('link', { name: 'Files', exact: true }).click();
+  await page.getByText('server.cfg', { exact: true }).dblclick();
+  const visibleEditor = page.locator('.monaco-editor:visible');
+  await visibleEditor.click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('hostname draft');
+  await page.getByRole('button', { name: 'Browse files' }).click();
+  await page.getByText('other.cfg', { exact: true }).dblclick();
+  await expect(page.getByRole('tab', { name: 'other.cfg' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'server.cfg' }).click();
+  await expect(visibleEditor).toContainText('hostname draft');
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Close server.cfg', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'server.cfg' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).toMatchObject({ content: 'hostname draft', path: '/server.cfg' });
+  await visibleEditor.click();
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.locator('.find-widget .codicon-case-sensitive:visible').hover();
+  const hover = page.locator('.monaco-hover:visible').last();
+  await expect(hover).toBeVisible();
+  const unobscured = await hover.evaluate(el => {
+    const box = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  });
+  expect(unobscured).toBe(true);
+  await page.screenshot({ path: 'test-results/editor-session-dark-hover.png', fullPage: true });
+  await page.getByRole('button', { name: 'Switch to light mode' }).click();
+  await expect(visibleEditor).toHaveClass(/vs/);
+  await page.screenshot({ path: 'test-results/editor-session-light.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: 'test-results/editor-session-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Close server.cfg', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'server.cfg' })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'other.cfg' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('direct file page opens an editor and failed reads cannot be saved', async ({ page }) => {
+  await page.route('**/api/servers/7/file?**', route => route.fulfill({ status: 500, json: { error: 'Read failed' } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByText('server.cfg', { exact: true }).dblclick();
+  await expect(page.getByRole('button', { name: 'Retry loading file' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await page.route('**/api/servers/7/file?**', route => route.fulfill({ body: 'hostname recovered' }));
+  await page.getByRole('button', { name: 'Retry loading file' }).click();
+  await expect(page.locator('.monaco-editor:visible')).toContainText('hostname recovered');
+});

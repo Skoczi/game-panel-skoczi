@@ -6,6 +6,26 @@ import CssWorker from 'monaco-editor/language/css/css.worker?worker';
 import HtmlWorker from 'monaco-editor/language/html/html.worker?worker';
 import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
 import { useTheme } from '../../contexts/ThemeContext';
+import './editor-session.css';
+
+monaco.editor.defineTheme('panel-dark', {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#0b1220',
+    'editorGutter.background': '#0b1220',
+    'editor.lineHighlightBackground': '#132137',
+    'editor.selectionBackground': '#16405c',
+    'editorWidget.background': '#111d30',
+    'editorWidget.border': '#334155',
+    'editorHoverWidget.background': '#111d30',
+    'editorHoverWidget.border': '#334155',
+    'input.background': '#0b1220',
+    'input.border': '#334155',
+    focusBorder: '#00c8df',
+  },
+});
 
 // All workers are bundled locally; opening a config never contacts a public CDN.
 self.MonacoEnvironment = {
@@ -70,11 +90,16 @@ function CodeEditorImpl({ value, onChange, onSave, filename, readOnly = false }:
 
   useEffect(() => {
     if (!container.current) return;
+    const overlays = document.createElement('div');
+    overlays.className = 'gp-monaco-overlays';
+    document.body.appendChild(overlays);
     // Each mounted file owns its model and undo stack; no filenames or contents in URLs.
     const model = monaco.editor.createModel(latest.current.value, detectLanguage(filename));
     const instance = monaco.editor.create(container.current, {
       model,
       automaticLayout: true,
+      fixedOverflowWidgets: true,
+      overflowWidgetsDomNode: overlays,
       readOnly: latest.current.readOnly,
       fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
       fontSize: 13,
@@ -99,6 +124,7 @@ function CodeEditorImpl({ value, onChange, onSave, filename, readOnly = false }:
       changes.dispose();
       instance.dispose();
       model.dispose();
+      overlays.remove();
       editor.current = null;
     };
   }, [filename]);
@@ -112,7 +138,7 @@ function CodeEditorImpl({ value, onChange, onSave, filename, readOnly = false }:
     editor.current?.updateOptions({ readOnly });
   }, [readOnly, filename]);
   useEffect(() => {
-    monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
+    monaco.editor.setTheme(theme === 'dark' ? 'panel-dark' : 'vs');
   }, [theme, filename]);
   return <div ref={container} style={{ height: '100%', width: '100%', minHeight: 0 }} />;
 }

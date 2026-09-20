@@ -1,0 +1,122 @@
+.gp-editor-session {
+  display: flex;
+  flex-direction: column;
+  background: var(--gp-ods-background-primary, #fff);
+  color: var(--gp-ods-text-primary, #172033);
+  border: 1px solid #64748b55;
+  border-radius: 12px;
+}
+.dark .gp-editor-session {
+  background: #0f1929;
+  color: #e2e8f0;
+}
+.gp-editor-session.is-embedded {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+.gp-editor-session.is-modal {
+  position: fixed;
+  inset: 16px;
+  z-index: 70;
+  box-shadow: 0 0 0 100vmax #0009;
+}
+.gp-editor-tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid #64748b44;
+  padding: 6px 8px 0;
+}
+.gp-editor-tab {
+  display: flex;
+  flex-shrink: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+}
+.gp-editor-tab[data-active='true'] {
+  background: #64748b22;
+  border-bottom-color: #00c8df;
+}
+.gp-editor-tab button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.gp-editor-tab button:focus-visible {
+  outline: 2px solid #00c8df;
+  outline-offset: -2px;
+}
+.gp-editor-tab span {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gp-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #64748b44;
+  flex-shrink: 0;
+}
+.gp-editor-toolbar button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gp-editor-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.gp-editor-documents,
+.gp-editor-document {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.gp-editor-document {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.gp-editor-error {
+  color: #f87171;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+.gp-monaco-overlays {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+.gp-monaco-overlays > * {
+  pointer-events: auto;
+}
+@media (max-width: 600px) {
+  .gp-editor-toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px;
+  }
+  .gp-editor-path {
+    flex-basis: 100%;
+    order: 2;
+  }
+  .gp-editor-session.is-modal {
+    inset: 4px;
+  }
+}

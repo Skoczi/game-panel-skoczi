@@ -24,6 +24,7 @@ import { createSettingsTabButtonClass, SERVER_SETTINGS_THEME } from './serverSet
 import { useBackupState } from './serverSettings/useBackupState';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { useFileManagerState } from './serverSettings/useFileManagerState';
+import { useEditorSession } from './serverSettings/useEditorSession';
 import { apiClient } from '../utils/api';
 import { supportsBackupCreate, supportsBackupRename } from '../utils/providerCapabilities';
 import { retryWithBackoff, runWithConcurrency } from '../utils/uploadHelpers';
@@ -397,10 +398,12 @@ export function ServerSettingsModal({
   const defaultTab = SETTINGS_TAB_PRIORITY.find((tab) => canAccessTab(tab)) ?? 'filemanager';
   const effectiveActiveTab = pageTab ?? (hasUserSelectedTabRef.current ? activeTab : defaultTab);
   useBodyScrollLock(isOpen && !pageTab);
+  const editorSession = useEditorSession(serverId, canWriteFiles, isOpen);
+  const anyFileDirty = isFileDirty || editorSession.dirty;
   useEffect(() => {
-    onDirtyChange?.(isFileDirty);
+    onDirtyChange?.(anyFileDirty);
     return () => onDirtyChange?.(false);
-  }, [isFileDirty, onDirtyChange]);
+  }, [anyFileDirty, onDirtyChange]);
 
   const getFileMutationErrorMessage = (action: string, error: any): Promise<string> =>
     resolveFileMutationError(action, error, serverId);
@@ -411,7 +414,7 @@ export function ServerSettingsModal({
     if (!serverId) return;
     if (!pendingFilePath) return;
 
-    const { normalized, directory, fileName } = splitFilePath(pendingFilePath);
+    const { directory, fileName } = splitFilePath(pendingFilePath);
     if (!fileName) {
       setPendingFilePath(null);
       return;
@@ -425,25 +428,8 @@ export function ServerSettingsModal({
     let cancelled = false;
 
     const openFile = async () => {
-      setSelectedFile({ name: fileName, type: 'file' });
-      setFileContent('');
-      setIsFileDirty(false);
-      setFileError(null);
-      setFileLoading(true);
-
-      try {
-        const content = await apiClient.readServerFile(serverId, normalized, currentRoot);
-        if (cancelled) return;
-        setFileContent(content ?? '');
-      } catch (error: any) {
-        if (cancelled) return;
-        setFileError(error?.response?.data?.error || error?.message || `Failed to load ${fileName}`);
-      } finally {
-        if (!cancelled) {
-          setFileLoading(false);
-          setPendingFilePath(null);
-        }
-      }
+      await editorSession.open({ name: fileName, type: 'file' }, currentRoot, directory);
+      if (!cancelled) setPendingFilePath(null);
     };
 
     void openFile();
@@ -819,19 +805,23 @@ export function ServerSettingsModal({
             filesError={filesError}
             files={files}
             selectedFile={selectedFile}
+            editorSession={editorSession}
             setSelectedFile={setSelectedFile}
             selectedItems={selectedItems}
             renamingFile={renamingFile}
             renameValue={renameValue}
             setRenameValue={setRenameValue}
             handleFileClick={handleFileClick}
-            handleFileDoubleClick={handleFileDoubleClick}
-            handleDeleteSelected={handleDeleteSelected}
-            handleMoveEntries={handleMoveEntries}
+            handleFileDoubleClick={(file) => {
+              if (file.type === 'file') void editorSession.open(file, currentRoot, currentPath);
+              else void handleFileDoubleClick(file);
+            }}
+            handleDeleteSelected={() => { if (editorSession.prepareMutation()) handleDeleteSelected(); }}
+            handleMoveEntries={(names, target) => { if (editorSession.prepareMutation()) void handleMoveEntries(names, target); }}
             handleRenameConfirm={handleRenameConfirm}
             handleRenameCancel={handleRenameCancel}
-            handleRenameFile={handleRenameFile}
-            handleDeleteFile={handleDeleteFile}
+            handleRenameFile={(file, event) => { if (editorSession.prepareMutation()) handleRenameFile(file, event); }}
+            handleDeleteFile={(file, event) => { if (editorSession.prepareMutation()) handleDeleteFile(file, event); }}
             handleDownloadPath={handleDownloadPath}
             handleDownloadSelected={handleDownloadSelected}
             fileLoading={fileLoading}

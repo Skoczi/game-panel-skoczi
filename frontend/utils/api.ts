@@ -453,6 +453,7 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${id}`);
     const raw = response.data?.server ?? response.data;
     return raw as {
+      uptimeSeconds?: number | null;
       id: number;
       name: string;
       game: string;

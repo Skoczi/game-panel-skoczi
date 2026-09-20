@@ -14,6 +14,7 @@ import {
 } from '../../utils/apiSerialization.js';
 import { sendRouteError } from '../../utils/routeErrors.js';
 import { parseServerId } from './shared.js';
+import { inspectContainerRuntime } from '../../utils/docker.js';
 
 export function createServerReadRoutes(): Router {
     const router = Router();
@@ -68,9 +69,14 @@ export function createServerReadRoutes(): Router {
                 PERMISSIONS.server.env,
             );
             const serialized = serializeGameServerWithInstallProgress(server, await installProgressRepository.getByServerId(serverId));
+            const runtime = server.docker_container_id
+                ? await inspectContainerRuntime(server.docker_container_id).catch(() => null)
+                : null;
+            const started = Date.parse(runtime?.startedAt ?? '');
+            const uptimeSeconds = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null;
 
             return res.json({
-                server: canSeeEnv ? serialized : redactServerEnv(serialized),
+                server: { ...(canSeeEnv ? serialized : redactServerEnv(serialized)), uptimeSeconds },
             });
         } catch (error) {
             return sendRouteError(res, error, {

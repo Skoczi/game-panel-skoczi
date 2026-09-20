@@ -27,6 +27,7 @@ interface ContainerInfo {
 export type ContainerHealthStatus = Extract<HealthStatus, 'healthy' | 'unhealthy' | 'starting'>;
 
 export interface ContainerRuntimeState {
+    startedAt?: string | null;
     containerStatus: ContainerStatus;
     healthStatus: HealthStatus;
 }
@@ -466,6 +467,7 @@ export async function checkContainerStatus(containerId: string): Promise<string>
 export async function inspectContainerRuntime(containerId: string): Promise<ContainerRuntimeState> {
     const info = await docker.getContainer(containerId).inspect();
     return {
+        startedAt: info.State.Running && Date.parse(info.State.StartedAt) > 0 ? info.State.StartedAt : null,
         containerStatus: normalizeContainerStatus(info?.State?.Status),
         healthStatus: normalizeHealthStatus(info?.State?.Health?.Status),
     };

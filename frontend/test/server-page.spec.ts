@@ -12,7 +12,9 @@ test('server header is a compact toolbar and wraps cleanly on mobile', async ({ 
     page.locator('.gp-console-panel').getByText('Server Console', { exact: true })
   ).toBeVisible();
   await expect(heading.locator('.gp-server-game')).toContainText('Counter-Strike 1.6');
-  await expect(heading.locator('.gp-server-status')).toHaveText('Running');
+  await expect(heading.locator('.gp-server-status')).toHaveCount(0);
+  await expect(page.locator('.gp-server-stats .gp-server-status')).toHaveText('Running');
+  await expect(page.locator('.gp-server-stats')).toContainText('1d 4h 9m');
   await expect(page.getByText(/SERVER MANAGEMENT/)).toHaveCount(0);
   expect((await heading.boundingBox())!.height).toBeLessThan(65);
   const backBox = (await back.boundingBox())!;
@@ -212,6 +214,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     if (!url.pathname.startsWith('/api/')) return route.continue();
+    if (url.pathname === '/api/servers/7') return route.fulfill({ json: { server: { uptimeSeconds: 101340 } } });
     if (url.pathname.endsWith('/files/roots'))
       return route.fulfill({ json: { roots: [{ key: 'data', containerPath: '/data' }] } });
     if (url.pathname.endsWith('/file'))
@@ -220,6 +223,19 @@ test.beforeEach(async ({ page }) => {
       return route.fulfill({ json: { entries: [{ name: 'server.cfg', type: 'file' }] } });
     return route.fulfill({ json: { nodes: [], entries: [], settings: {} } });
   });
+});
+
+test('file roots selector is only shown when there is a choice', async ({ page }) => {
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await expect(page.locator('.gp-path-breadcrumb')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Data directory' })).toHaveCount(0);
+  await page.route('**/files/roots', route => route.fulfill({ json: { roots: [
+    { key: 'data', containerPath: '/data' }, { key: 'config', containerPath: '/config' },
+  ] } }));
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Data directory' })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Data directory' }).selectOption('config');
+  await expect(page.getByRole('combobox', { name: 'Data directory' })).toHaveValue('config');
 });
 test('Manage opens a real server page; tabs, refresh and browser back retain context', async ({
   page,

@@ -12,6 +12,8 @@ import {
   Globe,
   Users,
   Terminal,
+  Clock,
+  Activity,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import type { GameServer } from '../types/gameServer';
@@ -120,6 +122,22 @@ export function ServerManagementPage({
     Boolean(currentUser?.isRoot || permissions.includes('*') || permissions.includes(permission));
   const access = createServerSettingsAccess(currentUser, permissions);
   const canLogs = allowed('container.logs.read');
+  const [uptime, setUptime] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    setUptime(null);
+    if (tab !== 'console' || !isServerUpLike(server.status)) return;
+    const refresh = async () => {
+      try {
+        const result = await apiClient.getServer(Number(server.id));
+        if (active) setUptime(typeof result.uptimeSeconds === 'number' && Number.isFinite(result.uptimeSeconds) ? Math.max(0, result.uptimeSeconds) : null);
+      } catch { if (active) setUptime(null); }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [server.id, server.status, tab]);
+  const uptimeLabel = uptime === null ? '—' : `${Math.floor(uptime / 86400)}d ${Math.floor(uptime % 86400 / 3600)}h ${Math.floor(uptime % 3600 / 60)}m`;
   const [pending, setPending] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
   const [consoleDockOpen, setConsoleDockOpen] = useState(false);
@@ -255,9 +273,6 @@ export function ServerManagementPage({
           <div className="gp-server-identity">
             <div className="gp-server-titles">
               <h1>{server.name}</h1>
-              {ACTIVE_SERVER?.displayId && (
-                <small className="gp-server-display-id">{ACTIVE_SERVER.displayId}</small>
-              )}
               <span className="gp-server-game">
                 <span className="gp-server-title-separator" aria-hidden="true">
                   –
@@ -265,7 +280,6 @@ export function ServerManagementPage({
                 {gameDisplayName(gameName || server.game)}
               </span>
             </div>
-            <span className={`gp-server-status ${status.className}`}>{status.label}</span>
           </div>
         </div>
         {allowed('server.power') && (
@@ -356,6 +370,16 @@ export function ServerManagementPage({
                   )}
                 </section>
                 <aside className="gp-server-stats" aria-label="Server details">
+                  <div className="gp-server-stat">
+                    <Activity className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>Server status{ACTIVE_SERVER?.displayId ? ` · ${ACTIVE_SERVER.displayId}` : ''}</small>
+                    <span className={`gp-server-status ${status.className}`}>{status.label}</span>
+                  </div>
+                  <div className="gp-server-stat" title={uptime === null ? 'Uptime unavailable from this runtime' : 'Time since the server container started'}>
+                    <Clock className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>Uptime</small>
+                    <strong>{uptimeLabel}</strong>
+                  </div>
                   <div className="gp-server-stat">
                     <Globe className="gp-stat-icon" size={19} aria-hidden="true" />
                     <small>Connection address</small>

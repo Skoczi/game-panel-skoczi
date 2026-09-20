@@ -366,3 +366,48 @@ test('direct file page opens an editor and failed reads cannot be saved', async 
   await page.getByRole('button', { name: 'Retry loading file' }).click();
   await expect(page.locator('.monaco-editor:visible')).toContainText('hostname recovered');
 });
+
+test('side console shrinks the workspace without remounting dirty editor and closes cleanly', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByText('server.cfg', { exact: true }).dblclick();
+  const editor = page.locator('.monaco-editor:visible');
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('hostname unsaved-side-console');
+  const original = (await editor.boundingBox())!.width;
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  const dock = page.getByRole('complementary', { name: 'Side server console' });
+  await expect(dock).toBeVisible();
+  await expect(dock).toHaveCSS('opacity', '1');
+  await expect(dock.getByRole('switch', { name: 'Toggle timestamps' })).toBeVisible();
+  await expect(editor).toContainText('unsaved-side-console');
+  expect((await editor.boundingBox())!.width).toBeLessThan(original - 300);
+  expect((await editor.boundingBox())!.x + (await editor.boundingBox())!.width).toBeLessThan((await dock.boundingBox())!.x);
+  await expect(dock.locator('.gp-console-panel')).toHaveCount(1);
+  await expect(dock).toContainText('Server ready for players');
+  let sent: any;
+  await page.route('**/api/servers/7/console/commands', route => {
+    sent = route.request().postDataJSON();
+    return route.fulfill({ json: { ok: true } });
+  });
+  await dock.getByPlaceholder('Type a command and press Enter…').fill('status');
+  await dock.getByPlaceholder('Type a command and press Enter…').press('Enter');
+  await expect.poll(() => sent).toEqual({ command: 'status' });
+  await page.screenshot({ path: 'test-results/side-console-dark.png', fullPage: true });
+  await page.getByRole('button', { name: 'Switch to light mode' }).click();
+  await page.screenshot({ path: 'test-results/side-console-light.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(editor).toContainText('unsaved-side-console');
+  await page.getByRole('button', { name: 'Hide side console' }).click();
+  await expect(dock).toHaveCount(0);
+  await expect(editor).toContainText('unsaved-side-console');
+  await expect(page.getByRole('button', { name: 'Open side console' })).toBeFocused();
+});
+
+test('side console is unavailable without log permissions', async ({ page }) => {
+  await page.goto('/test/server-page.fixture.html?restricted#/nodes/local/servers/7/containerconfig');
+  await expect(page.getByRole('button', { name: 'Open side console' })).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Side server console' })).toHaveCount(0);
+});

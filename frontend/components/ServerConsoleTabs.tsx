@@ -633,7 +633,7 @@ export function ServerConsoleTabs({
         </div>
         <div className="flex min-h-full self-stretch flex-shrink-0 items-center gap-1 sm:gap-2 bg-gp-surface-input px-2 sm:px-4 py-0">
           <div className="flex h-full items-center justify-center gap-2">
-            <span className={`hidden sm:inline text-xs ${textSecondary}`}>Date/Time</span>
+            <span className={`gp-console-tool-label hidden sm:inline text-xs ${textSecondary}`}>Date/Time</span>
             <AppToggle
               checked={showTimestamps}
               onChange={setShowTimestamps}
@@ -644,18 +644,20 @@ export function ServerConsoleTabs({
           <AppButton
             tone="ghost"
             onClick={handleCopyActiveLogs}
+            aria-label="Copy console logs"
             className={`inline-flex h-8 items-center gap-2 px-2 sm:px-3 rounded ${tabHoverBg} transition-colors ${textSecondary} hover:text-[var(--color-cyan-400)] text-sm`}
           >
             <Copy className="w-3 h-3" />
-            <span className="hidden sm:inline">Copy</span>
+            <span className="gp-console-tool-label hidden sm:inline">Copy</span>
           </AppButton>
           <AppButton
             tone="ghost"
             onClick={handleClearActiveLogs}
+            aria-label="Clear console logs"
             className={`inline-flex h-8 items-center gap-2 px-2 sm:px-3 rounded ${tabHoverBg} transition-colors ${textSecondary} hover:text-orange-400 text-sm`}
           >
             <Trash2 className="w-3 h-3" />
-            <span className="hidden sm:inline">Clear</span>
+            <span className="gp-console-tool-label hidden sm:inline">Clear</span>
           </AppButton>
           <AppButton
             tone="ghost"
@@ -664,7 +666,7 @@ export function ServerConsoleTabs({
             className={`inline-flex h-8 items-center gap-2 px-2 sm:px-3 rounded ${tabHoverBg} transition-colors ${textSecondary} hover:text-[var(--color-cyan-400)] text-sm`}
           >
             {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-            <span className="hidden sm:inline">{isFullscreen ? 'Reduce' : 'Full screen'}</span>
+            <span className="gp-console-tool-label hidden sm:inline">{isFullscreen ? 'Reduce' : 'Full screen'}</span>
           </AppButton>
         </div>
       </div>

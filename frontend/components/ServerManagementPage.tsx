@@ -11,6 +11,8 @@ import {
   Network,
   Globe,
   Users,
+  Terminal,
+  X,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import type { GameServer } from '../types/gameServer';
@@ -121,6 +123,9 @@ export function ServerManagementPage({
   const canLogs = allowed('container.logs.read');
   const [pending, setPending] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
+  const [consoleDockOpen, setConsoleDockOpen] = useState(false);
+  const consoleToggleRef = useRef<HTMLButtonElement>(null);
+  const dockVisible = consoleDockOpen && canLogs && tab !== 'console';
   const [confirm, setConfirm] = useState<'stop' | 'restart' | null>(null);
   const [feedback, setFeedback] = useState('');
   const consoleSectionRef = useRef<HTMLElement>(null);
@@ -268,194 +273,238 @@ export function ServerManagementPage({
         />
       )}
       {feedback && <p role="status">{feedback}</p>}
-      <nav className="gp-server-tabs" aria-label="Server sections">
-        {tabs.map((key) => (
-          <a
-            key={key}
-            href={serverPageHash({ node: ACTIVE_NODE, id: String(server.id), tab: key })}
-            aria-current={tab === key ? 'page' : undefined}
-            onClick={(event) => {
-              if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-              event.preventDefault();
-              onTab(key);
-            }}
+      <div className="gp-server-navigation">
+        <nav className="gp-server-tabs" aria-label="Server sections">
+          {tabs.map((key) => (
+            <a
+              key={key}
+              href={serverPageHash({ node: ACTIVE_NODE, id: String(server.id), tab: key })}
+              aria-current={tab === key ? 'page' : undefined}
+              onClick={(event) => {
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                onTab(key);
+              }}
+            >
+              {labels[key]}
+            </a>
+          ))}
+        </nav>
+        {canLogs && tab !== 'console' && (
+          <button
+            ref={consoleToggleRef}
+            className="gp-console-dock-toggle"
+            aria-label={dockVisible ? 'Close side console' : 'Open side console'}
+            title={dockVisible ? 'Close side console' : 'Open side console'}
+            aria-expanded={dockVisible}
+            aria-controls="server-side-console"
+            onClick={() => setConsoleDockOpen((value) => !value)}
           >
-            {labels[key]}
-          </a>
-        ))}
-      </nav>
-      {tab === 'console' && (
-        <>
-          <div className={`gp-server-overview${tallConsole ? ' gp-server-overview-tall' : ''}`}>
-            <section className="gp-server-console min-w-0" ref={consoleSectionRef}>
-              {canLogs ? (
-                consoleContent
-              ) : (
-                <div className="gp-server-stat">You don't have permission to read the console.</div>
-              )}
-            </section>
-            <aside className="gp-server-stats" aria-label="Server details">
-              <div className="gp-server-stat">
-                <Globe className="gp-stat-icon" size={19} aria-hidden="true" />
-                <small>Connection address</small>
-                <strong className="gp-server-address">{address}</strong>
-                {server.port && (
-                  <button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(address).then(
-                        () => setFeedback('Address copied.'),
-                        () => setFeedback('Could not copy the address.')
-                      );
-                    }}
-                    aria-label="Copy connection address"
-                  >
-                    <Copy size={16} />
-                  </button>
-                )}
-              </div>
-              <div className="gp-server-stat">
-                <Cpu className="gp-stat-icon" size={19} aria-hidden="true" />
-                <small>CPU usage</small>
-                <strong>{formatMetricValue(server.status, server.cpuUsage)}</strong>
-              </div>
-              <div className="gp-server-stat">
-                <MemoryStick className="gp-stat-icon" size={19} aria-hidden="true" />
-                <small>Memory usage</small>
-                <strong>{formatMetricValue(server.status, server.memoryUsage)}</strong>
-              </div>
-              <div className="gp-server-stat">
-                <HardDrive className="gp-stat-icon" size={19} aria-hidden="true" />
-                <small>Disk usage</small>
-                <strong>{formatMetricValue(server.status, server.diskUsage)}</strong>
-              </div>
-              <div className="gp-server-stat">
-                <Network className="gp-stat-icon" size={19} aria-hidden="true" />
-                <small>Network · inbound / outbound</small>
-                <strong>
-                  {formatNetworkSpeed(server.networkIn)} / {formatNetworkSpeed(server.networkOut)}
-                </strong>
-              </div>
-            </aside>
-            <div className="gp-server-charts">
-              {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
-                <section className="gp-server-stat" key={metric}>
-                  <h2>{['CPU usage', 'Memory usage', 'Network traffic'][index]}</h2>
-                  {metrics.length ? (
-                    <div className="gp-server-chart-canvas">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={metrics.slice(-120)}>
-                          <XAxis dataKey="timestamp" hide />
-                          <YAxis
-                            width={62}
-                            tick={{ fontSize: 11, fill: 'var(--gp-muted)' }}
-                            axisLine={false}
-                            tickLine={false}
-                            tickFormatter={(value) =>
-                              index === 2 ? formatNetworkSpeed(Number(value)) : `${value}%`
-                            }
-                          />
-                          <Tooltip
-                            content={<MetricTooltip />}
-                            cursor={{ stroke: 'var(--gp-muted)', strokeDasharray: '3 3' }}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey={metric}
-                            stroke="#00c8e5"
-                            fill="#00c8e5"
-                            fillOpacity={0.12}
-                            isAnimationActive={false}
-                          />
-                          {index === 2 && (
-                            <Area
-                              dataKey="networkOut"
-                              stroke="#eab308"
-                              fillOpacity={0}
-                              isAnimationActive={false}
-                            />
-                          )}
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
+            <Terminal size={20} />
+          </button>
+        )}
+      </div>
+      <div className={`gp-server-workspace${dockVisible ? ' has-console-dock' : ''}`}>
+        <div className="gp-server-workspace-main">
+          {tab === 'console' && (
+            <>
+              <div className={`gp-server-overview${tallConsole ? ' gp-server-overview-tall' : ''}`}>
+                <section className="gp-server-console min-w-0" ref={consoleSectionRef}>
+                  {canLogs ? (
+                    consoleContent
                   ) : (
-                    <p>Waiting for metric history…</p>
+                    <div className="gp-server-stat">
+                      You don't have permission to read the console.
+                    </div>
                   )}
                 </section>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-      {settingsTab && (
-        <ServerSettingsModal
-          isOpen
-          pageTab={tab as SettingsTab}
-          onPageTabChange={onTab}
-          onDirtyChange={onDirtyChange}
-          onClose={onBack}
-          serverName={server.name}
-          serverGame={server.game}
-          serverProvider={server.provider}
-          serverProviderMetadataJson={server.providerMetadataJson}
-          serverStatus={server.status}
-          serverId={Number(server.id)}
-          currentUser={currentUser}
-          serverPermissions={permissions}
-        />
-      )}
-      {tab === 'network' && (
-        <section className="gp-server-stat">
-          <h2>Network allocations</h2>
-          <p>
-            Public connection: <strong>{address}</strong>
-          </p>
-          <div className="overflow-x-auto">
-            <table className="gp-server-network">
-              <thead>
-                <tr>
-                  <th>Purpose</th>
-                  <th>Protocol</th>
-                  <th>Public address</th>
-                  <th>Container port</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={i}>
-                    <td>{row.label || 'Game server'}</td>
-                    <td>{row.protocol.toUpperCase()}</td>
-                    <td>
-                      {row.hostIp || host}:{row.host}
-                    </td>
-                    <td>{row.container}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {!rows.length && <p>No additional port mappings available.</p>}
-        </section>
-      )}
-      {tab === 'activity' && (
-        <section className="gp-server-stat">
-          <h2>Server activity</h2>
-          <p>Runtime events received by this panel session.</p>
-          {!canLogs ? (
-            <p>No access to server activity.</p>
-          ) : history.length ? (
-            <ol className="gp-server-activity">
-              {[...history].reverse().map((entry) => (
-                <li key={entry.id}>
-                  <time>{new Date(entry.timestamp).toLocaleString()}</time>
-                  <span>{entry.message}</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p>No events recorded yet.</p>
+                <aside className="gp-server-stats" aria-label="Server details">
+                  <div className="gp-server-stat">
+                    <Globe className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>Connection address</small>
+                    <strong className="gp-server-address">{address}</strong>
+                    {server.port && (
+                      <button
+                        onClick={() => {
+                          void navigator.clipboard.writeText(address).then(
+                            () => setFeedback('Address copied.'),
+                            () => setFeedback('Could not copy the address.')
+                          );
+                        }}
+                        aria-label="Copy connection address"
+                      >
+                        <Copy size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="gp-server-stat">
+                    <Cpu className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>CPU usage</small>
+                    <strong>{formatMetricValue(server.status, server.cpuUsage)}</strong>
+                  </div>
+                  <div className="gp-server-stat">
+                    <MemoryStick className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>Memory usage</small>
+                    <strong>{formatMetricValue(server.status, server.memoryUsage)}</strong>
+                  </div>
+                  <div className="gp-server-stat">
+                    <HardDrive className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>Disk usage</small>
+                    <strong>{formatMetricValue(server.status, server.diskUsage)}</strong>
+                  </div>
+                  <div className="gp-server-stat">
+                    <Network className="gp-stat-icon" size={19} aria-hidden="true" />
+                    <small>Network · inbound / outbound</small>
+                    <strong>
+                      {formatNetworkSpeed(server.networkIn)} /{' '}
+                      {formatNetworkSpeed(server.networkOut)}
+                    </strong>
+                  </div>
+                </aside>
+                <div className="gp-server-charts">
+                  {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
+                    <section className="gp-server-stat" key={metric}>
+                      <h2>{['CPU usage', 'Memory usage', 'Network traffic'][index]}</h2>
+                      {metrics.length ? (
+                        <div className="gp-server-chart-canvas">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={metrics.slice(-120)}>
+                              <XAxis dataKey="timestamp" hide />
+                              <YAxis
+                                width={62}
+                                tick={{ fontSize: 11, fill: 'var(--gp-muted)' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(value) =>
+                                  index === 2 ? formatNetworkSpeed(Number(value)) : `${value}%`
+                                }
+                              />
+                              <Tooltip
+                                content={<MetricTooltip />}
+                                cursor={{ stroke: 'var(--gp-muted)', strokeDasharray: '3 3' }}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey={metric}
+                                stroke="#00c8e5"
+                                fill="#00c8e5"
+                                fillOpacity={0.12}
+                                isAnimationActive={false}
+                              />
+                              {index === 2 && (
+                                <Area
+                                  dataKey="networkOut"
+                                  stroke="#eab308"
+                                  fillOpacity={0}
+                                  isAnimationActive={false}
+                                />
+                              )}
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p>Waiting for metric history…</p>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
-        </section>
-      )}
+          {settingsTab && (
+            <ServerSettingsModal
+              isOpen
+              pageTab={tab as SettingsTab}
+              onPageTabChange={onTab}
+              onDirtyChange={onDirtyChange}
+              onClose={onBack}
+              serverName={server.name}
+              serverGame={server.game}
+              serverProvider={server.provider}
+              serverProviderMetadataJson={server.providerMetadataJson}
+              serverStatus={server.status}
+              serverId={Number(server.id)}
+              currentUser={currentUser}
+              serverPermissions={permissions}
+            />
+          )}
+          {tab === 'network' && (
+            <section className="gp-server-stat">
+              <h2>Network allocations</h2>
+              <p>
+                Public connection: <strong>{address}</strong>
+              </p>
+              <div className="overflow-x-auto">
+                <table className="gp-server-network">
+                  <thead>
+                    <tr>
+                      <th>Purpose</th>
+                      <th>Protocol</th>
+                      <th>Public address</th>
+                      <th>Container port</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <tr key={i}>
+                        <td>{row.label || 'Game server'}</td>
+                        <td>{row.protocol.toUpperCase()}</td>
+                        <td>
+                          {row.hostIp || host}:{row.host}
+                        </td>
+                        <td>{row.container}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {!rows.length && <p>No additional port mappings available.</p>}
+            </section>
+          )}
+          {tab === 'activity' && (
+            <section className="gp-server-stat">
+              <h2>Server activity</h2>
+              <p>Runtime events received by this panel session.</p>
+              {!canLogs ? (
+                <p>No access to server activity.</p>
+              ) : history.length ? (
+                <ol className="gp-server-activity">
+                  {[...history].reverse().map((entry) => (
+                    <li key={entry.id}>
+                      <time>{new Date(entry.timestamp).toLocaleString()}</time>
+                      <span>{entry.message}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>No events recorded yet.</p>
+              )}
+            </section>
+          )}
+        </div>
+        {dockVisible && (
+          <aside
+            id="server-side-console"
+            className="gp-console-dock"
+            aria-label="Side server console"
+          >
+            <div className="gp-console-dock-heading">
+              <span>Live console</span>
+              <button
+                aria-label="Hide side console"
+                title="Hide side console"
+                onClick={() => {
+                  setConsoleDockOpen(false);
+                  consoleToggleRef.current?.focus();
+                }}
+              >
+                <X size={17} />
+              </button>
+            </div>
+            {consoleContent}
+          </aside>
+        )}
+      </div>
       <ConfirmationModal
         isOpen={confirm !== null}
         onClose={() => setConfirm(null)}

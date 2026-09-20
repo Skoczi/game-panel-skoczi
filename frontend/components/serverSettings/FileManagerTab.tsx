@@ -758,12 +758,13 @@ export function FileManagerTab({
                     fallback={<div className={`p-4 text-sm ${textSecondary}`}>Loading editor…</div>}
                   >
                     <CodeEditor
-                      // Remounted per file: it closes the search panel, which otherwise
-                      // survives anything but its close button, and keeps the undo history
-                      // of one file from reaching into the next.
+                      // Each file owns an independent model, find state and undo history.
                       key={`${currentRoot}:${currentPath}/${selectedFile.name}`}
                       value={fileContent}
                       onChange={handleEditorChange}
+                      onSave={() => {
+                        if (canWriteFiles && isFileDirty && !savingFile) void handleSaveFile();
+                      }}
                       filename={selectedFile.name}
                       readOnly={!canWriteFiles}
                     />

@@ -29,9 +29,6 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('@codemirror') || id.includes('@uiw') || id.includes('@lezer')) {
-            return 'codemirror';
-          }
           if (id.includes('@xterm')) return 'xterm';
           if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) {
             return 'charts';

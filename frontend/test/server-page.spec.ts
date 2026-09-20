@@ -274,9 +274,11 @@ test('unsaved files are protected when leaving by tabs and browser history', asy
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
   await page.getByRole('link', { name: 'Files', exact: true }).click();
   await page.getByText('server.cfg', { exact: true }).dblclick();
-  const editor = page.locator('.cm-content[contenteditable="true"]');
+  const editor = page.locator('.monaco-editor');
   await expect(editor).toBeVisible();
-  await editor.fill('hostname edited');
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.type('hostname edited');
   page.once('dialog', (dialog) => dialog.dismiss());
   await page.getByRole('link', { name: 'Console', exact: true }).click();
   await expect(page).toHaveURL(/filemanager$/);

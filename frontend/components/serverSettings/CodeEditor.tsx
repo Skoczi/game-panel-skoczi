@@ -1,137 +1,120 @@
-import { memo, useCallback, useMemo, useRef } from 'react';
-import { css } from '@codemirror/lang-css';
-import { html } from '@codemirror/lang-html';
-import { javascript } from '@codemirror/lang-javascript';
-import { json } from '@codemirror/lang-json';
-import { markdown } from '@codemirror/lang-markdown';
-import { xml } from '@codemirror/lang-xml';
-import { yaml } from '@codemirror/lang-yaml';
-import { Prec, type Extension } from '@codemirror/state';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView, keymap } from '@codemirror/view';
-import ReactCodeMirror from '@uiw/react-codemirror';
+import { memo, useEffect, useRef } from 'react';
+import * as monaco from 'monaco-editor';
+import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
+import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
+import CssWorker from 'monaco-editor/language/css/css.worker?worker';
+import HtmlWorker from 'monaco-editor/language/html/html.worker?worker';
+import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker';
+import { useTheme } from '../../contexts/ThemeContext';
 
-function detectLanguage(filename: string): Extension | null {
+// All workers are bundled locally; opening a config never contacts a public CDN.
+self.MonacoEnvironment = {
+  getWorker(_id, label) {
+    if (label === 'json') return new JsonWorker();
+    if (['css', 'scss', 'less'].includes(label)) return new CssWorker();
+    if (['html', 'handlebars', 'razor'].includes(label)) return new HtmlWorker();
+    if (['javascript', 'typescript'].includes(label)) return new TsWorker();
+    return new EditorWorker();
+  },
+};
+
+function detectLanguage(filename: string): string {
+  if (filename.toLowerCase() === 'dockerfile') return 'dockerfile';
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-  switch (ext) {
-    case 'json':               return json();
-    case 'yaml': case 'yml':   return yaml();
-    case 'xml':  case 'config':return xml();
-    case 'js':   case 'mjs':   return javascript();
-    case 'ts':                 return javascript({ typescript: true });
-    case 'css':                return css();
-    case 'html': case 'htm':   return html();
-    case 'md':   case 'markdown': return markdown();
-    // .toml / .ini / .cfg / .conf / .properties → plain text (no package)
-    default:                   return null;
-  }
+  const languages: Record<string, string> = {
+    json: 'json',
+    yml: 'yaml',
+    yaml: 'yaml',
+    xml: 'xml',
+    config: 'xml',
+    js: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    jsx: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    css: 'css',
+    scss: 'scss',
+    less: 'less',
+    html: 'html',
+    htm: 'html',
+    md: 'markdown',
+    markdown: 'markdown',
+    ini: 'ini',
+    cfg: 'ini',
+    conf: 'ini',
+    properties: 'ini',
+    sh: 'shell',
+    bash: 'shell',
+    lua: 'lua',
+    py: 'python',
+    sql: 'sql',
+  };
+  return languages[ext] ?? 'plaintext';
 }
-
-const baseTheme = EditorView.theme({
-  '&': { height: '100%' },
-  '.cm-scroller': {
-    fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace',
-    fontSize: '13px',
-    overflow: 'auto',
-  },
-  '&.cm-focused': { outline: 'none' },
-
-  // oneDark themes the panel background but leaves its controls native, which read as light
-  // boxes on the dark editor.
-  '.cm-panels': { borderColor: '#334155' },
-  // Native checkboxes ignore accent-color while unchecked; color-scheme makes the browser
-  // render its own controls dark instead.
-  '.cm-panel.cm-search': { padding: '8px 10px', colorScheme: 'dark' },
-  '.cm-panel.cm-search .cm-textfield': {
-    backgroundColor: '#0b1220',
-    border: '1px solid #334155',
-    borderRadius: '6px',
-    color: '#e6edf7',
-    padding: '4px 8px',
-  },
-  '.cm-panel.cm-search .cm-textfield:focus-visible': {
-    outline: 'none',
-    borderColor: 'var(--color-cyan-400)',
-  },
-  '.cm-panel.cm-search .cm-button': {
-    backgroundImage: 'none',
-    backgroundColor: '#1f2937',
-    border: '1px solid #334155',
-    borderRadius: '6px',
-    color: '#e6edf7',
-    padding: '4px 10px',
-  },
-  '.cm-panel.cm-search .cm-button:hover': { backgroundColor: '#27364d' },
-  '.cm-panel.cm-search .cm-button:active': { backgroundColor: '#0f172a' },
-  '.cm-panel.cm-search label': { color: '#94a3b8', fontSize: '12px' },
-  '.cm-panel.cm-search input[type=checkbox]': {
-    accentColor: 'var(--gp-ods-accent-primary)',
-    verticalAlign: 'middle',
-  },
-  '.cm-panel.cm-search [name=close]': { color: '#94a3b8', cursor: 'pointer' },
-  '.cm-panel.cm-search [name=close]:hover': { color: '#e6edf7' },
-});
-
-// searchKeymap binds Escape to closeSearchPanel. Taking the key first while the panel is
-// open leaves the close button as the only way out; with no panel the binding declines and
-// Escape keeps its usual meaning in the editor.
-const keepSearchPanelOpen = Prec.highest(
-  keymap.of([
-    {
-      key: 'Escape',
-      run: (view) => Boolean(view.dom.querySelector('.cm-panel.cm-search')),
-    },
-  ])
-);
-
-const editorStyle = { height: '100%' } as const;
 
 interface CodeEditorProps {
   value: string;
   onChange?: (value: string) => void;
+  onSave?: () => void;
   filename: string;
   readOnly?: boolean;
 }
 
-function CodeEditorImpl({ value, onChange, filename, readOnly = false }: CodeEditorProps) {
-  // ReactCodeMirror reconfigures the whole editor whenever one of these identities changes,
-  // and a reconfigure discards the search panel, which CodeMirror injects through
-  // appendConfig rather than as a declared extension.
-  const extensions = useMemo(() => {
-    const langExt = detectLanguage(filename);
-    return [baseTheme, keepSearchPanelOpen, EditorView.lineWrapping, ...(langExt ? [langExt] : [])];
+function CodeEditorImpl({ value, onChange, onSave, filename, readOnly = false }: CodeEditorProps) {
+  const { theme } = useTheme();
+  const container = useRef<HTMLDivElement>(null);
+  const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const latest = useRef({ value, onChange, onSave, readOnly });
+  latest.current = { value, onChange, onSave, readOnly };
+
+  useEffect(() => {
+    if (!container.current) return;
+    // Each mounted file owns its model and undo stack; no filenames or contents in URLs.
+    const model = monaco.editor.createModel(latest.current.value, detectLanguage(filename));
+    const instance = monaco.editor.create(container.current, {
+      model,
+      automaticLayout: true,
+      readOnly: latest.current.readOnly,
+      fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
+      fontSize: 13,
+      lineHeight: 21,
+      padding: { top: 12, bottom: 12 },
+      minimap: { enabled: false },
+      wordWrap: 'on',
+      scrollBeyondLastLine: false,
+      bracketPairColorization: { enabled: true },
+      folding: true,
+      stickyScroll: { enabled: false },
+      ariaLabel: `File editor: ${filename}`,
+    });
+    editor.current = instance;
+    const changes = instance.onDidChangeModelContent(() =>
+      latest.current.onChange?.(model.getValue())
+    );
+    instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      if (!latest.current.readOnly) latest.current.onSave?.();
+    });
+    return () => {
+      changes.dispose();
+      instance.dispose();
+      model.dispose();
+      editor.current = null;
+    };
   }, [filename]);
 
-  const basicSetup = useMemo(
-    () => ({
-      lineNumbers: true,
-      foldGutter: true,
-      highlightActiveLine: true,
-      highlightSelectionMatches: true,
-      bracketMatching: true,
-      closeBrackets: !readOnly,
-      autocompletion: false,
-      indentOnInput: true,
-    }),
-    [readOnly]
-  );
-
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const handleChange = useCallback((next: string) => onChangeRef.current?.(next), []);
-
-  return (
-    <ReactCodeMirror
-      value={value}
-      onChange={handleChange}
-      theme={oneDark}
-      extensions={extensions}
-      height="100%"
-      editable={!readOnly}
-      basicSetup={basicSetup}
-      style={editorStyle}
-    />
-  );
+  useEffect(() => {
+    const model = editor.current?.getModel();
+    // Controlled updates must not reset selection, find widget or undo history.
+    if (model && model.getValue() !== value) model.setValue(value);
+  }, [value, filename]);
+  useEffect(() => {
+    editor.current?.updateOptions({ readOnly });
+  }, [readOnly, filename]);
+  useEffect(() => {
+    monaco.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
+  }, [theme, filename]);
+  return <div ref={container} style={{ height: '100%', width: '100%', minHeight: 0 }} />;
 }
 
 export const CodeEditor = memo(CodeEditorImpl);

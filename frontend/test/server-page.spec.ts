@@ -124,7 +124,7 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
       await page.goto(`/test/server-page.fixture.html#/nodes/local/servers/7/${tab}`);
       const body = page.locator('.gp-server-page-content .gp-server-settings-body');
       await expect(body).toBeVisible();
-      expect(
+      if (width <= 1000) expect(
         await body.evaluate((element) => {
           let current = element.parentElement;
           while (current?.closest('.gp-server-page-content')) {
@@ -179,6 +179,28 @@ test('restart confirmation follows the settings pane with the console open', asy
   expect(mobile!.x + mobile!.width).toBeLessThanOrEqual(390);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toBeHidden();
+});
+
+test('workspace and dock fill the viewport with matching bottom edges across tabs', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByRole('button', { name: 'Open side console' }).click();
+  for (const name of ['Files', 'Game Config', 'Backups', 'Schedules', 'Network', 'Startup & Settings', 'Terminal', 'Activity']) {
+    await page.locator('.gp-server-tabs').getByRole('link', { name, exact: true }).click();
+    const main = page.locator('.gp-server-workspace-main > section');
+    await expect(main).toBeVisible();
+    await expect.poll(async () => {
+      const box = await main.boundingBox();
+      return Math.abs(box!.y + box!.height - 984);
+    }).toBeLessThan(2);
+    const dock = await page.locator('.gp-console-dock').boundingBox();
+    expect(Math.abs(dock!.y + dock!.height - 984)).toBeLessThan(2);
+  }
+  await page.setViewportSize({ width: 1200, height: 780 });
+  await expect.poll(async () => {
+    const box = await page.locator('.gp-console-dock').boundingBox();
+    return Math.abs(box!.y + box!.height - 764);
+  }).toBeLessThan(2);
 });
 
 test.beforeEach(async ({ page }) => {

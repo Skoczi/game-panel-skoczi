@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import {
   ArrowLeft,
   Copy,
@@ -124,6 +124,19 @@ export function ServerManagementPage({
   const [showAccess, setShowAccess] = useState(false);
   const [consoleDockOpen, setConsoleDockOpen] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const [workspaceTop, setWorkspaceTop] = useState(160);
+  useLayoutEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    const measure = () => setWorkspaceTop(workspace.getBoundingClientRect().top + window.scrollY);
+    measure();
+    const observer = new ResizeObserver(measure);
+    for (const element of workspace.parentElement?.children ?? []) {
+      if (element !== workspace) observer.observe(element);
+    }
+    window.addEventListener('resize', measure);
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+  }, [tab]);
   const splitKey = `gamepanel_console_split:${currentUser?.id ?? 'guest'}`;
   const [dockWidth, setDockWidth] = useState(() => {
     try {
@@ -320,14 +333,14 @@ export function ServerManagementPage({
             aria-controls="server-side-console"
             onClick={() => setConsoleDockOpen((value) => !value)}
           >
-            <Terminal size={20} />
+            <Terminal size={16} />
           </button>
         )}
       </div>
       <div
         ref={workspaceRef}
-        style={{ '--gp-dock-width': `${dockWidth}%` } as CSSProperties}
-        className={`gp-server-workspace${dockVisible ? ' has-console-dock' : ''}${resizingDock ? ' is-resizing-dock' : ''}`}
+        style={{ '--gp-dock-width': `${dockWidth}%`, '--gp-workspace-top': `${workspaceTop}px` } as CSSProperties}
+        className={`gp-server-workspace${tab !== 'console' ? ' is-viewport-workspace' : ''}${dockVisible ? ' has-console-dock' : ''}${resizingDock ? ' is-resizing-dock' : ''}`}
       >
         <div className="gp-server-workspace-main">
           {tab === 'console' && (

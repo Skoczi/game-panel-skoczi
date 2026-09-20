@@ -35,7 +35,13 @@ export function MediaPreview({ doc, serverId }: { doc: EditorDocument; serverId:
           }
         } finally { await reader.cancel(); }
         if (controller.signal.aborted) return;
-        objectUrl = URL.createObjectURL(new Blob(chunks));
+        let blob = new Blob(chunks);
+        if (/\.tga$/i.test(doc.name)) {
+          const { renderTga } = await import('./tgaPreview');
+          blob = await renderTga(await blob.arrayBuffer(), controller.signal);
+        }
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
       } catch (err) {
         if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Unable to load preview.');

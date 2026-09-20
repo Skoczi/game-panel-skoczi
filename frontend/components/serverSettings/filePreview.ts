@@ -1,7 +1,7 @@
 export type PreviewKind = 'text' | 'image' | 'audio' | 'binary';
 export function previewKind(name: string): PreviewKind {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp'].includes(ext)) return 'image';
+  if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'tga'].includes(ext)) return 'image';
   if (['wav', 'mp3', 'ogg'].includes(ext)) return 'audio';
   if (['zip', 'gz', 'tar', '7z', 'rar', 'exe', 'dll', 'so', 'bin', 'pdf', 'bsp', 'mdl', 'wad', 'pak'].includes(ext)) return 'binary';
   return 'text';

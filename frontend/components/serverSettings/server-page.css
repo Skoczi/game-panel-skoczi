@@ -141,6 +141,13 @@
 .gp-server-back {
   flex-shrink: 0;
 }
+.gp-server-back, .gp-server-power .gp-server-access {
+  width: 36px;
+  padding: 7px;
+}
+@media (pointer: coarse) {
+  .gp-server-back, .gp-server-power .gp-server-access { width: 44px; }
+}
 .gp-server-heading {
   display: flex;
   justify-content: space-between;

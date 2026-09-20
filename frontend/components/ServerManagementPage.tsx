@@ -248,8 +248,8 @@ export function ServerManagementPage({
     <div className="gp-server-page">
       <header className="gp-server-heading">
         <div className="gp-server-heading-main">
-          <button className="gp-server-back" onClick={onBack}>
-            <ArrowLeft size={17} /> Back to servers
+          <button className="gp-server-back" onClick={onBack} aria-label="Back to servers" title="Back to servers">
+            <ArrowLeft size={16} />
           </button>
           <span className="gp-server-heading-divider" aria-hidden="true" />
           <div className="gp-server-identity">
@@ -270,11 +270,6 @@ export function ServerManagementPage({
         </div>
         {allowed('server.power') && (
           <div className="gp-server-power">
-            {currentUser?.isRoot && ACTIVE_SERVER && (
-              <button onClick={() => setShowAccess(true)}>
-                <Users size={16} /> Access
-              </button>
-            )}
             <button
               disabled={pending || !isServerDownLike(server.status)}
               onClick={() => void power('start')}
@@ -293,6 +288,11 @@ export function ServerManagementPage({
             >
               <Square size={16} /> Stop
             </button>
+            {currentUser?.isRoot && ACTIVE_SERVER && (
+              <button className="gp-server-access" onClick={() => setShowAccess(true)} aria-label="Access" title="Access">
+                <Users size={16} />
+              </button>
+            )}
           </div>
         )}
       </header>

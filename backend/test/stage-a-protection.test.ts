@@ -278,8 +278,11 @@ test('real archive extraction holds its lock, rejects a late invalid entry witho
     await output;
   }
   async function wait(id: number) {
-    for (let i = 0; i < 100 && !['failed', 'completed'].includes(rows.get(id).status); i++)
+    // The result is persisted before asynchronous cleanup releases the operation lock.
+    // Wait for both before starting another extraction or deleting its test directory.
+    for (let i = 0; i < 200 && (!['failed', 'completed'].includes(rows.get(id).status) || locks.nativeOperationRunning(93)); i++)
       await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(locks.nativeOperationRunning(93), false, 'Extraction cleanup must release its lock');
     return rows.get(id);
   }
   try {

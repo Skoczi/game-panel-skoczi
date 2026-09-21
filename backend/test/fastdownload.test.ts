@@ -52,11 +52,15 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     GAMEPANEL_FASTDL_ORIGIN: "https://waw2.example.test",
     GAMEPANEL_FASTDL_ACCEL: "1",
   };
-  const server = { id: 8, status: "running" };
+  const server = { id: 8, status: "running", docker_container_id: "test" };
+  const commands: string[] = [];
   const module = loadWithMocks(
     "../src/services/fastDownload.ts",
     {
       "node:fs": fsModule,
+      "./gameConsole.js": {
+        sendGameConsoleCommand: async (_server: unknown, command: string) => { commands.push(command); return {ok:true}; },
+      },
       "node:path": path,
       "node:crypto": crypto,
       "node:child_process": childProcess,
@@ -107,6 +111,7 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     await write("server.cfg", 'hostname "test"\n');
     await write("addons/private.mdl", "private");
     await module.synchronizeFastDownload(8);
+    assert.deepEqual(commands, ['sv_downloadurl "https://waw2.example.test/fdl/srv8/cstrike/"']);
     assert.equal(
       await fs.readFile(path.join(target, "maps/test.bsp"), "utf8"),
       "map data ".repeat(100),

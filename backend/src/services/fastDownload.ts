@@ -1,3 +1,4 @@
+import { sendGameConsoleCommand } from "./gameConsole.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -462,14 +463,16 @@ export async function synchronizeFastDownload(id: number, requestHeld = false) {
         /^\s*sv_downloadurl\s+(?:"([^"\r\n]*)"|([^\s;\r\n]+))/m,
       );
       const value = existing?.[1] ?? existing?.[2];
-      if (!value) {
-        await applyFastDownloadConfig(id, "fastdownload");
-        state.configuration = "Saved in server.cfg · applies on config reload";
+      if (
+        !value ||
+        value === `${fastDownloadOrigin()}/fdl/srv${id}/${profile.game}/`
+      ) {
+        state.configuration = (
+          await applyFastDownloadConfig(id, "fastdownload")
+        ).message;
       } else
         state.configuration =
-          value === `${fastDownloadOrigin()}/fdl/srv${id}/${profile.game}/`
-            ? "Saved in server.cfg"
-            : "Existing download URL retained · use Set URL to replace it";
+          "Existing download URL retained · use Set URL to replace it";
     }
     state.lastSync = new Date().toISOString();
     state.error = null;
@@ -556,21 +559,27 @@ export async function applyFastDownloadConfig(id: number, actor: string) {
       fs.writeFile(temporary, content, { flag: "wx", mode: 0o644 }),
     profile,
   );
+  let message = "Saved in server.cfg · applies on config reload";
+  if (server.status === "running" && server.docker_container_id) {
+    try {
+      const result = await sendGameConsoleCommand(
+        { ...server, docker_container_id: server.docker_container_id },
+        command,
+      );
+      if (result.ok)
+        message = "Saved in server.cfg and sent to the game console";
+    } catch {
+      message =
+        "Saved in server.cfg; live application failed · retry Set URL or reload the config";
+    }
+  }
   if (!busy.has(id)) {
     const state = await readState(id, profile.compression);
-    state.configuration = "Saved in server.cfg · applies on config reload";
+    state.configuration = message;
     await saveState(id, state);
   }
-  await actionsRepository.create(
-    id,
-    "info",
-    "FastDownload URL saved in server.cfg; applied on next config reload",
-    actor,
-  );
-  return {
-    message:
-      "Saved in server.cfg. Applies on the next config reload or server restart.",
-  };
+  await actionsRepository.create(id, "info", "FastDownload: " + message, actor);
+  return { message };
 }
 export async function resolveFastDownload(id: number, relative: string) {
   const server = await serverFor(id),

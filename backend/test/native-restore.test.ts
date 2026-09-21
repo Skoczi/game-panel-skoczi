@@ -38,7 +38,7 @@ test('Native restore validates before replacing files, preserves logs and recove
   await fs.mkdir(backups, { recursive: true }); await fs.mkdir(path.join(data, 'serverfiles'));
   await fs.writeFile(path.join(data, 'serverfiles', 'world'), 'current'); await fs.writeFile(path.join(data, 'log'), 'keep');
   const good = path.join(backups, 'good.tar.gz');
-  await archive(good, [{ name: 'serverfiles/', type: 'directory' }, { name: 'serverfiles/world', content: 'restored' }, { name: 'serverfiles/world-link', type: 'symlink', linkname: 'world' }, { name: 'serverfiles/world-hard', type: 'link', linkname: 'serverfiles/world' }]);
+  await archive(good, [{ name: 'serverfiles/', type: 'directory' }, { name: 'serverfiles/world', content: 'restored' }, { name: 'serverfiles/libSDL2.so', type: 'symlink', linkname: 'libSDL2-2.0.so.0' }, { name: 'serverfiles/world-link', type: 'symlink', linkname: 'world' }, { name: 'serverfiles/world-hard', type: 'link', linkname: 'serverfiles/world' }]);
   status = 'running'; await assert.rejects(module.restoreNativeBackup(server, 'good.tar.gz'), /Stop the server/); status = 'exited';
   for (const entry of [{ name: '../outside', content: 'bad' }, { name: 'serverfiles/link', type: 'symlink', linkname: '/etc' }, { name: 'log', content: 'bad' }]) {
    await archive(path.join(backups, 'bad.tar.gz'), [entry]);
@@ -54,6 +54,29 @@ test('Native restore validates before replacing files, preserves logs and recove
   assert.equal(await fs.readFile(path.join(data, 'serverfiles', 'world-link'), 'utf8'), 'restored');
   assert.equal(await fs.readFile(path.join(data, 'serverfiles', 'world-hard'), 'utf8'), 'restored');
   assert.equal((await fs.stat(path.join(data, 'serverfiles'))).mode & 0o777, 0o750);
+  assert.equal(await fs.readlink(path.join(data, 'serverfiles', 'libSDL2.so')), 'libSDL2-2.0.so.0');
+  await assert.rejects(fs.stat(path.join(data, 'serverfiles', 'libSDL2.so')), { code: 'ENOENT' });
   assert.equal(releases, 6);
+ } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('archive validation allows internal dangling soft links but rejects escapes, cycles and missing hard links', async () => {
+ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gp-link-validation-'));
+ const filename = path.join(root, 'links.tar.gz');
+ const directory = { name: 'serverfiles', type: 'directory' };
+ try {
+  await archive(filename, [directory, { name: 'serverfiles/a', type: 'symlink', linkname: 'b' }, { name: 'serverfiles/b', type: 'symlink', linkname: 'missing' }]);
+  await validateNativeArchive(filename);
+  for (const entries of [
+   [{ name: 'serverfiles/link', type: 'symlink', linkname: '../outside' }],
+   [{ name: 'serverfiles/link', type: 'symlink', linkname: '/etc/passwd' }],
+   [{ name: 'serverfiles/a', type: 'symlink', linkname: 'b' }, { name: 'serverfiles/b', type: 'symlink', linkname: 'a' }],
+   [{ name: 'serverfiles/a', type: 'symlink', linkname: '.' }, { name: 'serverfiles/b', type: 'symlink', linkname: 'a/../outside' }],
+   [{ name: 'serverfiles/a', type: 'symlink', linkname: 'missing' }, { name: 'serverfiles/a/child', content: 'bad' }],
+   [{ name: 'serverfiles/link', type: 'link', linkname: 'serverfiles/missing' }],
+  ]) {
+   await archive(filename, [directory, ...entries]);
+   await assert.rejects(validateNativeArchive(filename));
+  }
  } finally { await fs.rm(root, { recursive: true, force: true }); }
 });

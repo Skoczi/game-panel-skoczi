@@ -16,7 +16,7 @@
 }
 .gp-fleet-node-workspace h1 {
   font-size: 20px;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: normal;
   margin: 0;
 }
@@ -508,3 +508,12 @@
     max-width: 100%;
   }
 }
+
+/* Names wrap within a bounded column; absolute metrics keep their units together. */
+.fleet-node-table td:first-child { width: 22%; max-width: 280px; }
+.fleet-node-table .fleet-edit-name { width: 100%; min-width: 0; text-align: left; }
+.fleet-node-table .fleet-edit-name strong, .fleet-node-table td > strong { overflow-wrap: anywhere; }
+.fleet-node-table .fleet-node-metrics { min-width: 180px; }
+.fleet-node-table .fleet-node-metric { grid-template-columns: 26px minmax(140px, 1fr); gap: 8px; }
+.fleet-node-table .fleet-node-metric strong { grid-column: 2; white-space: nowrap; }
+.fleet-node-table .fleet-node-track { display: none; }

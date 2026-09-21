@@ -54,7 +54,7 @@ test('upgrading .3 adds branding once without changing policies or prior switche
         const store = new GlobalSettingsStore(db, () => {}); await store.initialize(seed());
         assert.deepEqual(store.snapshot().network, old.network);
         assert.equal(store.snapshot().appearance.showFollowUs, false);
-        assert.equal(store.snapshot().appearance.showNews, true);
+        assert.equal(store.snapshot().appearance.showNews, false);
         assert.equal(store.snapshot().appearance.siteName, 'Game Panel PRO');
         assert.equal(store.snapshot().revision, 8);
         const reloaded = new GlobalSettingsStore(db, () => {}); await reloaded.initialize(seed());
@@ -177,11 +177,11 @@ test('database write failure leaves active settings unchanged', async () => {
         db.run = async () => { throw new Error('Simulated storage failure'); };
         const next = seed(); next.appearance.showTrustpilot = false;
         await assert.rejects(store.save(next, 1), /storage failure/);
-        assert.equal(active.appearance.showTrustpilot, true);
+        assert.equal(active.appearance.showTrustpilot, false);
         assert.equal(store.snapshot().revision, 1);
         db.run = originalRun;
         const reloaded = new GlobalSettingsStore(db, () => {}); await reloaded.initialize(seed());
-        assert.equal(reloaded.snapshot().appearance.showTrustpilot, true);
+        assert.equal(reloaded.snapshot().appearance.showTrustpilot, false);
     } finally { native.close(); }
 });
 
@@ -195,4 +195,23 @@ test('invalid stored settings do not silently fall back to environment defaults'
         await assert.rejects(broken.initialize(seed()));
         assert.equal(applied, false);
     } finally { native.close(); }
+});
+
+test('favicon validates uploads and migrates previous settings without losing branding', async () => {
+ const input = seed();
+ input.appearance.favicon = 'https://example.com/icon.ico';
+ assert.equal(validateGlobalSettings(input).appearance.favicon, input.appearance.favicon);
+ for (const bad of ['javascript:alert(1)', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/x-icon;base64,YmFk', 'https://user:pass@example.com/icon.ico']) {
+  input.appearance.favicon = bad; assert.throws(() => validateGlobalSettings(input));
+ }
+ const { native, db } = database();
+ try {
+  const { favicon, ...appearance } = seed().appearance;
+  native.exec('CREATE TABLE panel_settings(id INTEGER PRIMARY KEY, revision INTEGER, settings_json TEXT)');
+  native.prepare('INSERT INTO panel_settings VALUES(1, 9, ?)').run(JSON.stringify({ ...seed(), appearance }));
+  const store = new GlobalSettingsStore(db, () => {}); await store.initialize(seed());
+  assert.equal(store.snapshot().appearance.favicon, '');
+  assert.equal(store.snapshot().appearance.siteName, appearance.siteName);
+  assert.equal(store.snapshot().revision, 10);
+ } finally { native.close(); }
 });

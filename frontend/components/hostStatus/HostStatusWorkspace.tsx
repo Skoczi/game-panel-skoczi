@@ -7,14 +7,7 @@ export function HostStatusWorkspace() {
   const visible = scope === 'all' ? nodes : nodes.filter((node) => node.id === scope);
   return (
     <section className="space-y-6" aria-label="Host status">
-      <header>
-        <h1 className="text-xl font-semibold">Host Status</h1>
-        <p className="mt-1 text-sm text-gray-400">
-          {scope === 'all'
-            ? 'All nodes · each host reports its own usage.'
-            : 'Metrics for the selected host.'}
-        </p>
-      </header>
+      <header className="gp-page-header"><h1 className="gp-page-title">Host Status</h1></header>
       {loading && <p role="status">Loading nodes…</p>}
       {error && <p role="status">Node list unavailable. Retrying…</p>}
       {!loading && !error && !visible.length && (

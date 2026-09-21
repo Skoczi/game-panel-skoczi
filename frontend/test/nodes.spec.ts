@@ -138,21 +138,21 @@ test('remote selection is per-tab and failed remote request cannot reach local s
   await page.getByRole('button', { name: 'Test selected runtime' }).click();
   await expect.poll(() => remote).toBe(1);
   expect(local).toBe(0);
-  await expect(page.getByRole('button', { name: 'Open servers', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Open servers', exact: true }).first()).toBeEnabled();
 });
-test('Local opens the administrator runtime even when Local is already the default', async ({
+test('Open servers selects fleet scope and clears the old runtime workspace', async ({
   page,
 }) => {
   await page.goto('/test/nodes.fixture.html');
-  const button = page.getByRole('button', { name: 'Open local servers' });
+  const button = page.getByRole('button', { name: 'Open servers', exact: true }).first();
   await expect(button).toBeEnabled();
   await Promise.all([page.waitForEvent('load'), button.click()]);
-  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_admin_runtime'))).toBe('1');
-  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_node'))).toBe('local');
+  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_admin_runtime'))).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_node_scope_2'))).toBe('local');
   // Reopening the same runtime must navigate too, not silently do nothing.
   await Promise.all([
     page.waitForEvent('load'),
-    page.getByRole('button', { name: 'Open local servers' }).click(),
+    page.getByRole('button', { name: 'Open servers', exact: true }).first().click(),
   ]);
 });
 
@@ -185,7 +185,7 @@ test('pending node deletion needs the exact name, clears enrollment, and removes
   await confirm.click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading', { name: node.name })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Open local servers' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Open servers', exact: true }).first()).toBeEnabled();
 });
 
 test('deletion error stays inside the dialog and keeps the node', async ({ page }) => {
@@ -217,7 +217,7 @@ test('disabled node has no server or allocation action; mobile layout stays with
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/test/nodes.fixture.html');
-  await expect(page.getByRole('button', { name: 'Open servers', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Open servers', exact: true }).last()).toBeDisabled();
   await expect(
     page.getByRole('button', { name: 'Node settings', exact: true }).last()
   ).toBeEnabled();
@@ -241,7 +241,7 @@ test('custom node menu supports keyboard, view selection and outside dismissal',
   await expect(trigger).toHaveAccessibleName('Node scope All nodes');
   await trigger.click();
   await expect(page.getByRole('option', { name: /Warsaw test/ })).toBeVisible();
-  await expect(page.getByRole('option', { name: /^All nodes/ })).toHaveAttribute(
+  await expect(page.getByRole('option', { name: /All nodes/ })).toHaveAttribute(
     'aria-selected',
     'true'
   );
@@ -292,7 +292,7 @@ test('custom node menu shows unavailable selection without silently switching to
   );
   await page.goto('/test/nodes.fixture.html');
   await expect(page.getByRole('combobox')).toContainText('Selected node');
-  await expect(page.getByRole('combobox')).toContainText('Status unavailable');
+  await expect(page.locator('.gp-node-trigger .gp-node-caption')).toHaveAttribute('title', 'Status unavailable');
   await page.getByRole('combobox').click();
   await expect(page.getByRole('option', { name: /Selected node/ })).toHaveAttribute(
     'aria-selected',
@@ -322,12 +322,12 @@ test('custom node menu handles Local-only inventory without prompting or navigat
   });
   await page.getByRole('combobox').click();
   await expect(page.getByRole('option')).toHaveCount(2);
-  await page.getByRole('option', { name: /^All nodes/ }).click();
+  await page.getByRole('option', { name: /All nodes/ }).click();
   await expect(page.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
   expect(dialogs).toBe(0);
 });
 
-test('narrow node list has no host icons and keeps location separate from status', async ({
+test('narrow node list uses compact rows and accessible status dots', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -364,9 +364,8 @@ test('narrow node list has no host icons and keeps location separate from status
   await expect(page.locator('[role="option"] .lucide-server')).toHaveCount(0);
   await expect(page.locator('.gp-node-trigger .lucide-server')).toHaveCount(1);
   for (const row of await page.getByRole('option').all()) {
-    const location = await row.locator('.gp-node-location').boundingBox();
-    const status = await row.locator('.gp-node-caption').boundingBox();
-    expect(location!.y + location!.height).toBeLessThanOrEqual(status!.y);
+    expect((await row.boundingBox())!.height).toBeLessThanOrEqual(40);
+    await expect(row.locator('.gp-node-caption')).toHaveAttribute('title', /.+/);
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   }
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page

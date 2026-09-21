@@ -15,6 +15,7 @@ import type { GameServerRow } from '../types/gameServer.js';
 
 // Stage regular files first; create only links whose resolved targets stay inside the game directory.
 export async function stageNativeArchive(archive: string, staging: string, keys: string[]) {
+    await validateNativeArchive(archive);
     const extractor = tar.extract();
     const canonicalStaging = await fs.realpath(staging);
     const seen = new Set<string>();
@@ -83,7 +84,13 @@ export async function stageNativeArchive(archive: string, staging: string, keys:
         if (process.getuid?.() === 0) await fs.lchown(destination, link.uid, link.gid);
     }
     for (const link of links) {
-        const actual = await fs.realpath(path.join(staging, link.name));
+        let actual: string;
+        try { actual = await fs.realpath(path.join(staging, link.name)); }
+        catch (error: any) {
+            // The archive validator has checked every component of this relative link.
+            if (link.type === 'symlink' && error.code === 'ENOENT') continue;
+            throw error;
+        }
         if (!keys.some(key => actual.startsWith(path.join(canonicalStaging, key) + path.sep) || actual === path.join(canonicalStaging, key))) throw new Error('Archive link resolves outside the game directory');
     }
     for (const [destination, mode] of [...directoryModes].sort((a,b) => b[0].length - a[0].length)) { await syncDirectory(destination); await fs.chmod(destination, mode); }
@@ -106,7 +113,6 @@ export async function restoreNativeBackup(server: GameServerRow & { docker_conta
         const serverRoot = path.join(getServerStoragePaths(server.id).serverRoot, 'data');
         const keys = ['serverfiles'];
         for (const key of keys) if (!(await fs.lstat(path.join(serverRoot, key))).isDirectory()) throw new Error('Invalid Native mount');
-        await validateNativeArchive(archive);
         staging = await fs.mkdtemp(path.join(directory, '.restore-'));
         await stageNativeArchive(archive, staging, keys);
         if (!['exited', 'created', 'dead'].includes(await checkContainerStatus(server.docker_container_id))) throw new Error('Server state changed during restore preparation');

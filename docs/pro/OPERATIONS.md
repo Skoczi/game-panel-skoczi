@@ -33,11 +33,13 @@ A Native update is a separate operation. Restoring game files does not rewind th
 
 ## Editor
 
-Open reads content and its SHA-256 version together. Save requires that version, stages a sibling temporary file, syncs it and atomically replaces the original, preserving owner and permissions. Both reads and writes use a 2 MiB byte limit.
+Save replaces the current server file with the editor contents, including changes made by the game since opening it. The write uses a sibling temporary file, syncs it and atomically replaces the original while preserving owner and permissions. Reads and writes have a 2 MiB byte limit. Failed saves leave the editor text intact.
 
-On conflict, your draft stays open and the current server content is available for comparison. Merge deliberately, then save again. The next save checks the newly acknowledged version. There is no silent forced overwrite.
+The editor requests explicit overwrite mode. API callers that omit `overwrite: true` retain conditional version checks. Update agents to 2.0.52 before deploying the new editor.
 
-Panel saves are serialized. A game process does not share that lock; a write in the final compare-to-rename interval remains possible. Stop a game before editing configuration it continuously rewrites. This stage does not introduce a persistent file revision history.
+History retains the content read immediately before an editor save: up to 10 versions per file, 100 per server and 30 days, with a 512 KiB text limit and 64 MiB server quota. Loading history changes the editor; Save applies it. A game can still rewrite its configuration after a panel save.
+
+Native backups preserve internal relative symlinks even when their targets are missing. Absolute or escaping links, cycles and missing hard-link targets are rejected. These checks also run before restore staging.
 
 ## Schedules
 

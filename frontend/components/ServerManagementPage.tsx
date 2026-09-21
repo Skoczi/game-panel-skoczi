@@ -56,7 +56,7 @@ interface Props {
 }
 const labels: Record<ServerPageTab, string> = {
   console: 'Console',
-  filemanager: 'Files',
+  filemanager: 'File Editor',
   gameconfig: 'Game Config',
   backup: 'Backups',
   scheduledtasks: 'Schedules',
@@ -104,18 +104,11 @@ function MetricTooltip({
     </div>
   );
 }
-function MeasurementTime({ timestamp }: { timestamp: number | null }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(timer); }, []);
-  if (timestamp === null || timestamp > now + 5000) return <span>Latest chart sample: unavailable</span>;
-  return <span>Latest chart sample: <time dateTime={new Date(timestamp).toISOString()}>{new Date(timestamp).toLocaleTimeString()}</time>{now - timestamp > 35_000 ? ' · stale' : ''}</span>;
-}
 export function ServerManagementPage({
   server,
   currentUser,
   permissions,
   gameName,
-  nodeName,
   tab,
   onTab,
   onBack,
@@ -218,15 +211,8 @@ export function ServerManagementPage({
   const address = server.port
     ? `${host.includes(':') ? `[${host}]` : host}:${server.port}`
     : 'Not assigned';
-  const serverContext = ACTIVE_SERVER?.runtimeId === Number(server.id) && ACTIVE_SERVER.nodeId === ACTIVE_NODE ? ACTIVE_SERVER : null;
-  const identity = serverContext?.id || `${ACTIVE_NODE}/${server.id}`;
   const startReason = pending ? 'Waiting for the current power request.' : !isServerDownLike(server.status) ? 'Start requires a confirmed stopped server.' : '';
   const stopReason = pending ? 'Waiting for the current power request.' : !isServerUpLike(server.status) ? 'Restart and Stop require a confirmed running server.' : '';
-  const powerReason = [startReason, stopReason].filter((value, index, values) => value && values.indexOf(value) === index).join(' ');
-  const copyContext = async (value: string, label: string) => {
-    try { await navigator.clipboard.writeText(value); setFeedback(`${label} copied.`); }
-    catch { setFeedback(`Unable to copy ${label.toLowerCase()}.`); }
-  };
   const power = async (action: string) => {
     if (!allowed('server.power') || pending) return;
     setPending(true);
@@ -304,7 +290,6 @@ export function ServerManagementPage({
             <button
               disabled={Boolean(startReason)}
               title={startReason || undefined}
-              aria-describedby={startReason ? "server-power-reason" : undefined}
               onClick={() => void power('start')}
             >
               <Play size={16} /> Start
@@ -312,7 +297,6 @@ export function ServerManagementPage({
             <button
               disabled={Boolean(stopReason)}
               title={stopReason || undefined}
-              aria-describedby={stopReason ? "server-power-reason" : undefined}
               onClick={() => setConfirm('restart')}
             >
               <RotateCw size={16} /> Restart
@@ -320,7 +304,6 @@ export function ServerManagementPage({
             <button
               disabled={Boolean(stopReason)}
               title={stopReason || undefined}
-              aria-describedby={stopReason ? "server-power-reason" : undefined}
               onClick={() => setConfirm('stop')}
             >
               <Square size={16} /> Stop
@@ -333,16 +316,6 @@ export function ServerManagementPage({
           </div>
         )}
       </header>
-      <div className="gp-server-context" aria-label="Server context" role="region">
-        <span>Node: {nodeName || ACTIVE_NODE}</span>
-        <span>Status: {status.label}</span>
-        <button type="button" title={identity} aria-label="Copy server identifier" onClick={() => void copyContext(identity, 'Server identifier')}>
-          <Copy size={13} aria-hidden="true" /> {serverContext?.displayId || `Runtime ${server.id}`}
-        </button>
-        {server.port && <button type="button" aria-label="Copy connection address" onClick={() => void copyContext(address, 'Connection address')}><Copy size={13} aria-hidden="true" />{address}</button>}
-        <MeasurementTime timestamp={metrics.reduce<number | null>((latest, point) => Number.isFinite(point.timestamp) && point.timestamp > 0 ? Math.max(latest || 0, point.timestamp) : latest, null)} />
-        {allowed('server.power') && powerReason && <span id="server-power-reason">{powerReason}</span>}
-      </div>
       {showAccess && currentUser?.isRoot && ACTIVE_SERVER && (
         <FleetAccess
           server={{
@@ -525,7 +498,7 @@ export function ServerManagementPage({
           )}
           {tab === 'network' && (
             <section className="gp-server-stat">
-              <h2>Network allocations</h2>
+              <h2 className="gp-section-title">Network</h2>
               <p>
                 Public connection: <strong>{address}</strong>
               </p>
@@ -558,7 +531,7 @@ export function ServerManagementPage({
           )}
           {tab === 'activity' && (
             <section className="gp-server-stat">
-              <h2>Server activity</h2>
+              <h2 className="gp-section-title">Activity</h2>
               <p>Runtime events received by this panel session.</p>
               {!canLogs ? (
                 <p>No access to server activity.</p>

@@ -23,18 +23,18 @@ export function NativeRetentionPanel({ serverId, onChanged }: { serverId: number
     setPending(true); setError(''); setResult('');
     try {
       const response = await apiClient.applyNativeRetention(serverId, plan);
-      setResult(`Cleanup completed: ${response.removed.length} item(s) removed. Refresh the protection summary for new storage measurements.`);
+      setResult(`Removed ${response.removed.length} item(s).`);
     } catch (cause) { setError(apiErrorMessage(cause, 'Could not confirm cleanup. Refresh the backup list and preview before trying again.')); }
     finally { setPending(false); setPlan(null); setConfirm(false); onChanged(); }
   };
   return <details className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-    <summary className="cursor-pointer font-medium">Clean up older backups and recovery</summary>
+    <summary className="cursor-pointer font-medium">Clean up backups</summary>
     <div className="space-y-3 pt-3 text-sm">
-      <p className="text-gray-500 dark:text-gray-400">Manual cleanup with separate keep counts. The latest recorded backup and incomplete recovery are retained in addition to these counts. Nothing is deleted until you review and confirm.</p>
+      <p className="text-gray-500 dark:text-gray-400">Choose how many to keep. Review the list before deleting.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {(['keepArchives', 'keepRecovery'] as const).map(key => <div key={key}>
-          <label htmlFor={`${id}-${key}`} className="block mb-1">{key === 'keepArchives' ? 'Keep newest archives' : 'Keep newest completed recovery directories'}</label>
-          <AppInput id={`${id}-${key}`} type="number" min={1} max={100} disabled={pending} value={policy[key]} onChange={event => { setPolicy(value => ({ ...value, [key]: Number(event.target.value) })); setPlan(null); setResult(''); }} />
+          <label htmlFor={`${id}-${key}`} className="block mb-1">{key === 'keepArchives' ? 'Backups to keep' : 'Recovery copies to keep'}</label>
+          <AppInput className="gp-backup-input" id={`${id}-${key}`} type="number" min={1} max={100} disabled={pending} value={policy[key]} onChange={event => { setPolicy(value => ({ ...value, [key]: Number(event.target.value) })); setPlan(null); setResult(''); }} />
         </div>)}
       </div>
       {!valid && <p role="alert">Keep between 1 and 100 of each type.</p>}

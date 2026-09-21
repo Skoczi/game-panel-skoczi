@@ -6,7 +6,6 @@ import { Sidebar } from '../components/Sidebar';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { BrandingProvider } from '../contexts/BrandingContext';
 import { Login } from '../components/Login';
-import { NewsPanel } from '../components/NewsPanel';
 import '@ovhcloud/ods-react/normalize-css';
 import '@ovhcloud/ods-themes/default/css';
 import '@ovhcloud/ods-themes/default/fonts';
@@ -35,7 +34,7 @@ function Fixture() {
             />
           </div>
           <main className="min-w-0 p-4 md:p-6">
-            <NewsPanel />
+
             {isRoot && tab === 'settings' ? (
               <GlobalSettings
                 nodeId={new URLSearchParams(location.search).get('node') || undefined}

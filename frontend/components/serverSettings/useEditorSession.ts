@@ -21,7 +21,6 @@ export interface EditorDocument {
   draftNotice?: string;
   historyNotice?: string;
   version?: string;
-  conflict?: { content: string; version: string };
 }
 
 export function useEditorSession(
@@ -75,7 +74,7 @@ export function useEditorSession(
           next.draftNotice = undefined;
         } else {
           const stored = saveEditorDraft({ ...draftScope, root: next.root, path: next.path, version: next.version, content: next.content, saved: next.saved, updatedAt: Date.now() }, epoch.current);
-          next.draftNotice = stored ? 'Local draft saved on this browser for up to 24 hours. It has not been saved to the server.' : 'Local draft recovery is unavailable (storage limit, browser settings or ended session). Keep this tab open or save your work.';
+          next.draftNotice = stored ? 'Draft saved locally.' : 'Local draft unavailable. Save your work before closing this tab.';
         }
       }
       return next;
@@ -124,7 +123,6 @@ export function useEditorSession(
           version: restore ? draft.version : snapshot.version,
           kind: content === null ? 'binary' : 'text', content: restore ? draft.content : content ?? '',
           saved: restore ? draft.saved : content ?? '', loading: false, loaded: true,
-          ...(restore && draft.version !== snapshot.version ? { conflict: { content: content!, version: snapshot.version! } } : {}),
         }, instance);
       }
     } catch (error: any) {
@@ -149,7 +147,6 @@ export function useEditorSession(
       !doc.loaded ||
       doc.loading ||
       doc.saving ||
-      doc.conflict ||
       doc.content === doc.saved
     )
       return;
@@ -157,16 +154,9 @@ export function useEditorSession(
     const content = doc.content;
     update(id, { saving: true, error: undefined, historyNotice: undefined });
     try {
-      const result = await apiClient.updateServerFile(serverId, doc.path, content, doc.root, doc.version);
-      if (token === generation.current) update(id, { saved: content, saving: false, version: result.version, conflict: undefined, historyNotice: result.historyWarning });
+      const result = await apiClient.updateServerFile(serverId, doc.path, content, doc.root, doc.version, true);
+      if (token === generation.current) update(id, { saved: content, saving: false, version: result.version, historyNotice: result.historyWarning });
     } catch (error: any) {
-      if (error?.response?.status === 409) {
-        try {
-          const remote = await apiClient.readServerFileSnapshot(serverId, doc.path, doc.root);
-          const text = decodeEditableText(remote.bytes);
-          if (token === generation.current && text !== null && remote.version) update(id, { conflict: { content: text, version: remote.version } });
-        } catch { /* Keep the user's unsaved text if the reload fails. */ }
-      }
       if (token === generation.current)
         update(id, {
           saving: false,
@@ -176,11 +166,11 @@ export function useEditorSession(
   };
   const stageHistory = (id: string, content: string) => {
     const doc = current.current.find(value => value.id === id);
-    if (!doc || !canWrite || doc.saving || doc.conflict) return;
+    if (!doc || !canWrite || doc.saving) return;
     const token = generation.current;
     const apply = async () => {
       if (token !== generation.current || !current.current.some(value => value.id === id && value.instance === doc.instance)) return;
-      update(id, { content, error: undefined, historyNotice: 'Historical content loaded into the editor. Review it, then save; the current server version will be checked.' }, doc.instance);
+      update(id, { content, error: undefined, historyNotice: 'Previous version loaded. Save to apply it.' }, doc.instance);
     };
     if (doc.content !== doc.saved) requestConfirm('Replace current draft?', 'Replace the unsaved editor text with this historical snapshot? The server file is not changed until you save.', apply);
     else void apply();

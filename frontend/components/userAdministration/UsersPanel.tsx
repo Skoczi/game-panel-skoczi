@@ -1,4 +1,4 @@
-import { Plus, Settings2, Shield, Users } from 'lucide-react';
+import { Plus, Settings2, Shield } from 'lucide-react';
 import { Icon } from '@ovhcloud/ods-react';
 import { AppButton, AppCard } from '../../src/ui/components';
 
@@ -39,9 +39,8 @@ export function UsersPanel({
     <AppCard className="p-5 md:p-6">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="flex items-center gap-2 text-xl font-semibold text-white">
-            <Users className="h-5 w-5 text-[var(--color-cyan-400)]" />
-            Users
+          <h2 className="gp-page-title">
+            User Administration
           </h2>
           {userLimitReached && (
             <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-300">

@@ -94,6 +94,11 @@ export function NodeScopeProvider({
       /* Selection still works in memory. */
     }
   };
+  useEffect(() => {
+    const change = (event: Event) => selectScope((event as CustomEvent).detail);
+    window.addEventListener('gp:node-scope', change);
+    return () => window.removeEventListener('gp:node-scope', change);
+  }, [enabled, storageKey]);
   return (
     <NodeScopeContext.Provider value={{ scope, selectScope, nodes, loading, error }}>
       {children}

@@ -70,6 +70,8 @@ interface UserEditDialogProps {
   membersError: string | null;
   onSaveChanges: () => void;
   saveLoading: boolean;
+  accessLoading?: boolean;
+  accessError?: boolean;
   saveError?: string | null;
 }
 
@@ -98,6 +100,8 @@ export function UserEditDialog({
   membersError,
   onSaveChanges,
   saveLoading,
+  accessLoading = false,
+  accessError = false,
   saveError,
 }: UserEditDialogProps) {
   const [showPassword, setShowPassword] = useState(false);
@@ -120,7 +124,7 @@ export function UserEditDialog({
   const isRustOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'rust';
   const isValheimOvhcloudServer = isOvhcloud && selectedServer?.catalogId === 'valheim';
   const isExternalServer = selectedServer?.provider === 'external' && !isNativeTemplate(selectedServer.providerMetadataJson);
-  const isBusy = saveLoading;
+  const isBusy = saveLoading || accessLoading || accessError;
 
   const wipeFamily = isMinecraftOvhcloudServer ? 'minecraft'
     : isHytaleOvhcloudServer ? 'hytale'
@@ -266,11 +270,12 @@ export function UserEditDialog({
                 <section className="rounded-lg border border-gray-700 bg-[#1f2937] p-4">
                   <h3 className="text-lg font-semibold text-white">Server access for this user</h3>
                   <p className="mt-1 text-sm text-gray-400">
-                    Configure one server at a time with clear access status and actions
+                    Select a server from any node.
                   </p>
 
+                  {accessLoading && <p role="status" className="mt-2 text-sm text-gray-400">Loading permissions…</p>}
                   {membersError && (
-                    <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                    <div role="alert" className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
                       {membersError}
                     </div>
                   )}
@@ -281,6 +286,8 @@ export function UserEditDialog({
                         Select server
                       </label>
                       <AppSelect
+                        controlLabel="Select server"
+                        disabled={saveLoading}
                         value={selectedServerId}
                         onChange={(nextValue) => setSelectedServerId(nextValue)}
                         options={servers.map((server) => ({

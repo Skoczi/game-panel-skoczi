@@ -5,10 +5,6 @@ import { Menu } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useFocusTrap } from '../../src/ui/utils/useFocusTrap';
 import { Sidebar } from '../Sidebar';
-import { GameServersTable } from '../GameServersTable';
-import { NewsPanel } from '../NewsPanel';
-import { InstallGameServer } from '../InstallGameServer';
-import { Resources } from '../Resources';
 import { UserAdministration } from '../UserAdministration';
 import { ServerConsoleTabs } from '../ServerConsoleTabs';
 import { apiClient } from '../../utils/api';
@@ -144,37 +140,11 @@ function AppShellContent({
   serverHistoryById,
   gameNamesByKey,
   serverPermissionsById,
-  handleDeleteServer,
   handleServerAction,
-  handleRenameServer,
   handleRefreshServerSnapshot,
-  handleStartAll,
-  handleStopAll,
-  canInstallServers,
-  installModalOpen,
-  setInstallModalOpen,
-  handleInstallGame,
-  installing,
-  installError,
-  installProgressPercent,
-  installStatus,
-  installServerId,
-  installInteraction,
-  setInstallInteraction,
-  installPlan,
-  installPermissionsSyncing,
-  usedInstallPorts,
-  handleClearInstallError,
-  openInstallLogs,
   serverLogs,
   onAppendServerLog,
-  cliMessages,
   handleClearServerLogs,
-  handleClearCLI,
-  activeConsoleTab,
-  setActiveConsoleTab,
-  handleCloseConsoleTab,
-  openConsoleTabs,
   activeLogPromptToasts,
   removeLogPromptToast,
   logoutConfirmOpen,
@@ -322,7 +292,7 @@ function AppShellContent({
           </AppPageLayout>
         )}
 
-        {activeTab === 'game-servers' && currentUser && !ACTIVE_SERVER && !ADMIN_RUNTIME && (
+        {activeTab === 'game-servers' && currentUser && !route && (
           <AppPageLayout className={pageShellClassName}>
             <FleetWorkspace
               key={currentUser?.id}
@@ -333,10 +303,9 @@ function AppShellContent({
             />
           </AppPageLayout>
         )}
-        {activeTab === 'game-servers' && (ACTIVE_SERVER || ADMIN_RUNTIME) && (
+        {activeTab === 'game-servers' && route && (
           <AppPageLayout className={pageShellClassName}>
-            {route ? (
-              managedServer ? (
+            {managedServer ? (
                 <ServerManagementPage
                   key={`${route.node}:${route.id}`}
                   server={managedServer}
@@ -349,9 +318,7 @@ function AppShellContent({
                   tab={route.tab}
                   onTab={(tab) => navigate({ ...route, tab })}
                   onBack={async () => {
-                    if (ACTIVE_SERVER) {
-                      if (await allowLeave()) openFleet();
-                    } else navigate(null);
+                    if (await allowLeave()) openFleet();
                   }}
                   onDirtyChange={setDirty}
                   onAction={(id, name, action) =>
@@ -386,95 +353,10 @@ function AppShellContent({
                         ? 'missing'
                         : serverSnapshotStatus
                   }
-                  onBack={() => (ACTIVE_SERVER ? openFleet() : navigate(null))}
+                  onBack={openFleet}
                   onRetry={onRetryServerSnapshot || handleRefreshServerSnapshot}
                 />
-              )
-            ) : (
-              <>
-                <div className="gp-fleet">
-                  <div className="gp-fleet-context">
-                    <button className="gp-fleet-button" onClick={openFleet}>
-                      ← All servers
-                    </button>
-                    <div>
-                      <strong>{ACTIVE_SERVER?.name || 'Node administration'}</strong>
-                      <small>
-                        {ACTIVE_SERVER
-                          ? `${ACTIVE_SERVER.location} · ${ACTIVE_SERVER.nodeName}`
-                          : 'Administrator runtime workspace'}
-                      </small>
-                    </div>
-                  </div>
-                </div>
-                <NewsPanel />
-
-                <GameServersTable
-                  onManage={(server) =>
-                    navigate({ node: ACTIVE_NODE, id: server.id, tab: 'console' })
-                  }
-                  servers={gameServers}
-                  metricsHistoryByServer={serverMetricsHistoryById}
-                  onLoadMetricsHistory={onLoadServerMetricsHistory}
-                  historyByServer={serverHistoryById}
-                  gameNamesByKey={gameNamesByKey}
-                  currentUser={currentUser}
-                  permissionsByServer={serverPermissionsById}
-                  onDelete={handleDeleteServer}
-                  onAction={(id, name, action) => {
-                    if (action === 'debug') navigate({ node: ACTIVE_NODE, id, tab: 'console' });
-                    else void handleServerAction(id, name, action);
-                  }}
-                  onRename={handleRenameServer}
-                  onRefresh={handleRefreshServerSnapshot}
-                  onStartAll={handleStartAll}
-                  onStopAll={handleStopAll}
-                  canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
-                  onOpenInstallModal={() => setInstallModalOpen(true)}
-                />
-
-                <InstallGameServer
-                  isOpen={installModalOpen}
-                  onClose={() => setInstallModalOpen(false)}
-                  onReopen={() => setInstallModalOpen(true)}
-                  onInstall={handleInstallGame}
-                  canInstall={Boolean(currentUser?.isRoot && ADMIN_RUNTIME && canInstallServers)}
-                  installing={installing}
-                  installError={installError}
-                  installProgressPercent={installProgressPercent}
-                  installStatus={installStatus}
-                  installServerId={installServerId}
-                  installInteraction={installInteraction}
-                  setInstallInteraction={setInstallInteraction}
-                  installPlan={installPlan}
-                  installPermissionsSyncing={installPermissionsSyncing}
-                  canOpenInstallLog={installServerId !== null}
-                  usedPorts={{
-                    tcp: Array.from(usedInstallPorts.tcp).sort((a, b) => a - b),
-                    udp: Array.from(usedInstallPorts.udp).sort((a, b) => a - b),
-                  }}
-                  usedServerNames={gameServers.map((server) => server.name)}
-                  onClearError={handleClearInstallError}
-                  onOpenConsole={openInstallLogs}
-                />
-
-                <div id="server-console-logs" className="mt-6 mb-6 sm:mb-8 lg:mb-10">
-                  <ServerConsoleTabs
-                    servers={gameServers}
-                    logs={serverLogs}
-                    cliMessages={cliMessages}
-                    onClearLogs={handleClearServerLogs}
-                    onClearCLI={handleClearCLI}
-                    activeTab={activeConsoleTab}
-                    onSetActiveTab={setActiveConsoleTab}
-                    onCloseTab={handleCloseConsoleTab}
-                    openTabs={openConsoleTabs}
-                    canSendCommandByServer={canSendCommandByServer}
-                    onSendCommand={handleSendConsoleCommand}
-                  />
-                </div>
-              </>
-            )}
+              )}
           </AppPageLayout>
         )}
 
@@ -500,16 +382,11 @@ function AppShellContent({
           </AppPageLayout>
         )}
 
-        {activeTab === 'resources' && (
-          <AppPageLayout className={pageShellClassName}>
-            <Resources />
-          </AppPageLayout>
-        )}
-
         {activeTab === 'admin-users' && (
           <AppPageLayout className={pageShellClassName}>
             <UserAdministration
               servers={gameServers}
+              fleetAdministration={Boolean(currentUser?.isRoot)}
               currentUserId={currentUserId}
               canManageUsers={canManageUsers}
             />

@@ -471,7 +471,7 @@ export function ScheduledTasksTab({
     <div className="h-full overflow-y-auto p-4 sm:p-5">
       <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        <AppSectionHeader title="Scheduled Tasks" description="Automate restarts, backups and custom commands on a cron schedule" actions={
+        <AppSectionHeader title="Schedules" actions={
           <div className="flex gap-2">
             <AppButton
               onClick={load}

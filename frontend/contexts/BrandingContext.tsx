@@ -25,5 +25,11 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     return () => { active = false; controller?.abort(); window.removeEventListener('panel-settings-changed', refresh); window.removeEventListener('focus', refresh); };
   }, []);
   useEffect(() => { document.title = appearance.siteName; }, [appearance.siteName]);
+  useEffect(() => {
+    let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.append(icon); }
+    icon.removeAttribute('type');
+    icon.href = appearance.favicon || '/favicon.svg';
+  }, [appearance.favicon]);
   return <BrandingContext.Provider value={{ appearance, loaded }}>{children}</BrandingContext.Provider>;
 }

@@ -16,7 +16,7 @@ Game Panel PRO is a self-hosted panel for managing game servers across multiple 
 
 Developed by **Skoczi**, it extends **[OVHcloud Game Panel 1.5.0](https://github.com/ovh/game-panel/tree/v1.5.0)** with a multi-node workspace, Native runtime, recovery tools and a scoped integration API. It is an independent project, not an official OVHcloud release.
 
-**Current release: 2.0.51.** [Release notes](docs/pro/RELEASE-2.0.51.md) · [Compatibility](docs/pro/FEATURES.md)
+**Current release: 2.0.52.** [Release notes](docs/pro/RELEASE-2.0.52.md) · [Compatibility](docs/pro/FEATURES.md)
 
 ## Screenshots
 
@@ -26,12 +26,12 @@ Reserved for real panel captures. Each view has a defined slot in the [screensho
 |:---:|:---:|
 | *Desktop · dark theme — screenshot to follow* | *Console and resource measurements — screenshot to follow* |
 | File editor | Backups & recovery |
-| *Tabs, comparison and conflict handling — screenshot to follow* | *Named copies, job status and restore — screenshot to follow* |
+| *Tabs, direct saving and file history — screenshot to follow* | *Named copies, job status and restore — screenshot to follow* |
 
 <!-- Replace the slots above with real captures using these paths:
 ![Fleet overview](docs/screenshots/fleet-dark.webp)
 ![Server console](docs/screenshots/server-console.webp)
-![File conflict comparison](docs/screenshots/files-conflict.webp)
+![File editor history](docs/screenshots/files-history.webp)
 ![Native backups](docs/screenshots/native-backups.webp)
 ![Mobile server workspace](docs/screenshots/server-mobile.webp)
 -->
@@ -56,9 +56,9 @@ Reserved for real panel captures. Each view has a defined slot in the [screensho
 ### Files and configuration
 
 - Browse files, upload, preview, rename and use archive tools. Edit configuration in a tabbed Monaco editor.
-- Save text with a content-version check and atomic replacement. If another operator changed the file, compare versions while keeping your draft.
+- Save text directly with atomic replacement, preserving file owner and permissions. Save replaces the current server file with the editor contents.
 - Recover bounded local editor drafts and review server-side file history with timestamps and operator information.
-- Restore a historical text version into the editor first; the usual conflict check still applies when saving.
+- Load a historical text version into the editor, review it, then save to apply it.
 - Archive extraction stages changes and keeps rollback data while the operation runs.
 
 ### Native backups and recovery
@@ -96,7 +96,7 @@ Capabilities differ by provider. A listed template is not a certification that e
 Install Game Panel PRO directly; no existing OVH panel is required:
 
 ```sh
-git clone --branch v2.0.51 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v2.0.52 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh
 ```

@@ -1,8 +1,8 @@
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
 export type LoginTheme = 'light' | 'dark' | 'system';
 export const DEFAULT_APPEARANCE = {
-  showFollowUs: true, showTrustpilot: true, showNews: true,
-  siteName: 'Game Panel PRO', siteSubtitle: 'Server management', logo: '',
+  showFollowUs: false, showTrustpilot: false, showNews: false,
+  siteName: 'Game Panel PRO', siteSubtitle: 'Server management', logo: '', favicon: '',
   loginDescription: 'Sign in to manage your game servers',
   loginTheme: 'light' as LoginTheme,
   showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Developed by Skoczi',

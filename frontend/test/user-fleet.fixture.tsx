@@ -1,0 +1,11 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { UserAdministration } from '../components/UserAdministration';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import '@ovhcloud/ods-react/normalize-css';
+import '@ovhcloud/ods-themes/default/css';
+import '@ovhcloud/ods-themes/default/fonts';
+import '../src/ui/theme/ods-dark.css';
+import '../src/ui/theme/ods-light.css';
+import '../styles/globals.css';
+createRoot(document.getElementById('root')!).render(<ThemeProvider><main className="p-5"><UserAdministration fleetAdministration servers={[]} currentUserId={1} /></main></ThemeProvider>);

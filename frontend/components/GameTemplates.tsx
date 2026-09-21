@@ -1,7 +1,6 @@
 import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
 import {
-  Layers,
   Plus,
   Search,
   ArrowLeft,
@@ -187,19 +186,8 @@ export function GameTemplates() {
   const change = (patch: Partial<GameTemplate>) => setDraft(draft ? { ...draft, ...patch } : null);
   return (
     <section className="space-y-6 text-slate-900 dark:text-slate-100">
-      <header className={`${card} flex flex-wrap items-center justify-between gap-4`}>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-blue-600 dark:text-cyan-400">
-            Administration · Installation catalog
-          </p>
-          <h1 className="mt-2 flex items-center gap-3 text-3xl font-semibold">
-            <Layers size={28} />
-            Game Templates
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Versioned definitions. One catalog for every node.
-          </p>
-        </div>
+      <header className="gp-page-header flex flex-wrap items-center justify-between gap-4">
+        <h1 className="gp-page-title">Game Templates</h1>
         {!draft && !installing && (
           <div className="flex flex-wrap gap-2">
             <label className={`${button} cursor-pointer`}>

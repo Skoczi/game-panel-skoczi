@@ -88,7 +88,7 @@ test('branding persists across login, sidebar and title; disabled news does not 
       'base64'
     ),
   });
-  await page.getByLabel('Show announcements').uncheck();
+  await page.getByLabel('Upload favicon').setInputFiles({ name: 'icon.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=', 'base64') });
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toBeVisible();
   await expect(page).toHaveTitle('Example Games');
@@ -99,7 +99,8 @@ test('branding persists across login, sidebar and title; disabled news does not 
     if (new URL(request.url()).pathname.endsWith('/news')) requests++;
   });
   await page.reload();
-  await expect(page.getByLabel('Show announcements')).not.toBeChecked();
+  await expect(page.getByLabel('Show announcements')).toHaveCount(0);
+  await expect(page.locator('link[rel=icon]')).toHaveAttribute('href', state().appearance.favicon);
   await expect(page.getByRole('region', { name: 'News carousel' })).toHaveCount(0);
   expect(requests).toBe(0);
   await page.goto('/test/settings.fixture.html?login');
@@ -220,17 +221,15 @@ test('global settings only edits appearance and preserves Local allocations', as
     'Game Templates',
     'Panel Settings',
     'Host Status',
-    'Resources',
   ]);
   await expect(page.getByRole('button', { name: 'Panel Settings', exact: true })).toHaveAttribute(
     'aria-current',
     'page'
   );
-  await expect(page.getByText('Follow Us', { exact: true })).toBeVisible();
-  await expect(page.getByRole('img', { name: 'Trustpilot', exact: true })).toBeVisible();
+  await expect(page.getByText('Follow Us', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'Trustpilot', exact: true })).toHaveCount(0);
   await expect(page.getByLabel('IP address', { exact: true })).toHaveCount(0);
-  await page.getByLabel('Show Follow Us').uncheck();
-  await page.getByLabel('Show Trustpilot').uncheck();
+  await page.getByLabel('Subtitle (optional)', { exact: true }).fill('Community');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('status')).toHaveText('Settings saved. Changes are active.');
   await expect(page.getByText('Follow Us', { exact: true })).toHaveCount(0);
@@ -260,7 +259,7 @@ test('global settings only edits appearance and preserves Local allocations', as
   expect(creditBox!.y).toBeGreaterThanOrEqual(revisionBox!.y + revisionBox!.height);
   expect(await footerName.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.reload();
-  await expect(page.getByLabel('Show Follow Us')).not.toBeChecked();
+  await expect(page.getByLabel('Show Follow Us')).toHaveCount(0);
 });
 
 test('node allocation editor saves only the selected node, not panel appearance', async ({
@@ -313,10 +312,11 @@ test('unconfirmed node save has a dedicated retry and does not send a fresh allo
 test('conflicting save preserves edits and offers reload', async ({ page }) => {
   await mock(page, true);
   await page.goto('/test/settings.fixture.html');
-  await page.getByLabel('Show Follow Us').uncheck();
+  await page.getByLabel('Site name', { exact: true }).fill('Unsaved name');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('alert')).toHaveText('Settings changed. Reload before saving.');
-  await expect(page.getByLabel('Show Follow Us')).not.toBeChecked();
+  await expect(page.getByLabel('Show Follow Us')).toHaveCount(0);
+  await expect(page.getByLabel('Site name', { exact: true })).toHaveValue('Unsaved name');
   await expect(page.getByText('Unsaved changes')).toBeVisible();
 });
 
@@ -351,13 +351,13 @@ test('version dialog keeps bundled notes offline and disables updates on unmanag
   await page.getByTestId('panel-revision').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Game Panel PRO · Version & changelog' })).toBeVisible();
-  await expect(dialog.getByText('Installed changelog · 2.0.51')).toBeVisible();
+  await expect(dialog.getByText('Installed changelog · 2.0.52')).toBeVisible();
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('No published stable release');
   unavailable = true;
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('Version status is unknown');
-  await expect(dialog.getByText(/The sidebar node selector is available on every administrator page/)).toBeVisible();
+  await expect(dialog.getByText(/File Editor saves directly/)).toBeVisible();
   await expect(dialog.getByRole('button', { name: /Update to/ })).toHaveCount(0);
 });
 

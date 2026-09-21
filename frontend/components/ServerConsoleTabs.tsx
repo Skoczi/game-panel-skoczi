@@ -12,6 +12,9 @@ const CONSOLE_HEIGHT_STORAGE_KEY = 'gp_console_height';
 const MIN_CONSOLE_HEIGHT = 240;
 const DEFAULT_CONSOLE_HEIGHT = 400;
 
+// Hide only the known desktop Steam-client probe; retain all other Steam errors.
+const STEAM_CLIENT_PROBE = '[S_API FAIL] SteamAPI_Init() failed; SteamAPI_IsSteamRunning() failed.';
+
 interface LogEntry {
   id: number;
   timestamp: string;
@@ -153,7 +156,10 @@ export function ServerConsoleTabs({
   const scrollPositionsByTabRef = useRef<Record<string, number>>({});
   const isCLIConsoleActive = activeTab === 'cli-console';
   const activeServer = servers.find((s) => s.id === activeTab);
-  const activeLogs = activeTab && activeTab !== 'cli-console' ? logs[activeTab] || [] : [];
+  const activeLogs = useMemo(() => {
+    const entries = activeTab && activeTab !== 'cli-console' ? logs[activeTab] || [] : [];
+    return entries.filter(log => stripAnsi(log.message).trim() !== STEAM_CLIENT_PROBE);
+  }, [activeTab, logs]);
   const cliTail = cliMessages[cliMessages.length - 1]?.id;
   const serverTail = activeLogs[activeLogs.length - 1]?.id;
   const openTabServers = servers.filter((server) => openTabs.includes(server.id));

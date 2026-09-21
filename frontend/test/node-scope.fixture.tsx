@@ -30,7 +30,7 @@ function Fixture() {
             </div>
             <main className="min-w-0 flex-1 p-6">
               {tab === 'game-servers' ? (
-                <FleetWorkspace administrator={root} userId={1} onNodes={() => setTab('nodes')} />
+                <FleetWorkspace administrator={root} userId={1} />
               ) : tab === 'host-status' ? (
                 <HostStatusWorkspace />
               ) : (

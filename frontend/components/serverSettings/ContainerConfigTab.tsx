@@ -445,7 +445,7 @@ export function ContainerConfigTab({
                   onChange={e => updateEnv(idx, 'value', e.target.value)}
                   disabled={saving || !canEdit || !!nativeSnapshot?.document.ports.some(p => p.env === entry.key)}
                 />
-                {nativeSnapshot && startupText && <div className="gp-settings-variable"><label htmlFor="custom-startup-params">Custom params</label><input id="custom-startup-params" className={inputClass} placeholder="e.g. -tickrate 128 +sv_lan 0" value={customParams} disabled={saving || !canEdit} onChange={e => setCustomParams(e.target.value)} /><small className="text-xs text-slate-400">Appended to the startup command.</small>{startupError && !editingStartup && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
+
             {canEdit && !nativeSnapshot && (
                   <AppButton
                     tone="ghost"
@@ -457,6 +457,7 @@ export function ContainerConfigTab({
                 )}
               </div>
             ))}
+            {nativeSnapshot && startupText && <div className="gp-settings-variable"><label htmlFor="custom-startup-params">Custom params</label><input id="custom-startup-params" className={inputClass} placeholder="e.g. -tickrate 128 +sv_lan 0" value={customParams} disabled={saving || !canEdit} onChange={e => setCustomParams(e.target.value)} /><small className="text-xs text-slate-400">Appended to the startup command.</small>{startupError && !editingStartup && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
             {canEdit && !nativeSnapshot && (
               <AppButton
                 tone="ghost"
@@ -798,7 +799,7 @@ export function ContainerConfigTab({
               >
                 Cancel
               </AppButton>
-              <AppButton tone="secondary" disabled={saving} onClick={() => { setShowRestartConfirm(false); void handleSave('defer'); }}>
+              <AppButton tone="secondary" className="rounded-lg px-4 py-2 text-sm" disabled={saving} onClick={() => { setShowRestartConfirm(false); void handleSave('defer'); }}>
                 Save without restart
               </AppButton>
               <AppButton

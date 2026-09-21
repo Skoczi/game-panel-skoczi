@@ -57,6 +57,7 @@ test('running servers can save for later without submitting a restart', async ({
   return route.fulfill({ json: server });
  });
  await page.goto('/test/container-settings.fixture.html?running');
+ await expect(page.locator('#custom-startup-params')).toHaveCount(1);
  await page.getByLabel('Custom params', { exact: true }).fill('+sv_lan 0 -tickrate 128');
  await expect(page.locator('.gp-settings-startup pre')).toContainText('+sv_lan 0 -tickrate 128');
  await page.getByLabel('Map', { exact: true }).fill('de_dust2');

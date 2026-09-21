@@ -1,3 +1,4 @@
+import type { ResourceUsage } from './docker/resources.js';
 import type { ServerMetricRow, SystemMetricRow } from '../types/database.js';
 import { round2 } from './number.js';
 import { toIsoTimestamp } from './time.js';
@@ -8,6 +9,7 @@ type MetricRow = Record<string, any> & {
 };
 
 export type MetricSample = {
+    resources?: ResourceUsage;
     cpuUsage: number;
     memoryUsage: number;
     diskUsage: number;
@@ -91,6 +93,8 @@ export function downsampleMetrics<T extends MetricRow>(
             buckets.set(bucketStart, bucket);
         }
 
+        // Absolute resources retain the latest observation in each bucket; never reinterpret legacy percentages.
+        if ('resources_json' in row) bucket.row.resources_json = row.resources_json;
         bucket.count += 1;
         for (const key of numericKeys) {
             const value = Number((row as any)[key]);
@@ -115,6 +119,7 @@ export function serializeMetricPoint(row: Pick<
     'cpu_usage' | 'memory_usage' | 'disk_usage' | 'network_in' | 'network_out' | 'timestamp'
 >): SerializedMetricPoint {
     return {
+        ...((row as any).resources_json ? { resources: JSON.parse((row as any).resources_json) } : {}),
         cpuUsage: round2(Number(row.cpu_usage)),
         memoryUsage: round2(Number(row.memory_usage)),
         diskUsage: round2(Number(row.disk_usage)),

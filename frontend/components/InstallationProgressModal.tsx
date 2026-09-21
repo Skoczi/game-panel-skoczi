@@ -1,3 +1,4 @@
+import { OperationNotice } from './OperationNotice';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader2, Terminal, ExternalLink, User, ShieldCheck } from 'lucide-react';
 import { AppButton } from '../src/ui/components';
@@ -195,20 +196,21 @@ export function InstallationProgressModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          <OperationNotice state={connectionWarning ? 'unknown' : installationStatus === 'installing' ? 'running' : installationStatus === 'failed' ? 'failed' : 'completed'} />
           {connectionWarning && <p role="alert" className="mb-4 text-amber-500">{connectionWarning}</p>}
           {installationStatus === 'installing' && (
             <>
               <div className="mb-6">
                 <div className="flex justify-between items-center mb-2">
                   <span className={`text-sm font-medium ${textPrimary}`}>Overall Progress</span>
-                  <span className={`text-sm ${textSecondary}`}>{Math.round(progress)}%</span>
+                  <span className={`text-sm ${textSecondary}`}>{typeof progressPercent === 'number' && Number.isFinite(progressPercent) ? `${Math.round(progress)}%` : 'In progress'}</span>
                 </div>
-                <div className={`w-full h-2 bg-gray-700 rounded-full overflow-hidden`}>
+                {typeof progressPercent === 'number' && Number.isFinite(progressPercent) && <div className={`w-full h-2 bg-gray-700 rounded-full overflow-hidden`}>
                   <div
                     className="h-full bg-[var(--gp-ods-accent-primary)] transition-all duration-500 ease-out"
                     style={{ width: `${progress}%` }}
                   />
-                </div>
+                </div>}
               </div>
 
               <div className="space-y-3">

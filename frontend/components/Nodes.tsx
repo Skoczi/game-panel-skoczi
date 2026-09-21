@@ -1,3 +1,5 @@
+import { RuntimeCapabilities } from './RuntimeCapabilities';
+import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
 import { Server, Plus, RefreshCw, Shield, ExternalLink, Network } from 'lucide-react';
 import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
@@ -73,8 +75,8 @@ export function Nodes() {
       setBusy(false);
     }
   }
-  const leaveAllocations = () =>
-    !(allocationDirty || profileDirty) || window.confirm('Discard unsaved node settings?');
+  const leaveAllocations = async () =>
+    !(allocationDirty || profileDirty) || await confirmDialog('Discard unsaved node settings?');
   if (selected) {
     const node = nodes.find((n) => n.id === selected.id);
     const local = selected.id === 'local';
@@ -82,8 +84,8 @@ export function Nodes() {
       <div className="space-y-5 text-slate-900 dark:text-slate-100">
         <button
           className={button}
-          onClick={() => {
-            if (leaveAllocations()) {
+          onClick={async () => {
+            if (await leaveAllocations()) {
               setSelected(null);
               setAllocationDirty(false);
               setProfileDirty(false);
@@ -109,8 +111,8 @@ export function Nodes() {
           <button
             className={button}
             disabled={!local && (!node || !node.enabled || node.status === 'pending')}
-            onClick={() => {
-              if (leaveAllocations()) selectNode(selected.id);
+            onClick={async () => {
+              if (await leaveAllocations()) selectNode(selected.id);
             }}
           >
             Open servers
@@ -125,8 +127,8 @@ export function Nodes() {
               key={tab}
               aria-current={nodeTab === tab ? 'page' : undefined}
               className={`${button} ${nodeTab === tab ? '!bg-blue-700 !text-white' : ''}`}
-              onClick={() => {
-                if (nodeTab !== tab && leaveAllocations()) {
+              onClick={async () => {
+                if (nodeTab !== tab && await leaveAllocations()) {
                   setAllocationDirty(false);
                   setProfileDirty(false);
                   setNodeTab(tab);
@@ -179,6 +181,7 @@ export function Nodes() {
                 )}
               </dl>
             )}
+            <RuntimeCapabilities key={selected.id} nodeId={selected.id} />
             <p className="text-sm text-slate-500">
               IP addresses and TCP/UDP ranges belong to this node. Existing servers stay on their
               current runtime.
@@ -354,7 +357,7 @@ export function Nodes() {
           </button>
           <button
             className={`${button} ml-2`}
-            onClick={() => {
+            onClick={async () => {
               setSelected({ id: 'local', name: localNode?.name || 'Local' });
               setNodeTab('overview');
             }}
@@ -398,7 +401,7 @@ export function Nodes() {
               <button
                 className={button}
                 disabled={busy}
-                onClick={() => {
+                onClick={async () => {
                   setSelected(node);
                   setNodeTab('overview');
                 }}
@@ -409,9 +412,9 @@ export function Nodes() {
               <button
                 className={button}
                 disabled={busy}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(
+                    await confirmDialog(
                       `${node.enabled ? 'Disable management of' : 'Enable'} ${node.name}? Running games are not stopped.`
                     )
                   )
@@ -429,9 +432,9 @@ export function Nodes() {
               <button
                 className={button}
                 disabled={busy}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(
+                    await confirmDialog(
                       'Revoke this agent credential? Re-enrollment is required; games keep running.'
                     )
                   )
@@ -454,7 +457,7 @@ export function Nodes() {
                     ? 'Disable this node before deleting it'
                     : 'Delete this node from the panel'
                 }
-                onClick={() => {
+                onClick={async () => {
                   setDeleting(node);
                   setConfirmationName('');
                   setDeleteError('');

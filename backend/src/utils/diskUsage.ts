@@ -132,3 +132,20 @@ export async function getCachedServerStorageDiskUsagePercent(
     return cached?.value ?? 0;
   }
 }
+
+const absoluteDiskCache = new Map<number, { at: number; diskBytes: number | null; nodeFreeBytes: number | null }>();
+export async function getServerDiskResources(serverId: number) {
+  const cached = absoluteDiskCache.get(serverId);
+  if (cached && Date.now() - cached.at < DISK_USAGE_SCAN_INTERVAL_MS) return cached;
+  const { dataDir } = getServerStoragePaths(serverId);
+  try {
+    const files = `${dataDir}/serverfiles`;
+    const target = await pathExists(files) ? files : dataDir;
+    const { stdout } = await execFileAsync('du', ['-sk', target]);
+    const size = parseDuTotalKb(stdout);
+    const disk = await fs.statfs(dataDir);
+    const result = { at: Date.now(), diskBytes: size === null ? null : size * 1024, nodeFreeBytes: Number(disk.bavail) * Number(disk.bsize) };
+    absoluteDiskCache.set(serverId, result);
+    return result;
+  } catch { return { diskBytes: null, nodeFreeBytes: null }; }
+}

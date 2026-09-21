@@ -1,7 +1,11 @@
+const blocked = new Map<number, string>();
+export const blockNativeServer = (id: number, reason: string) => { blocked.set(id, reason); };
+export const unblockNativeServer = (id: number) => { blocked.delete(id); };
 const operations = new Set<number>();
 const mutations = new Set<number>();
 export function assertNativeIdle(id: number) {
-    if (operations.has(id)) throw Object.assign(new Error('A native install or update is running; wait for it to finish before changing this server'), { statusCode: 409 });
+    if (blocked.has(id)) throw Object.assign(new Error(blocked.get(id)), { statusCode: 409 });
+    if (operations.has(id)) throw Object.assign(new Error('A native install, update, backup or restore is running; wait for it to finish before changing this server'), { statusCode: 409 });
 }
 export function acquireNativeOperation(id: number, fromRequest = false): () => void {
     assertNativeIdle(id);
@@ -17,4 +21,4 @@ export function enterServerMutation(id: number): () => void {
     let released = false;
     return () => { if (!released) { released = true; mutations.delete(id); } };
 }
-export const nativeOperationRunning = (id: number) => operations.has(id);
+export const nativeOperationRunning = (id: number) => operations.has(id) || blocked.has(id);

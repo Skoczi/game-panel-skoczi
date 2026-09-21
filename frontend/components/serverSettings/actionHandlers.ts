@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../../utils/apiError';
 import type { Dispatch, SetStateAction } from 'react';
 import { apiClient } from '../../utils/api';
 import { isServerBusyForFileMutations } from './utils';
@@ -65,7 +66,7 @@ export const createDownloadBackupHandler =
       link.remove();
       URL.revokeObjectURL(url);
     } catch (error: any) {
-      setBackupsError(error?.response?.data?.error || 'Failed to download backup');
+      setBackupsError(apiErrorMessage(error, 'Failed to download backup'));
     } finally {
       setBackupDownloadLoading(null);
     }
@@ -102,7 +103,7 @@ export const createDeleteBackupHandler =
           await apiClient.deleteBackupFile(serverId, backup.path);
           await loadBackups();
         } catch (error: any) {
-          setBackupsError(error?.response?.data?.error || 'Failed to delete backup');
+          setBackupsError(apiErrorMessage(error, 'Failed to delete backup'));
         } finally {
           setBackupDeleteLoading(null);
         }
@@ -126,13 +127,13 @@ export const createExecuteBackupNowHandler =
     setBackupsError,
     loadBackups,
   }: CreateExecuteBackupNowHandlerDeps) =>
-  async () => {
+  async (name?: string) => {
     if (!canCreateBackups) return;
     if (!serverId) return;
     setBackupNowLoading(true);
     setBackupsError(null);
     try {
-      const result = await apiClient.createBackup(serverId);
+      const result = await apiClient.createBackup(serverId, name ? { name } : undefined);
       if (!result?.ok) {
         throw new Error(
           result?.stderr || result?.stdout || `Backup failed (exitCode=${result?.exitCode ?? 'unknown'})`
@@ -140,7 +141,7 @@ export const createExecuteBackupNowHandler =
       }
       await loadBackups();
     } catch (error: any) {
-      setBackupsError(error?.response?.data?.error || error?.message || 'Failed to start backup');
+      setBackupsError(apiErrorMessage(error, 'Failed to start backup'));
     } finally {
       setBackupNowLoading(false);
     }
@@ -152,6 +153,7 @@ interface CreateBackupNowHandlerDeps {
   setShowBackupNowWarningModal: Dispatch<SetStateAction<boolean>>;
   executeBackupNow: () => Promise<void>;
   hotBackupOnly?: boolean;
+  alwaysConfirm?: boolean;
   skipWarning?: boolean;
 }
 
@@ -162,6 +164,7 @@ export const createBackupNowHandler =
     setShowBackupNowWarningModal,
     executeBackupNow,
     hotBackupOnly = false,
+    alwaysConfirm = false,
     skipWarning = false,
   }: CreateBackupNowHandlerDeps) =>
   async () => {
@@ -173,7 +176,7 @@ export const createBackupNowHandler =
       return;
     }
 
-    if (hotBackupOnly) {
+    if (alwaysConfirm || hotBackupOnly) {
       setShowBackupNowWarningModal(true);
       return;
     }
@@ -228,7 +231,7 @@ export const createSaveBackupSettingsHandler =
       });
       await loadBackupSettings();
     } catch (error: any) {
-      setBackupSettingsError(error?.response?.data?.error || 'Failed to save retention settings');
+      setBackupSettingsError(apiErrorMessage(error, 'Failed to save retention settings'));
     } finally {
       setBackupSaving(false);
     }
@@ -259,13 +262,14 @@ export const createRenameBackupHandler =
       await apiClient.renameBackupFile(serverId, backup.path, newName);
       await loadBackups();
     } catch (error: any) {
-      setBackupsError(error?.response?.data?.error || 'Failed to rename backup');
+      setBackupsError(apiErrorMessage(error, 'Failed to rename backup'));
     } finally {
       setBackupRenameLoading(null);
     }
   };
 
 interface CreateRestoreBackupHandlerDeps {
+  native?: boolean;
   canRestoreBackups: boolean;
   serverId?: number | null;
   setBackupRestoreLoading: Dispatch<SetStateAction<string | null>>;
@@ -275,6 +279,7 @@ interface CreateRestoreBackupHandlerDeps {
 
 export const createRestoreBackupHandler =
   ({
+    native = false,
     canRestoreBackups,
     serverId,
     setBackupRestoreLoading,
@@ -286,7 +291,9 @@ export const createRestoreBackupHandler =
     if (!serverId) return;
     requestConfirm(
       'Restore Backup',
-      `Restore "${backup.name}"? This will overwrite the current server data.`,
+      native
+        ? `Restore "${backup.name}"? Stop the server first. Only serverfiles will be replaced; the previous files will be retained in backups/recovery-<id>. Logs and existing backups remain unchanged. The server will stay stopped.`
+        : `Restore "${backup.name}"? This will overwrite the current server data.`,
       async () => {
         setBackupRestoreLoading(backup.name);
         setBackupsError(null);
@@ -296,7 +303,7 @@ export const createRestoreBackupHandler =
             throw new Error(result?.stderr || result?.stdout || `Restore failed (exitCode=${result?.exitCode ?? 'unknown'})`);
           }
         } catch (error: any) {
-          setBackupsError(error?.response?.data?.error || error?.message || 'Failed to restore backup');
+          setBackupsError(apiErrorMessage(error, 'Failed to restore backup'));
         } finally {
           setBackupRestoreLoading(null);
         }

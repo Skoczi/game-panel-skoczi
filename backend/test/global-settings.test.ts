@@ -55,7 +55,7 @@ test('upgrading .3 adds branding once without changing policies or prior switche
         assert.deepEqual(store.snapshot().network, old.network);
         assert.equal(store.snapshot().appearance.showFollowUs, false);
         assert.equal(store.snapshot().appearance.showNews, true);
-        assert.equal(store.snapshot().appearance.siteName, 'Game Panel');
+        assert.equal(store.snapshot().appearance.siteName, 'Game Panel PRO');
         assert.equal(store.snapshot().revision, 8);
         const reloaded = new GlobalSettingsStore(db, () => {}); await reloaded.initialize(seed());
         assert.equal(reloaded.snapshot().revision, 8);
@@ -67,7 +67,7 @@ test('upgrading .3 adds branding once without changing policies or prior switche
     } finally { native.close(); }
 });
 test('edition defaults do not overwrite existing branding or allocations', async () => {
-    assert.equal(DEFAULT_APPEARANCE.siteSubtitle, 'Skoczi Edition');
+    assert.equal(DEFAULT_APPEARANCE.siteSubtitle, 'Server management');
     assert.match(DEFAULT_APPEARANCE.loginFooter, /Based on OVHcloud Game Panel/);
     const { native, db } = database();
     try {

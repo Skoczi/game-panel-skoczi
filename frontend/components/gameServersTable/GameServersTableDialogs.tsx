@@ -1,3 +1,4 @@
+import { resourceBytes } from '../../utils/resourceMetrics';
 import { AlertCircle, Check, Copy } from 'lucide-react';
 import {
   Area,
@@ -450,8 +451,8 @@ export function GameServersTableDialogs({
                         <YAxis
                           stroke={metricAxisColor}
                           style={{ fontSize: '12px' }}
-                          domain={[0, 100]}
-                          tickFormatter={(value: number) => `${Math.round(value)}%`}
+                          domain={[0, 'auto']}
+                          tickFormatter={(value: number) => metricType === 'cpu' ? `${Number(value).toFixed(1)} vCPU` : resourceBytes(Number(value))}
                           width={45}
                         />
                         <Tooltip
@@ -467,7 +468,7 @@ export function GameServersTableDialogs({
                           formatter={(value: number | string) => {
                             const numericValue = Number(value);
                             return Number.isFinite(numericValue)
-                              ? `${numericValue.toFixed(2)}%`
+                              ? metricType === 'cpu' ? `${numericValue.toFixed(2)} vCPU` : resourceBytes(numericValue)
                               : String(value);
                           }}
                           cursor={{ stroke: ODS_CHART_THEME.tooltipCursor, strokeDasharray: '3 3' }}

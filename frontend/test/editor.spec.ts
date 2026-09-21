@@ -34,7 +34,7 @@ test('Monaco edits, undoes, saves and preserves find state across theme changes'
   await page.getByRole('button', { name: 'Theme', exact: true }).click();
   await expect(page.locator('.monaco-editor.vs-dark')).toBeVisible();
   await expect(page.locator('.find-widget.visible')).toBeVisible();
-  await page.screenshot({ path: 'test-results/monaco-dark.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/monaco-dark.png' });
   expect(errors).toEqual([]);
 });
 

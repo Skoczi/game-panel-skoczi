@@ -1,3 +1,4 @@
+import { FileOperations } from './FileOperations';
 import {
   Check,
   ChevronRight,
@@ -49,7 +50,7 @@ function isExtractableArchive(name: string): boolean {
 
 export interface ExtractStatus {
   name: string;
-  status: 'running' | 'done' | 'failed';
+  status: 'running' | 'done' | 'failed' | 'unknown';
   completedFiles: number;
   error?: string;
 }
@@ -69,6 +70,7 @@ interface FileRoot {
 }
 
 interface FileManagerTabProps {
+  serverId?: number;
   editorSession?: EditorSession;
   embeddedEditor?: boolean;
   borderColor: string;
@@ -127,6 +129,7 @@ interface FileManagerTabProps {
 }
 
 export function FileManagerTab({
+  serverId,
   editorSession,
   embeddedEditor = false,
   borderColor,
@@ -508,8 +511,11 @@ export function FileManagerTab({
 
         <div className={fileView === 'grid' ? 'gp-file-grid' : 'space-y-0.5'} data-file-view={fileView}>
           {filesLoading && <div className={`text-sm px-2 py-1 ${textSecondary}`}>Loading files...</div>}
-          {filesError && <div className="text-sm px-2 py-1 text-red-400">{filesError}</div>}
+          {filesError && <div role="alert" className="text-sm px-2 py-1 text-red-400">{filesError}</div>}
 
+          {!filesLoading && !filesError && !files.some(file => file.name !== '..' && (showHidden || !file.name.startsWith('.'))) && <p role="status" className={`col-span-full px-2 py-3 text-sm ${textSecondary}`}>
+            {files.some(file => file.name !== '..') ? 'Only hidden files are here. Use Show hidden files to see them.' : 'This folder is empty.'}
+          </p>}
           {!filesLoading &&
             files
               .filter((file) => showHidden || file.name === '..' || !file.name.startsWith('.'))
@@ -719,9 +725,12 @@ export function FileManagerTab({
         )}
       </div>
 
+      {serverId && <FileOperations key={serverId} serverId={serverId} />}
       {extractStatus && (
         <div className={`border-t ${borderColor} px-3 py-1.5 flex-shrink-0`}>
-          {extractStatus.status === 'failed' ? (
+          {extractStatus.status === 'unknown' ? (
+            <p role="status" className="text-xs text-amber-500">Result unknown for {extractStatus.name}. {extractStatus.error}</p>
+          ) : extractStatus.status === 'failed' ? (
             <div className="flex items-start gap-2 text-xs text-red-400">
               <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>Failed to extract {extractStatus.name}: {extractStatus.error}</span>

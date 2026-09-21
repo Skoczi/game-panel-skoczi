@@ -269,6 +269,7 @@ async function createSchema(database: Database): Promise<void> {
         disk_usage REAL,
         network_in INTEGER,
         network_out INTEGER,
+        resources_json TEXT,
         FOREIGN KEY (server_id) REFERENCES game_servers(id) ON DELETE CASCADE
       )
     `);

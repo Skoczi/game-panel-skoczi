@@ -17,7 +17,7 @@ test('custom IP popup fits dark mobile and Escape preserves the binding', async 
   const bounds = (await menu.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: 'test-results/host-ip-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/host-ip-dark-mobile.png', fullPage: true });
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
   await expect(select).toBeFocused();

@@ -1,3 +1,4 @@
+import { confirmDialog } from '../../utils/confirmDialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ACTIVE_NODE, ACTIVE_SERVER, openFleet } from '../../utils/nodeContext';
 import type { SettingsTab } from './access';
@@ -55,12 +56,17 @@ export function useServerPageRoute() {
     dirty.current = value;
   }, []);
   const allowLeave = useCallback(
-    () => !dirty.current || window.confirm('Discard unsaved file changes?'),
+    async () => {
+      if (!dirty.current) return true;
+      if (!await confirmDialog('Discard unsaved file changes?', 'Unsaved changes', 'Discard changes')) return false;
+      window.dispatchEvent(new CustomEvent('gp:discard-editor-drafts', { detail: { nodeId: ACTIVE_NODE, serverId: readRoute()?.id } }));
+      return true;
+    },
     []
   );
   const navigate = useCallback(
-    (next: ServerPageRoute | null) => {
-      if (!allowLeave()) return;
+    async (next: ServerPageRoute | null) => {
+      if (!await allowLeave()) return;
       history.pushState(
         null,
         '',
@@ -75,12 +81,17 @@ export function useServerPageRoute() {
     [allowLeave]
   );
   useEffect(() => {
-    const changed = () => {
+    let checking = false;
+    const changed = async () => {
+      if (checking) return;
       if (location.href === acceptedUrl.current) return;
-      if (!allowLeave()) {
-        history.pushState(null, '', acceptedUrl.current);
-        return;
-      }
+      checking = true;
+      const destination = location.href;
+      if (dirty.current) history.replaceState(null, '', acceptedUrl.current);
+      const allowed = await allowLeave();
+      checking = false;
+      if (!allowed) return;
+      history.replaceState(null, '', destination);
       acceptedUrl.current = location.href;
       const shortRoute = shortServerRoute();
       const requestedServer = new URLSearchParams(location.search).get('server');

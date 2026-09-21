@@ -20,6 +20,14 @@ interface LogEntry {
   message: string;
 }
 
+// Length stays constant once the rolling buffer is full. Count entries after the
+// previous tail instead; IDs need not be consecutive across server streams.
+function appendedLogCount<T extends string | number>(entries: { id: T }[], previousTail: T | undefined) {
+  if (!entries.length || entries[entries.length - 1]?.id === previousTail) return 0;
+  const previousIndex = entries.findIndex(entry => entry.id === previousTail);
+  return entries.length - previousIndex - 1;
+}
+
 interface ServerLogs {
   [serverId: string]: LogEntry[];
 }
@@ -35,6 +43,31 @@ const AnsiLine = memo(function AnsiLine({
 }) {
   const __html = useMemo(() => ansiToHtml(message), [message]);
   return <pre className={className} dangerouslySetInnerHTML={{ __html }} />;
+});
+
+const getLogColor = (type: LogEntry['type']) => {
+  const isDark = true;
+  switch (type) {
+    case 'error':
+      return isDark ? 'text-red-400' : 'text-red-200';
+    case 'warning':
+      return isDark ? 'text-yellow-400' : 'text-yellow-200';
+    case 'success':
+      return isDark ? 'text-green-400' : 'text-green-200';
+    case 'command':
+      return isDark ? 'text-[var(--color-cyan-400)]' : 'text-white';
+    case 'action':
+      return isDark ? 'text-purple-400' : 'text-purple-200';
+    default:
+      return isDark ? 'text-gray-300' : 'text-white';
+  }
+};
+
+const ServerLogLine = memo(function ServerLogLine({ log }: { log: LogEntry }) {
+  return <div className="mb-1 flex items-start gap-2 rounded px-1 leading-5 hover:bg-white/5">
+    <span className="gp-log-time shrink-0 text-gray-500">[{log.displayTime ?? formatLogDisplayTime(log.timestamp)}]</span>
+    <AnsiLine className={`m-0 inline-block min-w-max flex-none whitespace-pre font-mono text-sm ${getLogColor(log.type)}`} message={log.message} />
+  </div>;
 });
 
 interface ServerConsoleTabsProps {
@@ -114,12 +147,14 @@ export function ServerConsoleTabs({
   const serverContainerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticCliScrollRef = useRef(false);
   const isProgrammaticServerScrollRef = useRef(false);
-  const previousCliLengthRef = useRef(0);
-  const previousActiveServerLogLengthRef = useRef(0);
+  const previousCliTailRef = useRef<string | undefined>();
+  const previousServerTailRef = useRef<number | undefined>();
   const scrollPositionsByTabRef = useRef<Record<string, number>>({});
   const isCLIConsoleActive = activeTab === 'cli-console';
   const activeServer = servers.find((s) => s.id === activeTab);
   const activeLogs = activeTab && activeTab !== 'cli-console' ? logs[activeTab] || [] : [];
+  const cliTail = cliMessages[cliMessages.length - 1]?.id;
+  const serverTail = activeLogs[activeLogs.length - 1]?.id;
   const openTabServers = servers.filter((server) => openTabs.includes(server.id));
 
   const isNearBottom = (element: HTMLDivElement | null, threshold = 36) => {
@@ -220,20 +255,20 @@ export function ServerConsoleTabs({
 
   useEffect(() => {
     if (isCLIConsoleActive) {
-      previousCliLengthRef.current = cliMessages.length;
+      previousCliTailRef.current = cliTail;
       setPendingCliLogs(0);
       return;
     }
 
     if (activeTab && activeTab !== 'cli-console') {
-      previousActiveServerLogLengthRef.current = activeLogs.length;
+      previousServerTailRef.current = serverTail;
       setPendingServerLogs(0);
     }
   }, [activeTab]);
 
   useEffect(() => {
-    const diff = cliMessages.length - previousCliLengthRef.current;
-    previousCliLengthRef.current = cliMessages.length;
+    const diff = appendedLogCount(cliMessages, previousCliTailRef.current);
+    previousCliTailRef.current = cliTail;
 
     if (diff <= 0) {
       if (cliMessages.length === 0) setPendingCliLogs(0);
@@ -247,13 +282,13 @@ export function ServerConsoleTabs({
     }
 
     setPendingCliLogs((prev) => prev + diff);
-  }, [cliMessages.length, isCLIConsoleActive, isMinimized, autoScrollCli]);
+  }, [cliMessages.length, cliTail, isCLIConsoleActive, isMinimized, autoScrollCli]);
 
   useEffect(() => {
     if (!activeTab || isCLIConsoleActive) return;
 
-    const diff = activeLogs.length - previousActiveServerLogLengthRef.current;
-    previousActiveServerLogLengthRef.current = activeLogs.length;
+    const diff = appendedLogCount(activeLogs, previousServerTailRef.current);
+    previousServerTailRef.current = serverTail;
 
     if (diff <= 0) {
       if (activeLogs.length === 0) setPendingServerLogs(0);
@@ -267,7 +302,7 @@ export function ServerConsoleTabs({
     }
 
     setPendingServerLogs((prev) => prev + diff);
-  }, [activeLogs.length, activeTab, isCLIConsoleActive, isMinimized, autoScrollServer]);
+  }, [activeLogs.length, serverTail, activeTab, isCLIConsoleActive, isMinimized, autoScrollServer]);
 
   // Keep the view pinned to the bottom while auto-scroll is on. Runs synchronously
   // before paint on every new log, so it can't lose a requestAnimationFrame race
@@ -280,7 +315,7 @@ export function ServerConsoleTabs({
     el.scrollTop = el.scrollHeight;
     const id = requestAnimationFrame(() => { isProgrammaticServerScrollRef.current = false; });
     return () => cancelAnimationFrame(id);
-  }, [activeLogs.length, autoScrollServer, isCLIConsoleActive, isMinimized, isFullscreen]);
+  }, [activeLogs.length, serverTail, autoScrollServer, isCLIConsoleActive, isMinimized, isFullscreen]);
 
   useLayoutEffect(() => {
     if (!isCLIConsoleActive || isMinimized || !autoScrollCli) return;
@@ -290,7 +325,7 @@ export function ServerConsoleTabs({
     el.scrollTop = el.scrollHeight;
     const id = requestAnimationFrame(() => { isProgrammaticCliScrollRef.current = false; });
     return () => cancelAnimationFrame(id);
-  }, [cliMessages.length, autoScrollCli, isCLIConsoleActive, isMinimized, isFullscreen]);
+  }, [cliMessages.length, cliTail, autoScrollCli, isCLIConsoleActive, isMinimized, isFullscreen]);
 
   useLayoutEffect(() => {
     const element = isCLIConsoleActive ? cliContainerRef.current : serverContainerRef.current;
@@ -355,23 +390,7 @@ export function ServerConsoleTabs({
     );
   };
 
-  const getLogColor = (type: LogEntry['type']) => {
-    const isDark = true;
-    switch (type) {
-      case 'error':
-        return isDark ? 'text-red-400' : 'text-red-200';
-      case 'warning':
-        return isDark ? 'text-yellow-400' : 'text-yellow-200';
-      case 'success':
-        return isDark ? 'text-green-400' : 'text-green-200';
-      case 'command':
-        return isDark ? 'text-[var(--color-cyan-400)]' : 'text-white';
-      case 'action':
-        return isDark ? 'text-purple-400' : 'text-purple-200';
-      default:
-        return isDark ? 'text-gray-300' : 'text-white';
-    }
-  };
+
 
   const cardBg = 'bg-gp-surface-card shadow-[0_4px_24px_rgba(2,6,23,0.55),0_1px_4px_rgba(2,6,23,0.3)]';
   const borderColor = 'border-gray-700';
@@ -778,20 +797,7 @@ export function ServerConsoleTabs({
                     </div>
                   ) : (
                     <Fragment key={activeTab}>
-                      {activeLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className="mb-1 flex items-start gap-2 rounded px-1 leading-5 hover:bg-white/5"
-                        >
-                          <span className="gp-log-time shrink-0 text-gray-500">
-                            [{log.displayTime ?? formatLogDisplayTime(log.timestamp)}]
-                          </span>
-                          <AnsiLine
-                            className={`m-0 inline-block min-w-max flex-none whitespace-pre font-mono text-sm ${getLogColor(log.type)}`}
-                            message={log.message}
-                          />
-                        </div>
-                      ))}
+                      {activeLogs.map(log => <ServerLogLine key={log.id} log={log} />)}
                     </Fragment>
                   )}
                 </div>

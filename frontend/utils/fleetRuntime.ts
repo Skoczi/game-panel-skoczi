@@ -80,11 +80,14 @@ export async function loadFleetRuntime(id: string): Promise<FleetRuntime> {
   try {
     const result = await fleetRequest<{ metrics: any[] }>(context, '/metrics?limit=1');
     const metric = result.metrics?.[result.metrics.length - 1];
-    if (metric) {
+    const age = Date.now() - Date.parse(metric?.timestamp);
+    const recent = Number.isFinite(age) && age >= -5_000 && age <= 35_000;
+    if (metric && recent && server.status === 'running') {
+      server.resources = metric.resources;
       const number = (value: unknown) =>
         value != null && Number.isFinite(Number(value)) ? Number(value) : undefined;
-      server.cpuUsage = number(metric.cpuUsage ?? metric.cpu_usage ?? metric.cpu);
-      server.memoryUsage = number(metric.memoryUsage ?? metric.memory_usage ?? metric.memory);
+      server.cpuUsage = number(metric.resources?.cpuLimitPercent);
+      server.memoryUsage = number(metric.resources?.memoryLimitPercent);
       server.diskUsage = number(metric.diskUsage ?? metric.disk_usage ?? metric.disk);
       server.networkIn = number(metric.networkIn ?? metric.network_in ?? metric.network?.in);
       server.networkOut = number(metric.networkOut ?? metric.network_out ?? metric.network?.out);

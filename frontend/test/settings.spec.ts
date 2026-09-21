@@ -178,7 +178,7 @@ test('login theme saves with live preview and stays separate from the panel them
   await page.getByLabel('Username', { exact: true }).fill('');
   await page.getByLabel('Password', { exact: true }).fill('');
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: 'test-results/login-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/login-dark-mobile.png', fullPage: true });
 });
 
 test('system login theme follows OS changes, while light overrides a dark panel preference', async ({
@@ -238,7 +238,7 @@ test('global settings only edits appearance and preserves Local allocations', as
   expect(state().network).toEqual(initial().network);
   const footerName = page
     .locator('aside')
-    .getByText('Game Panel · Skoczi Edition', { exact: true });
+    .getByText('Game Panel PRO', { exact: true }).last();
   const revision = page.getByTestId('panel-revision');
   await expect(footerName).toBeVisible();
   await expect(revision).toHaveText(formatDisplayVersion(packageInfo.version));
@@ -339,4 +339,24 @@ test('settings stays within a narrow viewport', async ({ page }) => {
     true
   );
   await expect(page.getByLabel('IP address', { exact: true })).toHaveCount(0);
+});
+
+test('version dialog shows the bundled changelog offline and never offers an automatic deployment', async ({ page }) => {
+  await mock(page);
+  let unavailable = false;
+  await page.route('**/api/system/update/check', route => unavailable
+    ? route.fulfill({ status: 503, json: { error: 'offline' } })
+    : route.fulfill({ json: { currentVersion: '2.0.49', latestVersion: null, updateAvailable: false, currentRelease: null, newerReleases: [] } }));
+  await page.goto('/test/settings.fixture.html');
+  await page.getByTestId('panel-revision').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Game Panel PRO · Version & changelog' })).toBeVisible();
+  await expect(dialog.getByText('Installed changelog · 2.0.49')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Check GitHub' }).click();
+  await expect(dialog.getByRole('status')).toContainText('No published stable release');
+  unavailable = true;
+  await dialog.getByRole('button', { name: 'Check GitHub' }).click();
+  await expect(dialog.getByRole('status')).toContainText('Version status is unknown');
+  await expect(dialog.getByText(/Native backups run for stopped and running servers/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /Update to/ })).toHaveCount(0);
 });

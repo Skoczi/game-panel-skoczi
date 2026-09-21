@@ -37,3 +37,10 @@ export function getServerMetricsSamples(): ServerMetricsSample[] {
 
     return samples.sort((a, b) => a.serverId - b.serverId);
 }
+
+export function getServerResourceSnapshot(serverId: number) {
+    const entry = cache.get(serverId);
+    if (!entry || entry.updatedAtMs < Date.now() - SERVER_METRICS_SAMPLE_TTL_MS || !entry.sample.resources)
+        return { observedAt: null, resources: null };
+    return { observedAt: new Date(entry.updatedAtMs).toISOString(), resources: entry.sample.resources };
+}

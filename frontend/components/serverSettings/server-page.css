@@ -666,3 +666,8 @@
   .gp-server-page-content { height: auto; min-height: 420px; }
   .gp-server-page-content:not(.gp-server-page-flow) { height: 65dvh; min-height: 360px; }
 }
+
+.gp-server-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-width: 0; font-size: 12px; color: var(--gp-text-secondary, #64748b); }
+.dark .gp-server-context { color: #94a3b8; }
+.gp-server-context button { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; overflow-wrap: anywhere; text-align: left; }
+.gp-server-context button:focus-visible { outline: 2px solid #6366f1; outline-offset: 3px; border-radius: 4px; }

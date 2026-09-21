@@ -31,12 +31,12 @@ test('server header is a compact toolbar and wraps cleanly on mobile', async ({ 
   expect(nameBox.x).toBeGreaterThan(backBox.x + backBox.width);
   expect(powerBox.x).toBeGreaterThan(nameBox.x + nameBox.width);
   expect(Math.abs(backBox.y - powerBox.y)).toBeLessThan(3);
-  await page.screenshot({ path: 'test-results/server-header-desktop.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-header-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(name).toBeVisible();
   await expect(power.getByRole('button', { name: 'Restart', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/server-header-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-header-mobile.png', fullPage: true });
   await back.click();
   await expect(page).not.toHaveURL(/servers\/7/);
 });
@@ -59,7 +59,7 @@ test('console height is independent, persisted, and moves charts beside a tall c
   await expect(page.locator('.gp-server-overview')).toHaveClass(/gp-server-overview-tall/);
   const charts = page.locator('.gp-server-charts');
   expect((await charts.boundingBox())!.x).toBeGreaterThan((await panel.boundingBox())!.x + 500);
-  await page.screenshot({ path: 'test-results/server-console-tall.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-console-tall.png', fullPage: true });
   await page.reload();
   await expect(page.locator('.gp-server-overview')).toHaveClass(/gp-server-overview-tall/);
   await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
@@ -92,8 +92,8 @@ for (const theme of ['light', 'dark']) {
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       const tooltip = page.locator('.gp-metric-tooltip');
       await expect(tooltip).toBeVisible();
-      await expect(tooltip).toContainText(index === 0 ? 'CPU usage' : 'Inbound');
-      await expect(tooltip).toContainText(index === 0 ? '%' : 'B/s');
+      await expect(tooltip).toContainText(index === 0 ? 'CPU · vCPU' : 'Inbound');
+      await expect(tooltip).toContainText(index === 0 ? 'vCPU' : 'B/s');
       if (index === 2) await expect(tooltip).toContainText('Outbound');
       const contrast = await tooltip.evaluate((element) => {
         const luminance = (color: string) => {
@@ -115,7 +115,7 @@ for (const theme of ['light', 'dark']) {
       });
       expect(Math.min(...contrast)).toBeGreaterThanOrEqual(4.5);
     }
-    await page.screenshot({ path: `test-results/server-metrics-${theme}.png`, fullPage: true });
+    if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: `test-results/server-metrics-${theme}.png`, fullPage: true });
   });
 }
 
@@ -154,7 +154,7 @@ for (const tab of ['scheduledtasks', 'backup', 'containerconfig']) {
       expect(dimensions.maxWidth).toBe('none');
       expect(Math.abs(dimensions.actual - dimensions.available)).toBeLessThan(2);
       expect(dimensions.overflow).toBe(false);
-      await page.screenshot({
+      if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({
         path: `test-results/server-page-${tab}-${width}.png`,
         fullPage: true,
       });
@@ -176,9 +176,7 @@ test('restart confirmation follows the settings pane with the console open', asy
   expect(box!.x + box!.width).toBeLessThan(pane!.x + pane!.width);
   expect(await dialog.evaluate(el => el.contains(document.elementFromPoint(el.getBoundingClientRect().right - 10, el.getBoundingClientRect().top + 10)))).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobile = await dialog.boundingBox();
-  expect(mobile!.x).toBeGreaterThanOrEqual(0);
-  expect(mobile!.x + mobile!.width).toBeLessThanOrEqual(390);
+  await expect.poll(async () => { const mobile = await dialog.boundingBox(); return mobile!.x >= 0 && mobile!.x + mobile!.width <= 390; }).toBe(true);
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(dialog).toBeHidden();
 });
@@ -224,7 +222,7 @@ for (const remove of [false, true]) test(`ZIP upload waits for extraction and re
   await expect(dialog.locator('[data-part="close-trigger"]')).toHaveCSS('width', '30px');
   await page.getByRole('switch', { name: 'Extract ZIP after upload', exact: true }).click();
   await expect(page.getByLabel('Keep ZIP archive', { exact: true })).toBeChecked();
-  await dialog.screenshot({ path: testInfo.outputPath('archive-options.png') });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await dialog.screenshot({ path: testInfo.outputPath('archive-options.png') });
   if (remove) await page.getByLabel('Delete ZIP only after successful extraction').check();
   await page.getByRole('button', { name: 'Upload', exact: true }).click();
   await expect.poll(() => extracted.length).toBe(1);
@@ -244,7 +242,7 @@ test.beforeEach(async ({ page }) => {
     if (url.pathname.endsWith('/files/roots'))
       return route.fulfill({ json: { roots: [{ key: 'data', containerPath: '/data' }] } });
     if (url.pathname.endsWith('/file'))
-      return route.fulfill({ json: { content: 'hostname test' } });
+      return route.fulfill({ headers: { etag: '"fixture-version"' }, json: { content: 'hostname test', version: '"fixture-version"' } });
     if (url.pathname.endsWith('/files'))
       return route.fulfill({ json: { entries: [{ name: 'server.cfg', type: 'file' }] } });
     return route.fulfill({ json: { nodes: [], entries: [], settings: {} } });
@@ -267,7 +265,12 @@ test('file view switches to tiles, retains selection and persists after reload',
 for (const name of ['picture.PNG', 'sound.mp3', 'unknown.bin']) test(`file preview handles ${name} without an editable document`, async ({ page }) => {
   await page.route('**/files?**', route => route.fulfill({ json: { entries: [{ name, type: 'file', size: 4000000 }] } }));
   await page.route('**/files/download-token', route => route.fulfill({ json: { path: '/preview-test' } }));
-  await page.route('**/preview-test', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=', 'base64') }));
+  const wav = Buffer.alloc(44 + 1600);
+  wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write('data', 36); wav.writeUInt32LE(1600, 40);
+  await page.route('**/preview-test', route => route.fulfill({ contentType: name.endsWith('mp3') ? 'audio/wav' : 'image/png', body: name.endsWith('mp3') ? wav : Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=', 'base64') }));
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await page.getByText(name, { exact: true }).dblclick();
   const session = page.getByRole('region', { name: 'File editor session' });
@@ -337,13 +340,13 @@ test('power confirmation and console page responsive layout', async ({ page }) =
       (window as any).actions.some((a: any) => a.id === '7' && a.action === 'restart')
     )
   ).toBe(true);
-  await page.screenshot({ path: 'test-results/server-page-desktop.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-page-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('heading', { name: 'CS16 Test', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('link', { name: 'Files', exact: true }).click();
   await expect(page.getByText('server.cfg', { exact: true })).toBeVisible();
-  await page.screenshot({ path: 'test-results/server-page-mobile-files.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-page-mobile-files.png', fullPage: true });
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });
 test('a URL for a different node never exposes the same numeric server on this node', async ({
@@ -364,14 +367,14 @@ test('loading uses a responsive skeleton without flashing an unavailable error',
   await expect(page.getByRole('heading', { name: 'Server unavailable' })).toHaveCount(0);
   await expect(page.locator('.gp-server-skeleton')).toBeVisible();
   await expect(page.locator('.gp-server-state')).toHaveAttribute('aria-busy', 'true');
-  await page.screenshot({ path: 'test-results/server-loading-desktop.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-loading-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   expect(
     await page.locator('.gp-server-skeleton').evaluate((el) => getComputedStyle(el).animationName)
   ).toBe('none');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/server-loading-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-loading-mobile.png', fullPage: true });
 });
 
 for (const state of ['error', 'missing']) {
@@ -399,16 +402,16 @@ test('unsaved files are protected when leaving by tabs and browser history', asy
   await editor.click();
   await page.keyboard.press('ControlOrMeta+a');
   await page.keyboard.type('hostname edited');
-  page.once('dialog', (dialog) => dialog.dismiss());
   await page.getByRole('link', { name: 'Console', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page).toHaveURL(/filemanager$/);
   await expect(editor).toContainText('hostname edited');
-  page.once('dialog', (dialog) => dialog.dismiss());
   await page.goBack();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page).toHaveURL(/filemanager$/);
   await expect(editor).toContainText('hostname edited');
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('link', { name: 'Console', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Discard changes', exact: true }).click();
   await expect(page.getByText('Server ready for players')).toBeVisible();
 });
 
@@ -416,7 +419,7 @@ test('light theme keeps the configuration page readable and scrollable', async (
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/gameconfig');
   await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
-  await page.screenshot({ path: 'test-results/server-page-light-config.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-page-light-config.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });
@@ -428,7 +431,7 @@ test('editor tabs keep drafts, save the selected path and confirm closing dirty 
   ] } }));
   await page.route('**/api/servers/7/file?**', route => {
     if (route.request().method() !== 'GET') writes.push({ ...route.request().postDataJSON(), path: new URL(route.request().url()).searchParams.get('path') });
-    return route.fulfill({ json: { content: 'hostname test' } });
+    return route.fulfill({ headers: { etag: '"fixture-version"' }, json: { content: 'hostname test', version: '"fixture-version"' } });
   });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
   await page.getByRole('link', { name: 'Files', exact: true }).click();
@@ -446,8 +449,8 @@ test('editor tabs keep drafts, save the selected path and confirm closing dirty 
   await expect(page.getByRole('tab', { name: 'other.cfg' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'server.cfg' }).click();
   await expect(visibleEditor).toContainText('hostname draft');
-  page.once('dialog', dialog => dialog.dismiss());
   await page.getByRole('button', { name: 'Close server.cfg', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'server.cfg' })).toBeVisible();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
@@ -463,14 +466,14 @@ test('editor tabs keep drafts, save the selected path and confirm closing dirty 
     return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
   });
   expect(unobscured).toBe(true);
-  await page.screenshot({ path: 'test-results/editor-session-dark-hover.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/editor-session-dark-hover.png', fullPage: true });
   await page.getByRole('button', { name: 'Switch to light mode' }).click();
   await expect(visibleEditor).toHaveClass(/vs/);
   await expect(page.getByRole('tab', { name: 'server.cfg' })).toHaveCSS('color', 'rgb(255, 255, 255)');
-  await page.screenshot({ path: 'test-results/editor-session-light.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/editor-session-light.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/editor-session-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/editor-session-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Close server.cfg', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'server.cfg' })).toHaveCount(0);
   await expect(page.getByRole('tab', { name: 'other.cfg' })).toHaveAttribute('aria-selected', 'true');
@@ -514,9 +517,9 @@ test('side console shrinks the workspace without remounting dirty editor and clo
   await dock.getByPlaceholder('Type a command and press Enter…').fill('status');
   await dock.getByPlaceholder('Type a command and press Enter…').press('Enter');
   await expect.poll(() => sent).toEqual({ command: 'status' });
-  await page.screenshot({ path: 'test-results/side-console-dark.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/side-console-dark.png', fullPage: true });
   await page.getByRole('button', { name: 'Switch to light mode' }).click();
-  await page.screenshot({ path: 'test-results/side-console-light.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/side-console-light.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(editor).toContainText('unsaved-side-console');
@@ -558,7 +561,7 @@ test('side console divider resizes both panes and remembers its width', async ({
   await splitter.dblclick();
   await expect(splitter).toHaveAttribute('aria-valuenow', '38');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/side-console-resizable.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/side-console-resizable.png', fullPage: true });
 });
 
 test('opening either console starts at latest logs and commands opt out of credential autofill', async ({ page }) => {
@@ -582,4 +585,207 @@ test('opening either console starts at latest logs and commands opt out of crede
   await page.getByRole('button', { name: 'Close side console' }).click();
   await page.getByRole('button', { name: 'Open side console' }).click();
   await expect.poll(remaining).toBeLessThan(2);
+});
+
+test('editor keeps draft on conflict and saves only after acknowledging the current version', async ({ page }) => {
+  let reads = 0; const writes: any[] = [];
+  await page.route('**/api/servers/7/file?**', route => {
+    if (route.request().method() === 'GET') {
+      reads++;
+      return route.fulfill({ headers: { etag: reads === 1 ? '"v1"' : '"v2"' }, body: reads === 1 ? 'hostname original' : 'hostname remote' });
+    }
+    writes.push(route.request().postDataJSON());
+    if (writes.length === 1) return route.fulfill({ status: 409, json: { error: 'File changed since it was opened' } });
+    return route.fulfill({ json: { ok: true, version: '"v3"' } });
+  });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByText('server.cfg', { exact: true }).dblclick();
+  const editor = page.locator('.monaco-editor:visible');
+  await editor.click(); await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.type('hostname draft');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Compare: current server file')).toBeVisible();
+  await expect(editor).toContainText('hostname draft');
+  expect(writes[0].version).toBe('"v1"');
+  await page.getByText('Compare: current server file').click();
+  await expect(page.getByText('hostname remote', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Keep my edits for merging' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  expect(writes[1]).toEqual({ content: 'hostname draft', version: '"v2"' });
+});
+
+test('an old agent without file versions cannot accept an unprotected editor save', async ({ page }) => {
+  let writes = 0;
+  await page.route('**/api/servers/7/file?**', route => {
+    if (route.request().method() !== 'GET') writes++;
+    return route.fulfill({ body: 'hostname original' });
+  });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByText('server.cfg', { exact: true }).dblclick();
+  await page.locator('.monaco-editor:visible').click();
+  await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.type('hostname draft');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText(/Update the agent and reopen the file/)).toBeVisible();
+  expect(writes).toBe(0);
+});
+
+test('Native backup operations and legacy archives remain inspectable after reload', async ({ page }) => {
+  await page.route('**/backups/jobs', route => route.fulfill({json:{jobs:[{id:'job-1',kind:'backup',status:'running',startedAt:'2026-09-20T12:00:00Z'}]}}));
+  await page.route('**/backups/compatibility', route => route.fulfill({json:{native:true,capabilities:{backupJobs:1,nativeRestoreRecovery:1},layoutReady:true,recoveryCount:1,legacy:[{name:'legacy.tar.gz',size:100,modifiedAt:'2026-09-19T00:00:00Z'}]}}));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  await expect(page.getByRole('region',{name:'Backup operations'})).toContainText('running');
+  await expect(page.getByRole('button',{name:'Create backup now'})).toBeDisabled();
+  await expect(page.getByRole('region',{name:'Legacy backups'})).toContainText('legacy.tar.gz');
+  await page.reload();
+  await expect(page.getByRole('region',{name:'Backup operations'})).toContainText('running');
+});
+
+test('an agent without backup job support leaves the backup page usable with an explicit error', async ({page})=>{
+  await page.route('**/backups/jobs', route=>route.fulfill({json:{}}));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  await expect(page.getByRole('heading',{name:'Backups',exact:true})).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Unable to refresh operation status');
+});
+
+test('Native backup confirmation validates a custom name and waits for its background result',async({page})=>{
+  let submitted:any=null;
+  await page.route('**/backups/jobs',route=>route.fulfill({json:{jobs:submitted?[{id:'named-job',kind:'backup',status:'completed',startedAt:new Date().toISOString(),result:{ok:true,exitCode:0}}]:[]}}));
+  await page.route('**/backups/compatibility',route=>route.fulfill({json:{native:true,capabilities:{backupJobs:1,nativeRestoreRecovery:1},layoutReady:true,legacy:[],recoveryCount:0}}));
+  await page.route('**/backups/create',route=>{submitted=route.request().postDataJSON();return route.fulfill({status:202,json:{job:{id:'named-job',status:'running'}}});});
+  await page.route('**/backups/jobs/named-job',route=>route.fulfill({json:{job:{id:'named-job',kind:'backup',status:'completed',result:{ok:true,exitCode:0}}}}));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  await page.getByRole('button',{name:'Create backup now'}).click();
+  const dialog=page.getByRole('dialog',{name:'Create backup'});
+  await dialog.getByLabel('Backup name (optional)').fill('../invalid');
+  await expect(dialog.getByRole('button',{name:'Create backup',exact:true})).toBeDisabled();
+  await dialog.getByLabel('Backup name (optional)').fill('Before update');
+  await dialog.getByRole('button',{name:'Cancel',exact:true}).click();expect(submitted).toBeNull();
+  await page.getByRole('button',{name:'Create backup now'}).click();
+  await expect(dialog.getByLabel('Backup name (optional)')).toHaveValue('');
+  await dialog.getByLabel('Backup name (optional)').fill('Before update');
+  await dialog.getByRole('button',{name:'Create backup',exact:true}).click();
+  await expect.poll(()=>submitted).toEqual({name:'Before update'});
+  await expect(page.getByRole('button',{name:'Create backup now'})).toBeEnabled();
+});
+
+
+test('Native backup mutation is disabled when runtime recovery capabilities are missing', async ({ page }) => {
+  await page.route('**/backups/jobs', route => route.fulfill({ json: { jobs: [] } }));
+  let current = false;
+  await page.route('**/backups/compatibility', route => route.fulfill({ json: {
+    native: true, layoutReady: true, legacy: [], recoveryCount: 0,
+    ...(current ? { capabilities: { backupJobs: 1, nativeRestoreRecovery: 1 } } : {}),
+  } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  await expect(page.getByText('Update this node’s agent to enable persistent backup jobs and safe restore recovery.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create backup now' })).toBeDisabled();
+  current = true;
+  await page.getByRole('button', { name: 'Recheck runtime' }).click();
+  await expect(page.getByRole('button', { name: 'Create backup now' })).toBeEnabled();
+});
+
+test('file operation history survives reload without repeating a mutation', async ({ page }) => {
+  let mutations = 0;
+  await page.route('**/files/transfers?*', route => {
+    if (route.request().method() !== 'GET') mutations++;
+    return route.fulfill({ json: { jobs: [{ id: 81, kind: 'extract', status: 'completed', basePath: '/', transferredBytes: 1024, completedFiles: 3, errorMessage: null }] } });
+  });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
+  await page.getByText('File operation history', { exact: true }).click();
+  await expect(page.getByRole('region', { name: 'File operations' })).toContainText('file-81');
+  await page.reload();
+  await page.getByText('File operation history', { exact: true }).click();
+  await expect(page.getByRole('region', { name: 'File operations' })).toContainText('3 files');
+  expect(mutations).toBe(0);
+});
+
+for (const status of ['running', 'stopped', 'unknown']) {
+  test(`Native restore requires a stopped server: ${status}`, async ({ page }) => {
+    await page.route('**/backups', route => route.fulfill({ json: { path: '/', entries: [{ name: 'manual.tar.gz', size: 512, modifiedAt: new Date().toISOString() }] } }));
+    await page.route('**/backups/jobs', route => route.fulfill({ json: { jobs: [] } }));
+    await page.route('**/backups/compatibility', route => route.fulfill({ json: { native: true, capabilities: { backupJobs: 1, nativeRestoreRecovery: 1 }, layoutReady: true, legacy: [], recoveryCount: 0 } }));
+    await page.goto(`/test/server-page.fixture.html?status=${status}#/nodes/local/servers/7/backup`);
+    await expect(page.getByRole('button', { name: 'Create backup now' })).toBeEnabled();
+    const restore = page.getByRole('button', { name: 'Restore', exact: true });
+    if (status === 'stopped') await expect(restore).toBeEnabled();
+    else {
+      await expect(restore).toBeDisabled();
+      await expect(restore).toHaveAttribute('title', 'Stop the server before restoring a Native backup.');
+      await expect(page.getByText('Restore: Stop the server before restoring a Native backup.')).toBeVisible();
+    }
+  });
+}
+for (const theme of ['light', 'dark']) {
+  test(`server context stays accessible across tabs and mobile in ${theme}`, async ({ page }) => {
+    await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (value: string) => { (window as any).copiedContext = value; } } }); });
+    await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+    await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), theme === 'dark');
+    const context = page.getByRole('region', { name: 'Server context', exact: true });
+    await expect(context).toContainText('Node:');
+    await expect(context).toContainText('Latest chart sample:');
+    const copy = context.getByRole('button', { name: 'Copy server identifier' });
+    await copy.focus(); await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => (window as any).copiedContext)).toBe('local/7');
+    await page.getByRole('link', { name: 'Files', exact: true }).click();
+    await expect(context).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await context.getByRole('button', { name: 'Copy connection address' }).click();
+    expect(await page.evaluate(() => (window as any).copiedContext)).toBe('51.75.61.237:27050');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+test('Native backup cannot start while operation status is unavailable and recovers after recheck', async ({ page }) => {
+  let available = false;
+  await page.route('**/backups/jobs', route => route.fulfill(available ? { json: { jobs: [] } } : { status: 503, json: { error: 'Unavailable' } }));
+  await page.route('**/backups/compatibility', route => route.fulfill({ json: { native: true, capabilities: { backupJobs: 1, nativeRestoreRecovery: 1 }, layoutReady: true, legacy: [], recoveryCount: 0 } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  const create = page.getByRole('button', { name: 'Create backup now' });
+  await expect(create).toBeDisabled();
+  await expect(page.getByText('Wait for a confirmed operation status before starting another action.', { exact: true })).toBeVisible();
+  available = true;
+  await page.getByRole('button', { name: 'Recheck runtime' }).click();
+  await expect(create).toBeEnabled();
+});
+
+for (const theme of ['light', 'dark']) {
+  test(`power confirmation can be cancelled with keyboard on mobile in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
+    await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), theme === 'dark');
+    const restart = page.getByRole('button', { name: 'Restart', exact: true });
+    await restart.focus(); await page.keyboard.press('Enter');
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
+    await cancel.focus(); await page.keyboard.press('Enter');
+    await expect(dialog).toHaveCount(0);
+    await expect(restart).toBeFocused();
+    expect(await page.evaluate(() => ((window as any).actions || []).filter((action: any) => action.action === 'restart'))).toHaveLength(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+
+test('a full rolling console buffer counts new logs and keeps following the tail', async ({ page }) => {
+  await page.goto('/test/server-page.fixture.html?performance#/nodes/local/servers/7/console');
+  const output = page.locator('.gp-console-terminal:visible');
+  const append = (count: number) => page.evaluate(count => window.dispatchEvent(new CustomEvent('gp-performance-logs', { detail: count })), count);
+  const remaining = () => output.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
+  await append(5000);
+  await expect(output.locator('pre')).toHaveCount(5000);
+  await expect.poll(remaining).toBeLessThan(2);
+  await output.hover();
+  await page.mouse.wheel(0, -900);
+  await expect.poll(remaining).toBeGreaterThan(100);
+  await append(100);
+  const jump = page.getByRole('button', { name: 'Scroll to latest logs' });
+  await expect(jump).toHaveText('100 new logs');
+  await expect(output.locator('pre')).toHaveCount(5000);
+  await jump.click();
+  await expect.poll(remaining).toBeLessThan(2);
+  await append(100);
+  await expect(output.locator('pre').last()).toContainText('Performance log 5200:');
+  await expect.poll(remaining).toBeLessThan(2);
+  await expect(jump).not.toBeVisible();
 });

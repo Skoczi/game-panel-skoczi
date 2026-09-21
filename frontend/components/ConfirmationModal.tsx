@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
-import { AppButton, AppModal, AppModalBody, AppModalContent, AppModalDescription, AppModalHeader, AppModalTitle } from '../src/ui/components';
+import { AppButton, AppInput, AppModal, AppModalBody, AppModalContent, AppModalDescription, AppModalHeader, AppModalTitle } from '../src/ui/components';
 
 interface ConfirmationModalProps {
   confirmButtonClass?: string;
@@ -27,10 +27,21 @@ export function ConfirmationModal({
   icon = 'warning',
   requiredText,
 }: ConfirmationModalProps) {
+  const inputId = useId();
   const [inputValue, setInputValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      // Let the modal library finish its focus cleanup before recovering a lost trigger.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (trigger?.isConnected && document.activeElement === document.body) trigger.focus();
+      }));
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -68,6 +79,8 @@ export function ConfirmationModal({
   return (
     <AppModal open={isOpen} onOpenChange={(open) => !open && !submitting && onClose()}>
       <AppModalContent
+        aria-label={title}
+        aria-labelledby={`${inputId}-title`}
         dismissible={false}
         className="z-[61] w-[calc(100%-2rem)] max-w-md rounded-lg p-4 md:p-6"
       >
@@ -83,7 +96,7 @@ export function ConfirmationModal({
 
             <div className="flex-1 min-w-0">
               <AppModalHeader className="mb-2">
-                <AppModalTitle className="text-base md:text-lg">{title}</AppModalTitle>
+                <AppModalTitle id={`${inputId}-title`} className="text-base md:text-lg">{title}</AppModalTitle>
               </AppModalHeader>
               <AppModalDescription className={`text-sm text-slate-300 ${requiredText ? 'mb-3' : 'mb-4 md:mb-6'}`}>
                 {message}
@@ -91,10 +104,11 @@ export function ConfirmationModal({
 
               {requiredText && (
                 <div className="mb-4 md:mb-6">
-                  <label className="mb-1.5 block text-xs text-gray-400">
-                    Type <span className="font-semibold text-white">"{requiredText}"</span> to confirm
+                  <label htmlFor={inputId} className="mb-1.5 block text-xs text-gray-500 dark:text-gray-400">
+                    Type <span className="font-semibold text-gray-900 dark:text-white">"{requiredText}"</span> to confirm
                   </label>
-                  <input
+                  <AppInput
+                    id={inputId}
                     ref={inputRef}
                     type="text"
                     value={inputValue}
@@ -106,49 +120,38 @@ export function ConfirmationModal({
                     autoComplete="off"
                     spellCheck={false}
                     disabled={submitting}
-                    className={`w-full rounded-lg border bg-gray-800/80 px-3 py-2 text-sm text-white placeholder-gray-500 outline-none transition-colors focus:ring-1 disabled:opacity-60 ${
-                      matches
-                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500/30'
-                        : 'border-gray-600 focus:border-gray-500 focus:ring-gray-500/20'
-                    }`}
+                    className={matches ? 'w-full border-red-500' : 'w-full'}
                     placeholder={requiredText}
                   />
                 </div>
               )}
 
               {error && (
-                <div className="mb-3 flex items-start gap-2 text-sm text-red-400">
+                <div role="alert" className="mb-3 flex items-start gap-2 text-sm text-red-400">
                   <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-2 md:gap-3">
-                <button
-                  type="button"
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                <AppButton
+                  tone={icon === 'danger' ? 'critical' : 'primary'}
                   onClick={handleConfirm}
                   disabled={!isConfirmAllowed || submitting}
-                  className={`inline-flex min-w-[132px] items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium !text-white disabled:opacity-40 disabled:cursor-not-allowed ${
-                    confirmButtonClass || 'bg-[var(--gp-primary-700)] hover:bg-[var(--gp-primary-600)]'
-                  }`}
+                  title={!isConfirmAllowed ? `Type ${requiredText} to confirm` : undefined}
+                  className={`min-w-0 ${confirmButtonClass || ''}`}
                 >
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                   {submitting ? 'Working…' : confirmText || 'Confirm'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={submitting}
-                  className="inline-flex min-w-[132px] items-center justify-center rounded bg-gray-700 px-4 py-2 text-sm text-white hover:bg-gray-600 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  Cancel
-                </button>
+                </AppButton>
+                <AppButton tone="neutral" onClick={onClose} disabled={submitting}>Cancel</AppButton>
               </div>
             </div>
 
             {showCloseButton ? (
               <AppButton
                 tone="ghost"
+                aria-label="Close confirmation"
                 onClick={onClose}
                 disabled={submitting}
                 className="h-8 w-8 p-0 text-slate-400 hover:text-red-400"
@@ -162,4 +165,3 @@ export function ConfirmationModal({
     </AppModal>
   );
 }
-

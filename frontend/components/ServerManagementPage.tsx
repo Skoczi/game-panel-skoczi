@@ -1,3 +1,5 @@
+import { OperationNotice } from './OperationNotice';
+import { resourceLabel, resourceBytes } from '../utils/resourceMetrics';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import {
   ArrowLeft,
@@ -27,7 +29,6 @@ import { isNativeTemplate } from '../utils/providerCapabilities';
 import { gameDisplayName } from '../utils/gameDisplayName';
 import {
   getServerStatusPresentation,
-  formatMetricValue,
   formatNetworkSpeed,
 } from './gameServersTable/utils';
 import { createServerSettingsAccess, type SettingsTab } from './serverSettings/access';
@@ -65,8 +66,8 @@ const labels: Record<ServerPageTab, string> = {
   activity: 'Activity',
 };
 const metricLabels: Record<string, string> = {
-  cpuUsage: 'CPU usage',
-  memoryUsage: 'Memory usage',
+  'resources.cpuCores': 'CPU · vCPU',
+  'resources.memoryBytes': 'Memory',
   networkIn: 'Inbound',
   networkOut: 'Outbound',
 };
@@ -95,7 +96,7 @@ function MetricTooltip({
                 ? '—'
                 : key.startsWith('network')
                   ? formatNetworkSpeed(value)
-                  : `${value.toFixed(2)}%`}
+                  : key === 'resources.cpuCores' ? `${value.toFixed(2)} vCPU` : resourceBytes(value)}
             </strong>
           </div>
         );
@@ -103,11 +104,18 @@ function MetricTooltip({
     </div>
   );
 }
+function MeasurementTime({ timestamp }: { timestamp: number | null }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 10_000); return () => window.clearInterval(timer); }, []);
+  if (timestamp === null || timestamp > now + 5000) return <span>Latest chart sample: unavailable</span>;
+  return <span>Latest chart sample: <time dateTime={new Date(timestamp).toISOString()}>{new Date(timestamp).toLocaleTimeString()}</time>{now - timestamp > 35_000 ? ' · stale' : ''}</span>;
+}
 export function ServerManagementPage({
   server,
   currentUser,
   permissions,
   gameName,
+  nodeName,
   tab,
   onTab,
   onBack,
@@ -210,6 +218,15 @@ export function ServerManagementPage({
   const address = server.port
     ? `${host.includes(':') ? `[${host}]` : host}:${server.port}`
     : 'Not assigned';
+  const serverContext = ACTIVE_SERVER?.runtimeId === Number(server.id) && ACTIVE_SERVER.nodeId === ACTIVE_NODE ? ACTIVE_SERVER : null;
+  const identity = serverContext?.id || `${ACTIVE_NODE}/${server.id}`;
+  const startReason = pending ? 'Waiting for the current power request.' : !isServerDownLike(server.status) ? 'Start requires a confirmed stopped server.' : '';
+  const stopReason = pending ? 'Waiting for the current power request.' : !isServerUpLike(server.status) ? 'Restart and Stop require a confirmed running server.' : '';
+  const powerReason = [startReason, stopReason].filter((value, index, values) => value && values.indexOf(value) === index).join(' ');
+  const copyContext = async (value: string, label: string) => {
+    try { await navigator.clipboard.writeText(value); setFeedback(`${label} copied.`); }
+    catch { setFeedback(`Unable to copy ${label.toLowerCase()}.`); }
+  };
   const power = async (action: string) => {
     if (!allowed('server.power') || pending) return;
     setPending(true);
@@ -285,19 +302,25 @@ export function ServerManagementPage({
         {allowed('server.power') && (
           <div className="gp-server-power">
             <button
-              disabled={pending || !isServerDownLike(server.status)}
+              disabled={Boolean(startReason)}
+              title={startReason || undefined}
+              aria-describedby={startReason ? "server-power-reason" : undefined}
               onClick={() => void power('start')}
             >
               <Play size={16} /> Start
             </button>
             <button
-              disabled={pending || !isServerUpLike(server.status)}
+              disabled={Boolean(stopReason)}
+              title={stopReason || undefined}
+              aria-describedby={stopReason ? "server-power-reason" : undefined}
               onClick={() => setConfirm('restart')}
             >
               <RotateCw size={16} /> Restart
             </button>
             <button
-              disabled={pending || !isServerUpLike(server.status)}
+              disabled={Boolean(stopReason)}
+              title={stopReason || undefined}
+              aria-describedby={stopReason ? "server-power-reason" : undefined}
               onClick={() => setConfirm('stop')}
             >
               <Square size={16} /> Stop
@@ -310,6 +333,16 @@ export function ServerManagementPage({
           </div>
         )}
       </header>
+      <div className="gp-server-context" aria-label="Server context" role="region">
+        <span>Node: {nodeName || ACTIVE_NODE}</span>
+        <span>Status: {status.label}</span>
+        <button type="button" title={identity} aria-label="Copy server identifier" onClick={() => void copyContext(identity, 'Server identifier')}>
+          <Copy size={13} aria-hidden="true" /> {serverContext?.displayId || `Runtime ${server.id}`}
+        </button>
+        {server.port && <button type="button" aria-label="Copy connection address" onClick={() => void copyContext(address, 'Connection address')}><Copy size={13} aria-hidden="true" />{address}</button>}
+        <MeasurementTime timestamp={metrics.reduce<number | null>((latest, point) => Number.isFinite(point.timestamp) && point.timestamp > 0 ? Math.max(latest || 0, point.timestamp) : latest, null)} />
+        {allowed('server.power') && powerReason && <span id="server-power-reason">{powerReason}</span>}
+      </div>
       {showAccess && currentUser?.isRoot && ACTIVE_SERVER && (
         <FleetAccess
           server={{
@@ -321,6 +354,7 @@ export function ServerManagementPage({
         />
       )}
       {feedback && <p role="status">{feedback}</p>}
+      {['starting', 'stopping', 'restarting', 'installing', 'creating', 'unknown'].includes(server.status) && <OperationNotice state={server.status === 'unknown' ? 'unknown' : 'running'} />}
       <div className="gp-server-navigation">
         <nav className="gp-server-tabs" aria-label="Server sections">
           {tabs.map((key) => (
@@ -400,18 +434,18 @@ export function ServerManagementPage({
                   </div>
                   <div className="gp-server-stat">
                     <Cpu className="gp-stat-icon" size={19} aria-hidden="true" />
-                    <small>CPU usage</small>
-                    <strong>{formatMetricValue(server.status, server.cpuUsage)}</strong>
+                    <small>CPU · used / assigned vCPU</small>
+                    <strong>{resourceLabel(server.resources, 'cpu')}</strong>
                   </div>
                   <div className="gp-server-stat">
                     <MemoryStick className="gp-stat-icon" size={19} aria-hidden="true" />
-                    <small>Memory usage</small>
-                    <strong>{formatMetricValue(server.status, server.memoryUsage)}</strong>
+                    <small>Memory · used / assigned</small>
+                    <strong>{resourceLabel(server.resources, 'memory')}</strong>
                   </div>
                   <div className="gp-server-stat">
                     <HardDrive className="gp-stat-icon" size={19} aria-hidden="true" />
-                    <small>Disk usage</small>
-                    <strong>{formatMetricValue(server.status, server.diskUsage)}</strong>
+                    <small>Game data · node free: {resourceBytes(server.resources?.nodeFreeBytes)}</small>
+                    <strong>{resourceLabel(server.resources, 'disk')}</strong>
                   </div>
                   <div className="gp-server-stat">
                     <Network className="gp-stat-icon" size={19} aria-hidden="true" />
@@ -423,7 +457,7 @@ export function ServerManagementPage({
                   </div>
                 </aside>
                 <div className="gp-server-charts">
-                  {(['cpuUsage', 'memoryUsage', 'networkIn'] as const).map((metric, index) => (
+                  {(['resources.cpuCores', 'resources.memoryBytes', 'networkIn'] as const).map((metric, index) => (
                     <section className="gp-server-stat" key={metric}>
                       <h2>{['CPU usage', 'Memory usage', 'Network traffic'][index]}</h2>
                       {metrics.length ? (
@@ -437,7 +471,7 @@ export function ServerManagementPage({
                                 axisLine={false}
                                 tickLine={false}
                                 tickFormatter={(value) =>
-                                  index === 2 ? formatNetworkSpeed(Number(value)) : `${value}%`
+                                  index === 2 ? formatNetworkSpeed(Number(value)) : index === 0 ? `${value} vCPU` : resourceBytes(Number(value))
                                 }
                               />
                               <Tooltip

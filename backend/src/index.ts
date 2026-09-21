@@ -1,3 +1,8 @@
+import { runtimeCapabilities } from './utils/runtimeCapabilities.js';
+import { initializePublicApi, apiTokenRoutes, publicApiRoutes } from './services/publicApiControl.js';
+import { publicApiErrorHandler } from './routes/publicApi.js';
+import { requestContext } from './middleware/requestContext.js';
+import { recoverRestoreTransactions } from './services/nativeRestoreRecovery.js';
 import { getConfig } from './config.js';
 import { initializeTemplates, templateRoutes } from './templates/routes.js';
 import { recoverNativeOperations } from './services/nativeRuntime.js';
@@ -28,7 +33,7 @@ import systemRoutes from './routes/system.js';
 import catalogRoutes from './routes/catalog.js';
 import downloadRoutes from './routes/download.js';
 import { setupWebSocket } from './websocket/handler.js';
-import { getAppVersion } from './utils/appInfo.js';
+import { getAppVersion, getRuntimeBuild } from './utils/appInfo.js';
 import { logError, logInfo } from './utils/logger.js';
 import { reconcileGamesNetwork } from './utils/docker.js';
 import { startLinuxGsmManifestRefreshJob } from './services/linuxGsmManifest.js';
@@ -103,11 +108,13 @@ const corsOptions: CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+  exposedHeaders: ['ETag', 'X-Request-ID', 'Retry-After', 'Location', 'Idempotency-Replayed'],
 };
 
 app.set('trust proxy', trustProxy);
 
+app.use(requestContext);
 app.use(helmet());
 
 // Agent gate and remote proxy precede parsers so uploads remain streaming.
@@ -131,6 +138,11 @@ if (isAgent())
 
 // /api/auth
 app.use('/api/auth', authRoutes);
+if (!isAgent()) {
+  app.use('/api/v1', publicApiRoutes);
+  app.use('/api/v1', publicApiErrorHandler);
+  app.use('/api/api-tokens', authMiddleware, apiTokenRoutes);
+}
 app.use('/api/branding', brandingRoutes);
 // /api/download/:token
 app.use('/api/download', downloadRoutes);
@@ -152,7 +164,7 @@ app.use('/api/system', authMiddleware, systemRoutes);
 
 // GET /api/health
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, portAllocationProtocol: 1 });
+  res.json({ ...getRuntimeBuild(), capabilities: runtimeCapabilities, status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, portAllocationProtocol: 1 });
 });
 
 // GET /api/version
@@ -189,12 +201,14 @@ async function startServer(): Promise<void> {
       await initializeNodes();
       await initializeTemplates();
       await initializeFleet();
+      await initializePublicApi();
     }
     logInfo('APP', 'Database initialized');
 
     // Sync current Docker health -> DB once at boot
     await reconcileDockerHealthToDb();
     await recoverNativeOperations();
+    await recoverRestoreTransactions();
 
     // Make sure the games network exists and every game container sits on it
     await reconcileGamesNetwork().catch((error) => {

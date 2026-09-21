@@ -3,6 +3,8 @@ import {
   useEffect,
   useRef,
   useCallback,
+  lazy,
+  Suspense,
   type Dispatch,
   type SetStateAction,
 } from 'react';
@@ -14,7 +16,7 @@ import { apiClient } from './utils/api';
 import { METRICS_HISTORY_REQUEST_LIMIT } from './components/gameServersTable/utils';
 import { clearAppCache } from './utils/appStorage';
 import { OVHCLOUD_IMAGES } from './utils/ovhcloudCatalog';
-import { AppShell } from './components/app/AppShell';
+const AppShell = lazy(() => import('./components/app/AppShell').then(module => ({ default: module.AppShell })));
 import {
   createWebSocketMessageHandler,
   type FleetMetricValues,
@@ -273,6 +275,7 @@ function AppContent() {
       const points = (data.metrics ?? [])
         .map((sample) => ({
           timestamp: new Date(sample.timestamp).getTime(),
+          resources: sample.resources,
           cpuUsage: sample.cpuUsage ?? 0,
           memoryUsage: sample.memoryUsage ?? 0,
           diskUsage: sample.diskUsage ?? 0,
@@ -771,6 +774,7 @@ function AppContent() {
   const pageShellClassName = 'w-full px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6';
 
   return (
+    <Suspense fallback={<div role="status" className="min-h-screen grid place-items-center text-sm">Opening panel…</div>}>
     <AppShell
       activeTab={activeTab}
       setActiveTab={setActiveTab}
@@ -835,6 +839,7 @@ function AppContent() {
       setChangePasswordOpen={setChangePasswordOpen}
       currentUserId={currentUserId}
     />
+    </Suspense>
   );
 }
 

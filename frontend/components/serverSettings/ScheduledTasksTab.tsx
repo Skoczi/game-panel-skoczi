@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { AppSectionHeader } from '../../src/ui/layout';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   AlertTriangle, CheckCircle, Clock, GripVertical, Loader2, Pencil, Plus,
   RefreshCw, Trash2, XCircle, X, Save, RotateCcw,
@@ -6,7 +7,7 @@ import {
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AppButton, AppToggle } from '../../src/ui/components';
+import { AppButton, AppInput, AppToggle } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
 import { CronPicker } from './CronPicker';
 import { ConfirmationModal } from '../ConfirmationModal';
@@ -25,10 +26,13 @@ interface ScheduledTask {
   payload: {
     pre?: PrePostStep[];
     post?: PrePostStep[];
+    cleanup?: PrePostStep[];
     includeServerArtifact?: boolean;
     command?: string;
     workdir?: string;
   };
+  timeZone?: string;
+  nextRuns?: string[];
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastStatus: string | null;
@@ -41,6 +45,7 @@ interface TaskForm {
   enabled: boolean;
   pre: PrePostStep[];
   post: PrePostStep[];
+  cleanup: PrePostStep[];
   includeServerArtifact: boolean;
   command: string;
   workdir: string;
@@ -52,6 +57,7 @@ const DEFAULT_FORM: TaskForm = {
   enabled: true,
   pre: [],
   post: [],
+  cleanup: [],
   includeServerArtifact: false,
   command: '',
   workdir: '',
@@ -107,6 +113,7 @@ function taskFormToPayload(form: TaskForm, showPrePost: boolean, showIncludeServ
   if (showPrePost) {
     if (form.pre.length) base.pre = form.pre;
     if (form.post.length) base.post = form.post;
+    if (form.cleanup.length) base.cleanup = form.cleanup;
   }
   if (form.type === 'backup' && showIncludeServerArtifact) base.includeServerArtifact = form.includeServerArtifact;
   if (form.type === 'custom') {
@@ -123,6 +130,7 @@ function taskToForm(task: ScheduledTask): TaskForm {
     enabled: task.enabled,
     pre: (task.payload.pre ?? []) as PrePostStep[],
     post: (task.payload.post ?? []) as PrePostStep[],
+    cleanup: (task.payload.cleanup ?? []) as PrePostStep[],
     includeServerArtifact: task.payload.includeServerArtifact ?? false,
     command: task.payload.command ?? '',
     workdir: task.payload.workdir ?? '',
@@ -192,14 +200,14 @@ function SortableStep({
       </span>
       {step.type === 'game_command' ? (
         <input
-          type="text" placeholder="say Hello"
+          type="text" aria-label={`Command for step ${index + 1}`} placeholder="say Hello"
           value={step.command ?? ''}
           onChange={(e) => onUpdate(index, { ...step, command: e.target.value })}
           className={`flex-1 rounded bg-white dark:bg-[#0f1723]/60 border ${borderColor} ${textPrimary} text-xs px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--gp-ods-accent-primary)]`}
         />
       ) : (
         <input
-          type="number" min="1" placeholder="30"
+          type="number" aria-label={`Wait seconds for step ${index + 1}`} min="1" placeholder="30"
           value={step.seconds ?? ''}
           onChange={(e) => onUpdate(index, { ...step, seconds: parseInt(e.target.value) || 1 })}
           className={`w-24 rounded bg-white dark:bg-[#0f1723]/60 border ${borderColor} ${textPrimary} text-xs px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--gp-ods-accent-primary)]`}
@@ -208,7 +216,7 @@ function SortableStep({
       {step.type === 'sleep' && (
         <span className={`text-xs ${textSecondary}`}>seconds</span>
       )}
-      <AppButton type="button" tone="ghost" onClick={() => onRemove(index)}
+      <AppButton type="button" tone="ghost" aria-label={`Remove step ${index + 1}`} onClick={() => onRemove(index)}
         className="p-1 text-gray-400 hover:text-red-400 rounded flex-shrink-0">
         <X className="w-3 h-3" />
       </AppButton>
@@ -319,6 +327,8 @@ export function ScheduledTasksTab({
   inputBg: _inputBg,
   inputBorder,
 }: ScheduledTasksTabProps) {
+  const formId = useId();
+  const [togglingId, setTogglingId] = useState<number | null>(null);
   const isExternal = serverProvider === 'external';
   const showPrePost = !isExternal;
   const showIncludeServerArtifact =
@@ -374,7 +384,7 @@ export function ScheduledTasksTab({
     setForm((prev) => ({ ...prev, [k]: v }));
 
   const handleSave = async () => {
-    if (!serverId) return;
+    if (!serverId || !canWrite || saving) return;
     if (!form.schedule.trim()) { setFormError('Schedule is required.'); return; }
     if (form.type === 'custom' && !form.command.trim()) { setFormError('Command is required.'); return; }
     setSaving(true);
@@ -425,13 +435,15 @@ export function ScheduledTasksTab({
   };
 
   const handleToggleEnabled = async (task: ScheduledTask) => {
-    if (!serverId || !canWrite) return;
+    if (!serverId || !canWrite || togglingId !== null) return;
+    setTogglingId(task.id);
+    setError(null);
     try {
       await apiClient.updateScheduledTask(serverId, task.id, { enabled: !task.enabled });
       setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, enabled: !t.enabled } : t));
     } catch {
-      // silent
-    }
+      setError('Could not confirm the schedule change. Refresh scheduled tasks before trying again.');
+    } finally { setTogglingId(null); }
   };
 
   const inputCls = `w-full rounded-lg bg-white dark:bg-[#0f1723]/60 border ${inputBorder} ${textPrimary} text-sm px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--gp-ods-accent-primary)] focus:border-transparent transition-all`;
@@ -459,23 +471,19 @@ export function ScheduledTasksTab({
     <div className="h-full overflow-y-auto p-4 sm:p-5">
       <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>Scheduled Tasks</h3>
-            <p className={`text-sm ${textSecondary}`}>
-              Automate restarts, backups and custom commands on a cron schedule
-            </p>
-          </div>
+        <AppSectionHeader title="Scheduled Tasks" description="Automate restarts, backups and custom commands on a cron schedule" actions={
           <div className="flex gap-2">
             <AppButton
               onClick={load}
+              aria-label="Refresh scheduled tasks"
               className="flex items-center gap-2 px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white"
             >
               <RefreshCw className="w-4 h-4" />
             </AppButton>
             {canWrite && (
               <AppButton
-                tone="primary"
+                tone={editingId === null ? "primary" : "neutral"}
+                disabled={saving}
                 onClick={editingId === null ? openNew : closeForm}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
               >
@@ -484,9 +492,9 @@ export function ScheduledTasksTab({
               </AppButton>
             )}
           </div>
-        </div>
+        } />
 
-        {error && <div className="text-sm text-red-400">{error}</div>}
+        {error && <div role="alert" className="text-sm text-red-400">{error}</div>}
 
         {editingId !== null && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-5 space-y-5`}>
@@ -502,6 +510,7 @@ export function ScheduledTasksTab({
                 {availableTypes.map(({ value, label }) => (
                   <button
                     key={value}
+                    aria-pressed={form.type === value}
                     type="button"
                     onClick={() => { setF('type', value); setF('command', ''); setF('workdir', ''); }}
                     style={form.type === value ? { color: 'white' } : undefined}
@@ -560,10 +569,12 @@ export function ScheduledTasksTab({
             {form.type === 'custom' && (
               <div className="space-y-4">
                 <div>
-                  <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
+                  <label htmlFor={`${formId}-command`} className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
                     Command <span className="text-red-400">*</span>
                   </label>
-                  <input
+                  <AppInput
+                    id={`${formId}-command`}
+                    required
                     type="text"
                     value={form.command}
                     onChange={(e) => setF('command', e.target.value)}
@@ -572,10 +583,11 @@ export function ScheduledTasksTab({
                   />
                 </div>
                 <div>
-                  <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
+                  <label htmlFor={`${formId}-workdir`} className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
                     Working directory <span className={`normal-case font-normal ${textSecondary}`}>(optional)</span>
                   </label>
-                  <input
+                  <AppInput
+                    id={`${formId}-workdir`}
                     type="text"
                     value={form.workdir}
                     onChange={(e) => setF('workdir', e.target.value)}
@@ -597,24 +609,26 @@ export function ScheduledTasksTab({
                   borderColor={borderColor}
                 />
                 <StepsEditor
-                  label="Post-commands"
+                  label="Post-commands (after success)"
                   steps={form.post}
                   onChange={(v) => setF('post', v)}
                   textPrimary={textPrimary}
                   textSecondary={textSecondary}
                   borderColor={borderColor}
                 />
+                <StepsEditor label="Cleanup (also after failure)" steps={form.cleanup} onChange={(v) => setF('cleanup', v)} textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor} />
+                <p className={`text-xs ${textSecondary}`}>Use cleanup to re-enable saving after a live backup. Cleanup runs after errors while the agent remains available.</p>
               </div>
             )}
 
             {formError && (
-              <div className="text-sm text-red-400 flex items-center gap-2">
+              <div role="alert" className="text-sm text-red-400 flex items-center gap-2">
                 <XCircle className="w-4 h-4 flex-shrink-0" /> {formError}
               </div>
             )}
 
             <div className="flex gap-3 justify-end pt-1">
-              <AppButton tone="ghost" onClick={closeForm}
+              <AppButton tone="ghost" disabled={saving} onClick={closeForm}
                 className={`px-4 py-2 rounded-lg text-sm font-medium ${textSecondary} border ${borderColor} hover:bg-gray-100 dark:hover:bg-white/10`}>
                 Cancel
               </AppButton>
@@ -637,13 +651,13 @@ export function ScheduledTasksTab({
           </div>
         )}
 
-        {!loading && tasks.length === 0 && (
+        {!loading && !error && tasks.length === 0 && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-8 flex flex-col items-center gap-3`}>
             <Clock className="w-8 h-8 text-gray-400" />
             <p className={`text-sm ${textSecondary}`}>No scheduled tasks yet.</p>
             {canWrite && editingId === null && (
               <AppButton
-                tone="primary"
+                tone="neutral"
                 onClick={openNew}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
               >
@@ -671,7 +685,7 @@ export function ScheduledTasksTab({
                       <StatusBadge status={task.lastStatus} />
                       {task.nextRunAt && (
                         <span className={`text-xs ${textSecondary}`}>
-                          Next: {formatRelative(task.nextRunAt)}
+                          Next: {formatRelative(task.nextRunAt)} · {task.timeZone || 'node timezone'}
                         </span>
                       )}
                       {task.lastRunAt && (
@@ -680,6 +694,7 @@ export function ScheduledTasksTab({
                         </span>
                       )}
                     </div>
+                    {task.nextRuns && <details className={`text-xs ${textSecondary}`}><summary>Next 3 runs · {task.timeZone}</summary>{task.nextRuns.map(date => <div key={date}>{new Date(date).toLocaleString(undefined, { timeZone: task.timeZone, timeZoneName: 'short' })}</div>)}</details>}
                     {task.lastStatus === 'failed' && task.lastError && (
                       <p className="text-xs text-red-400 truncate">{task.lastError}</p>
                     )}
@@ -689,6 +704,7 @@ export function ScheduledTasksTab({
                     <AppToggle
                       ariaLabel="Task enabled"
                       checked={task.enabled}
+                      disabled={!canWrite || togglingId !== null}
                       size="standard"
                       onChange={() => handleToggleEnabled(task)}
                     />
@@ -696,6 +712,7 @@ export function ScheduledTasksTab({
                       <>
                         <AppButton
                           tone="ghost"
+                          aria-label={`Edit ${task.type} task`}
                           onClick={() => editingId === task.id ? closeForm() : openEdit(task)}
                           className={`p-2 rounded ${textSecondary} hover:text-[var(--gp-ods-accent-primary)] hover:bg-gray-100 dark:hover:bg-white/10`}
                         >
@@ -703,6 +720,7 @@ export function ScheduledTasksTab({
                         </AppButton>
                         <AppButton
                           tone="ghost"
+                          aria-label={`Delete ${task.type} task`}
                           onClick={() => handleDelete(task)}
                           disabled={deletingId === task.id}
                           className="p-2 rounded text-gray-400 hover:text-red-400 hover:bg-red-500/10"

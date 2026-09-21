@@ -1,3 +1,4 @@
+import { resourceLabel } from '../utils/resourceMetrics';
 import {
   ArrowDown,
   ArrowUp,
@@ -109,7 +110,8 @@ export function FleetMetrics({
         ? (['cpuUsage', 'memoryUsage'] as const)
         : (['cpuUsage', 'memoryUsage', 'diskUsage'] as const)
       ).map((key, index) => {
-        const value = runtime?.server[key];
+        const resources = runtime?.server.resources;
+        const value = key === 'cpuUsage' ? resources?.cpuLimitPercent : key === 'memoryUsage' ? resources?.memoryLimitPercent : undefined;
         return (
           <button
             type="button"
@@ -120,7 +122,7 @@ export function FleetMetrics({
             onClick={() => onOpen(index === 0 ? 'cpu' : index === 1 ? 'memory' : 'disk')}
           >
             <span>{index === 0 ? 'CPU' : index === 1 ? (compact ? 'RAM' : 'Memory') : 'Disk'}</span>
-            <strong>{value == null ? '—' : `${value.toFixed(1)}%`}</strong>
+            <strong>{resourceLabel(resources, index === 0 ? 'cpu' : index === 1 ? 'memory' : 'disk')}</strong>
             <span className="fleet-node-track">
               <i style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} />
             </span>

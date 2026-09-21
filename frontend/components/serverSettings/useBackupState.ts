@@ -1,3 +1,4 @@
+import { apiErrorMessage } from '../../utils/apiError';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../../utils/api';
 import { joinPath } from './utils';
@@ -49,7 +50,7 @@ export function useBackupState({ serverId, isActive, isLinuxGSMGame }: UseBackup
       if (error?.response?.status === 501) {
         setBackupsNotSupported(true);
       } else {
-        setBackupsError(error?.response?.data?.error || 'Failed to load backups');
+        setBackupsError(apiErrorMessage(error, 'Failed to load backups'));
       }
     } finally {
       setBackupsLoading(false);
@@ -72,7 +73,7 @@ export function useBackupState({ serverId, isActive, isLinuxGSMGame }: UseBackup
         : 0;
       setBackupRetentionDays(maxDays);
     } catch (error: any) {
-      setBackupSettingsError(error?.response?.data?.error || 'Failed to load backup settings');
+      setBackupSettingsError(apiErrorMessage(error, 'Failed to load backup settings'));
     } finally {
       setBackupSettingsLoading(false);
     }

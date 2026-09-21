@@ -129,7 +129,7 @@ test('script editor stores installer image and literal source in a new version, 
   await page.getByLabel('install script 1', { exact: true }).fill(source);
   await expect(page.getByRole('button', { name: 'Publish v1', exact: true })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/template-scripts-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/template-scripts-dark-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'Save new draft version' }).click();
   await expect(page.getByRole('status')).toContainText('Draft v2 saved');
   expect(saved.lifecycle.installerImage).toBe('gamepanel-installer:steamcmd-v1');
@@ -225,14 +225,14 @@ test('native installation uses the shared progress modal and resumes status afte
   expect(Math.abs(logsMobile.width - closeMobile.width)).toBeLessThanOrEqual(1);
   expect(logsMobile.x).toBeGreaterThanOrEqual(0);
   expect(logsMobile.x + logsMobile.width).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: 'test-results/native-install-mobile-actions.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-install-mobile-actions.png' });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.reload();
   await page.getByRole('button', { name: 'Install server' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   status = 'completed';
   await expect(page.getByRole('heading', { name: 'Installation completed', exact: true })).toBeVisible();
-  await page.screenshot({ path: 'test-results/native-install-completed.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-install-completed.png' });
 });
 
 test('old agents are rejected before submitting an installation', async ({ page }) => {
@@ -261,7 +261,7 @@ test('mobile dark editor and custom dropdown stay within the viewport', async ({
   await page.getByRole('combobox', { name: 'Protocol', exact: true }).click();
   await expect(page.getByRole('option', { name: 'UDP', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/templates-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/templates-dark-mobile.png', fullPage: true });
 });
 test('invalid advanced JSON does not crash the editor or get published', async ({ page }) => {
   await mock(page);
@@ -385,7 +385,7 @@ test('large pools use bounded custom options with search and fit a dark mobile v
   await page.getByRole('option', { name: '65535', exact: true }).click();
   await expect(page.getByText('192.0.2.10:65535', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/public-ports-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/public-ports-dark-mobile.png', fullPage: true });
 });
 
 test('late local response cannot overwrite remote node availability', async ({ page }) => {

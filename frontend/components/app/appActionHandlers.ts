@@ -180,7 +180,7 @@ export const createServerActionHandler =
       switch (action) {
         case 'start': {
           await apiClient.startServer(parseInt(serverId, 10));
-          addCLIMessage('success', `${serverName} started`, serverName, 'start');
+          addCLIMessage('success', `${serverName} start accepted; waiting for runtime status`, serverName, 'start');
           break;
         }
 
@@ -224,7 +224,7 @@ export const createServerActionHandler =
     } catch (error: any) {
       addCLIMessage(
         'error',
-        `Action failed: ${error.response?.data?.error || error.message}`,
+        `${error.response?.data?.error || error.message || 'Action failed'}`,
         serverName,
         action
       );

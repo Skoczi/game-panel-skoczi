@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '../ErrorBoundary';
 import { lazy, Suspense, useRef } from 'react';
 import { Menu } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -171,8 +172,8 @@ export function AppShell({
   const { route, navigate, setDirty, allowLeave } = useServerPageRoute();
   const managedServer =
     route?.node === ACTIVE_NODE ? gameServers.find((server) => server.id === route.id) : undefined;
-  const changeMainTab = (tab: string) => {
-    if (allowLeave()) setActiveTab(tab);
+  const changeMainTab = async (tab: string) => {
+    if (await allowLeave()) setActiveTab(tab);
   };
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -288,6 +289,7 @@ export function AppShell({
       )}
 
       <main className="flex-1 w-full overflow-x-hidden bg-transparent pt-16 md:pl-52 md:pt-0">
+        <ErrorBoundary section key={activeTab}>
         {activeTab === 'host-status' && currentUser?.isRoot && (
           <AppPageLayout className={pageShellClassName}>
             <Suspense fallback={<div className="p-6 text-sm text-gray-400">Loading…</div>}>
@@ -322,9 +324,9 @@ export function AppShell({
                   }
                   tab={route.tab}
                   onTab={(tab) => navigate({ ...route, tab })}
-                  onBack={() => {
+                  onBack={async () => {
                     if (ACTIVE_SERVER) {
-                      if (allowLeave()) openFleet();
+                      if (await allowLeave()) openFleet();
                     } else navigate(null);
                   }}
                   onDirtyChange={setDirty}
@@ -489,6 +491,7 @@ export function AppShell({
             />
           </AppPageLayout>
         )}
+        </ErrorBoundary>
       </main>
 
       <LogPromptToasts toasts={activeLogPromptToasts} onClose={removeLogPromptToast} />

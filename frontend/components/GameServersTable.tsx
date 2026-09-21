@@ -451,6 +451,7 @@ export function GameServersTable({
       if (!last || now - last.timestamp > 15000) {
         next.push({
           timestamp: now,
+          resources: selectedMetricServer.resources,
           cpuUsage: selectedMetricServer.cpuUsage ?? 0,
           memoryUsage: selectedMetricServer.memoryUsage ?? 0,
           diskUsage: selectedMetricServer.diskUsage ?? 0,
@@ -464,11 +465,11 @@ export function GameServersTable({
       timestamp: point.timestamp,
       value:
         metricModal.metric === 'cpu'
-          ? point.cpuUsage
+          ? point.resources?.cpuCores ?? NaN
           : metricModal.metric === 'memory'
-            ? point.memoryUsage
-            : point.diskUsage,
-    }));
+            ? point.resources?.memoryBytes ?? NaN
+            : point.resources?.diskBytes ?? NaN,
+    })).filter(point => Number.isFinite(point.value));
   }, [metricsHistoryByServer, metricModal.metric, selectedMetricServer]);
 
   const metricNetworkAllData = useMemo(() => {
@@ -483,6 +484,7 @@ export function GameServersTable({
       if (!last || now - last.timestamp > 15000) {
         next.push({
           timestamp: now,
+          resources: selectedMetricServer.resources,
           cpuUsage: selectedMetricServer.cpuUsage ?? 0,
           memoryUsage: selectedMetricServer.memoryUsage ?? 0,
           diskUsage: selectedMetricServer.diskUsage ?? 0,

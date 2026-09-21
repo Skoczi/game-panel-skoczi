@@ -1,3 +1,4 @@
+import type { ResourceUsage } from '../../utils/docker/resources.js';
 import type { ServerMetricRow } from '../../types/database.js';
 import { daysAgoIso, nowIso } from '../../utils/time.js';
 import { BaseRepository } from './base.js';
@@ -9,14 +10,15 @@ export class ServerMetricsRepository extends BaseRepository {
     memoryUsage: number,
     diskUsage: number,
     networkIn: number,
-    networkOut: number
+    networkOut: number,
+    resources?: ResourceUsage
   ) {
     const db = await this.ensureDb();
     const result = await db.run(
       `INSERT INTO server_metrics
-       (server_id, timestamp, cpu_usage, memory_usage, disk_usage, network_in, network_out)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [serverId, nowIso(), cpuUsage, memoryUsage, diskUsage, networkIn, networkOut]
+       (server_id, timestamp, cpu_usage, memory_usage, disk_usage, network_in, network_out, resources_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [serverId, nowIso(), cpuUsage, memoryUsage, diskUsage, networkIn, networkOut, resources ? JSON.stringify(resources) : null]
     );
     return result.lastID;
   }

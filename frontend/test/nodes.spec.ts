@@ -35,7 +35,7 @@ test('local identity saves metadata, survives reload and reports real response h
   await page.getByLabel('Location', { exact: true }).fill('Warsaw, PL');
   await page.getByLabel('Origin', { exact: true }).fill('https://eserv.pl');
   await page.getByRole('button', { name: 'Save local node' }).click();
-  await expect(page.getByRole('status')).toHaveText('Local node saved.');
+  await expect(page.getByRole('status').filter({ hasText: 'Local node saved.' })).toHaveText('Local node saved.');
   await expect(page.getByRole('heading', { name: 'WAW2', exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'WAW2', exact: true })).toBeVisible();
@@ -70,11 +70,11 @@ test('Local and remote node settings open distinct allocation endpoints and prot
   await page.getByRole('button', { name: 'IP allocations', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Local · Allocations' })).toBeVisible();
   await page.getByLabel('Restrict published ports').uncheck();
-  page.once('dialog', (d) => d.dismiss());
   await page.getByRole('button', { name: '← Nodes' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByText('Unsaved changes')).toBeVisible();
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: '← Nodes' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('button', { name: 'Node settings', exact: true }).last().click();
   await page.getByRole('button', { name: 'IP allocations', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Warsaw test · Allocations' })).toBeVisible();
@@ -85,7 +85,7 @@ test('Local and remote node settings open distinct allocation endpoints and prot
   await page.evaluate(() => document.documentElement.classList.add('dark'));
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/node-allocations-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/node-allocations-dark-mobile.png', fullPage: true });
 });
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/system/appearance', (r) =>
@@ -202,7 +202,7 @@ test('deletion error stays inside the dialog and keeps the node', async ({ page 
   await dialog.getByRole('button', { name: 'Confirm deletion' }).click();
   await expect(dialog.getByRole('alert')).toHaveText('This node has tracked servers.');
   expect(await dialog.evaluate((el) => el.getBoundingClientRect().width <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/node-delete-dark-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/node-delete-dark-mobile.png', fullPage: true });
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole('heading', { name: node.name })).toBeVisible();
@@ -220,7 +220,7 @@ test('disabled node has no server or allocation action; mobile layout stays with
     page.getByRole('button', { name: 'Node settings', exact: true }).last()
   ).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/nodes-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/nodes-mobile.png', fullPage: true });
 });
 test('desktop dark theme keeps node controls readable', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('theme', 'dark'));
@@ -228,7 +228,7 @@ test('desktop dark theme keeps node controls readable', async ({ page }) => {
   await page.goto('/test/nodes.fixture.html');
   await expect(page.getByRole('heading', { name: 'Warsaw test' })).toBeVisible();
   await expect(page.locator('#active-node')).toHaveCSS('color', 'rgb(255, 255, 255)');
-  await page.screenshot({ path: 'test-results/nodes-desktop-dark.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/nodes-desktop-dark.png', fullPage: true });
 });
 
 test('custom node menu supports keyboard, selection cancellation and outside dismissal', async ({
@@ -248,8 +248,8 @@ test('custom node menu supports keyboard, selection cancellation and outside dis
     'aria-activedescendant',
     (await option.getAttribute('id'))!
   );
-  page.once('dialog', (dialog) => dialog.dismiss());
   await trigger.press('Enter');
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
   expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_node'))).toBeNull();
@@ -270,9 +270,9 @@ test('custom node menu selects confirmed runtime and stays within mobile viewpor
   await page.getByRole('combobox').click();
   await expect(page.getByRole('option', { name: /Warsaw test/ })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/node-selector-mobile.png', fullPage: true });
-  page.once('dialog', (dialog) => dialog.accept());
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/node-selector-mobile.png', fullPage: true });
   await page.getByRole('option', { name: /Warsaw test/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('combobox')).toContainText('Warsaw test');
   expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_node'))).toBe(id);
 });
@@ -304,7 +304,7 @@ test('custom node menu renders open dark theme', async ({ page }) => {
   await page.goto('/test/nodes.fixture.html');
   await page.getByRole('combobox').click();
   await expect(page.getByRole('option', { name: /Warsaw test/ })).toBeVisible();
-  await page.screenshot({ path: 'test-results/node-selector-dark.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/node-selector-dark.png', fullPage: true });
 });
 
 test('custom node menu handles Local-only inventory without prompting or navigation', async ({
@@ -366,8 +366,25 @@ test('narrow node list has no host icons and keeps location separate from status
     expect(location!.y + location!.height).toBeLessThanOrEqual(status!.y);
     expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   }
-  await page
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page
     .locator('.gp-node-selector')
     .screenshot({ path: 'test-results/node-selector-compact-trigger.png' });
-  await page.screenshot({ path: 'test-results/node-selector-compact.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/node-selector-compact.png', fullPage: true });
+});
+
+test('node compatibility distinguishes unavailable runtime from unsupported capabilities', async ({ page }) => {
+  await page.route('**/api/nodes', route => route.fulfill({ json: { nodes: [node] } }));
+  let available = false;
+  await page.route('**/api/health', route => available
+    ? route.fulfill({ json: { status: 'healthy', version: '2.0.49', capabilities: { versionedFiles: 1, backupJobs: 1, nativeRestoreRecovery: 1, absoluteResources: 1 } } })
+    : route.fulfill({ status: 502, json: { error: 'Agent unreachable' } }));
+  await page.goto('/test/nodes.fixture.html');
+  await page.getByRole('button', { name: 'Node settings', exact: true }).last().click();
+  const section = page.getByRole('region', { name: 'Runtime compatibility' });
+  await expect(section).toContainText('Game state is unknown');
+  available = true;
+  await section.getByRole('button', { name: 'Check compatibility' }).click();
+  await expect(section).toContainText('2.0.49');
+  await expect(section).toContainText('Native restore recovery: Supported');
+  await expect(section.getByText('Not recorded', { exact: true })).toHaveCount(2);
 });

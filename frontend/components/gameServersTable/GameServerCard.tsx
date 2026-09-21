@@ -1,3 +1,4 @@
+import { resourceLabel } from '../../utils/resourceMetrics';
 import { useState } from 'react';
 import {
   Check,
@@ -242,7 +243,7 @@ export function GameServerCard({
 
       {(isGrid || isUpLike) && (isGrid ? (
         <div className="mb-3 space-y-2">
-          {([['CPU', server.cpuUsage, 'cpu'], ['Memory', server.memoryUsage, 'memory'], ['Disk', server.diskUsage, 'disk']] as const).map(([label, value, metric]) => (
+          {([['CPU', server.resources?.cpuLimitPercent, 'cpu'], ['Memory', server.resources?.memoryLimitPercent, 'memory'], ['Disk', undefined, 'disk']] as const).map(([label, value, metric]) => (
             <button
               key={metric}
               type="button"
@@ -253,7 +254,7 @@ export function GameServerCard({
               <div className="mb-0.5 flex items-center justify-between">
                 <span className={`text-xs ${TEXT_TERTIARY}`}>{label}</span>
                 <span className={`text-xs font-semibold ${TEXT_PRIMARY}`}>
-                  {value !== undefined ? `${value.toFixed(1)}%` : '–'}
+                  {resourceLabel(server.resources, metric)}
                 </span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -293,7 +294,7 @@ export function GameServerCard({
                 className={`text-sm font-semibold rounded px-1.5 py-0.5 -mx-1.5 transition-colors ${METRIC_VALUE}`}
                 title="Open CPU history"
               >
-                {server.cpuUsage !== undefined ? `${server.cpuUsage.toFixed(2)}%` : '–'}
+                {resourceLabel(server.resources, 'cpu')}
               </button>
             </div>
             <div className={`w-px h-6 ${METRIC_DIVIDER}`} />
@@ -305,7 +306,7 @@ export function GameServerCard({
                 className={`text-sm font-semibold rounded px-1.5 py-0.5 -mx-1.5 transition-colors ${METRIC_VALUE}`}
                 title="Open memory history"
               >
-                {server.memoryUsage !== undefined ? `${server.memoryUsage.toFixed(2)}%` : '–'}
+                {resourceLabel(server.resources, 'memory')}
               </button>
             </div>
           </div>
@@ -318,7 +319,7 @@ export function GameServerCard({
                 className={`text-sm font-semibold rounded px-1.5 py-0.5 -mx-1.5 transition-colors ${METRIC_VALUE}`}
                 title="Open disk history"
               >
-                {server.diskUsage !== undefined ? `${server.diskUsage.toFixed(2)}%` : '–'}
+                {resourceLabel(server.resources, 'disk')}
               </button>
             </div>
             <div className={`w-px h-6 ${METRIC_DIVIDER}`} />

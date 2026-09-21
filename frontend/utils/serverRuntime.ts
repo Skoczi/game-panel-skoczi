@@ -1,6 +1,8 @@
+import type { ResourceUsage } from './resourceMetrics';
 import type { GameServerStatus } from '../types/gameServer';
 
 export interface ServerMetricHistoryPoint {
+  resources?: ResourceUsage;
   timestamp: number;
   cpuUsage: number;
   memoryUsage: number;
@@ -36,12 +38,11 @@ const STOPPED_BACKEND_STATUSES = new Set([
   'stop',
   'exited',
   'dead',
-  'offline',
-  'error',
 ]);
 
 const RUNNING_BACKEND_STATUSES = new Set(['running', 'run', 'healthy', 'online', 'up', 'started']);
 const CANONICAL_SERVER_STATUSES = new Set<GameServerStatus>([
+  'unknown',
   'running',
   'stopped',
   'creating',
@@ -69,11 +70,11 @@ const parseIsoTimestampToDate = (rawTimestamp: string): Date | null => {
 
 export function mapBackendStatusToUi(status: unknown): GameServerStatus {
   const raw = typeof status === 'string' ? status.trim().toLowerCase() : '';
-  if (!raw) return 'stopped';
+  if (!raw) return 'unknown';
   if (CANONICAL_SERVER_STATUSES.has(raw as GameServerStatus)) return raw as GameServerStatus;
   if (STOPPED_BACKEND_STATUSES.has(raw)) return 'stopped';
   if (RUNNING_BACKEND_STATUSES.has(raw)) return 'running';
-  return 'stopped';
+  return 'unknown';
 }
 
 export function isServerRunningStatus(status: unknown): boolean {
@@ -127,7 +128,7 @@ export function formatServerStatusLabel(status: unknown): string {
     case 'failed':
       return 'Failed';
     default:
-      return 'Stopped';
+      return 'Unknown';
   }
 }
 

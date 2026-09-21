@@ -129,9 +129,10 @@ async function fetchReleaseNotes(): Promise<PanelReleaseNotes[]> {
   }
 
   const response = await fetch(GITHUB_RELEASES_URL, {
+    signal: AbortSignal.timeout(10_000),
     headers: {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'GamePanel-Updater',
+      'User-Agent': 'Game-Panel-PRO',
     },
   });
 
@@ -180,14 +181,14 @@ export async function checkPanelUpdate(): Promise<PanelUpdateCheck> {
   const current = parseVersion(currentVersion);
   const releases = await fetchReleaseNotes();
 
-  const latestVersion = releases[0]?.version ?? null;
+  const latestVersion = releases.find(release => !release.prerelease && !parseVersion(release.version)?.prerelease.length)?.version ?? null;
   const latest = latestVersion ? parseVersion(latestVersion) : null;
 
   const currentRelease = releases.find((release) => release.version === currentVersion) ?? null;
   const newerReleases = current
     ? releases.filter((release) => {
         const parsed = parseVersion(release.version);
-        return parsed ? compareVersions(parsed, current) > 0 : false;
+        return parsed && !release.prerelease && !parsed.prerelease.length ? compareVersions(parsed, current) > 0 : false;
       })
     : [];
 
@@ -344,5 +345,5 @@ export async function startPanelUpdate(input: {
 }
 
 function assertForkUpdatesEnabled(): void {
-  throw Object.assign(new Error('Automatic updates are disabled in the Skoczi preview. Follow docs/skoczi/INSTALLATION.md for reviewed manual updates.'), { statusCode: 409 });
+  throw Object.assign(new Error('Automatic updates are disabled in Game Panel PRO. Follow docs/pro/DEPLOYMENT.md for coordinated manual updates and rollback.'), { statusCode: 409 });
 }

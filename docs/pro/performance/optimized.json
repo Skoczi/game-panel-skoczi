@@ -1,0 +1,336 @@
+{
+  "label": "optimized",
+  "createdAt": "2026-09-21T06:17:45.115Z",
+  "profile": {
+    "viewport": {
+      "width": 1365,
+      "height": 900
+    },
+    "cpuSlowdown": 4,
+    "latencyMs": 80,
+    "downloadBytesPerSecond": 500000,
+    "uploadBytesPerSecond": 125000,
+    "apiMockDelayMs": 20,
+    "compression": "gzip level 5 (matches repository nginx.conf)",
+    "cache": "disabled; fresh context per scenario",
+    "console": "5000 initial lines; 1000 new lines/second for 3 seconds, capped at 5000"
+  },
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3 Pro",
+    "browser": "140.0.7339.186",
+    "node": "v26.5.0"
+  },
+  "limitations": [
+    "Synthetic local measurements, not field Core Web Vitals or WAW timings.",
+    "Login uses the actual production bundle; server/editor/console use a production-built AppShell fixture with mocked API.",
+    "No screenshots or traces containing screenshots; external hosts blocked."
+  ],
+  "samples": [
+    {
+      "run": 1,
+      "scenario": "production-login",
+      "readyMs": 1199.4000000059605,
+      "fcpMs": 1172,
+      "lcpMs": null,
+      "cls": 0,
+      "blockingMs": 31,
+      "resources": [
+        {
+          "name": "/assets/index-b4XGD-zI.js",
+          "bytes": 277435,
+          "encodedBytes": 93449,
+          "durationMs": 897.5
+        },
+        {
+          "name": "/assets/ods-C0YdzcVt.js",
+          "bytes": 321170,
+          "encodedBytes": 101350,
+          "durationMs": 932.5
+        },
+        {
+          "name": "/assets/index-GCFCP1A6.css",
+          "bytes": 190431,
+          "encodedBytes": 29688,
+          "durationMs": 383.19999998807907
+        },
+        {
+          "name": "/assets/ods-Dy22TTAk.css",
+          "bytes": 287831,
+          "encodedBytes": 93850,
+          "durationMs": 898.7999999821186
+        },
+        {
+          "name": "/assets/charts-DuibMyJa.js",
+          "bytes": 392715,
+          "encodedBytes": 108480,
+          "durationMs": 949.7999999821186
+        }
+      ]
+    },
+    {
+      "run": 1,
+      "scenario": "production-server-fixture",
+      "readyMs": 2281.5,
+      "fcpMs": 1960,
+      "lcpMs": 1960,
+      "cls": 0,
+      "blockingMs": 324,
+      "resources": [
+        {
+          "name": "/fixture/assets/server-page.fixture-sBflst77.js",
+          "bytes": 1291559,
+          "encodedBytes": 373667,
+          "durationMs": 1562.4000000059605
+        },
+        {
+          "name": "/fixture/assets/ods-DD5P9R6H.js",
+          "bytes": 321178,
+          "encodedBytes": 101356,
+          "durationMs": 997.1999999880791
+        },
+        {
+          "name": "/fixture/assets/charts-ChyACc47.js",
+          "bytes": 392715,
+          "encodedBytes": 108482,
+          "durationMs": 1030.2999999821186
+        },
+        {
+          "name": "/fixture/assets/dndkit-G67EdqRe.js",
+          "bytes": 45388,
+          "encodedBytes": 15281,
+          "durationMs": 286
+        },
+        {
+          "name": "/fixture/assets/ods-6NPP-5gV.css",
+          "bytes": 287871,
+          "encodedBytes": 93857,
+          "durationMs": 948.3000000119209
+        },
+        {
+          "name": "/fixture/assets/server-page-DRni8pGL.css",
+          "bytes": 231027,
+          "encodedBytes": 37566,
+          "durationMs": 505.30000001192093
+        }
+      ]
+    },
+    {
+      "run": 1,
+      "scenario": "first-editor",
+      "durationMs": 5084.199999988079
+    },
+    {
+      "run": 1,
+      "scenario": "console-stream",
+      "interactionMs": 499.2000000178814,
+      "durationMs": 4964.9000000059605,
+      "blockingMs": 258,
+      "domElements": 15865
+    },
+    {
+      "run": 2,
+      "scenario": "production-login",
+      "readyMs": 1197.8999999761581,
+      "fcpMs": null,
+      "lcpMs": null,
+      "cls": 0,
+      "blockingMs": 29,
+      "resources": [
+        {
+          "name": "/assets/index-b4XGD-zI.js",
+          "bytes": 277435,
+          "encodedBytes": 93449,
+          "durationMs": 899.7999999821186
+        },
+        {
+          "name": "/assets/ods-Dy22TTAk.css",
+          "bytes": 287831,
+          "encodedBytes": 93850,
+          "durationMs": 901.8000000119209
+        },
+        {
+          "name": "/assets/ods-C0YdzcVt.js",
+          "bytes": 321170,
+          "encodedBytes": 101350,
+          "durationMs": 935
+        },
+        {
+          "name": "/assets/charts-DuibMyJa.js",
+          "bytes": 392715,
+          "encodedBytes": 108480,
+          "durationMs": 953.4000000059605
+        },
+        {
+          "name": "/assets/index-GCFCP1A6.css",
+          "bytes": 190431,
+          "encodedBytes": 29688,
+          "durationMs": 385.7000000178814
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "scenario": "production-server-fixture",
+      "readyMs": 2264,
+      "fcpMs": 1944,
+      "lcpMs": 1944,
+      "cls": 0,
+      "blockingMs": 318,
+      "resources": [
+        {
+          "name": "/fixture/assets/server-page.fixture-sBflst77.js",
+          "bytes": 1291559,
+          "encodedBytes": 373667,
+          "durationMs": 1560.199999988079
+        },
+        {
+          "name": "/fixture/assets/ods-DD5P9R6H.js",
+          "bytes": 321178,
+          "encodedBytes": 101356,
+          "durationMs": 992.6999999880791
+        },
+        {
+          "name": "/fixture/assets/dndkit-G67EdqRe.js",
+          "bytes": 45388,
+          "encodedBytes": 15281,
+          "durationMs": 281.09999999403954
+        },
+        {
+          "name": "/fixture/assets/ods-6NPP-5gV.css",
+          "bytes": 287871,
+          "encodedBytes": 93857,
+          "durationMs": 943.5
+        },
+        {
+          "name": "/fixture/assets/charts-ChyACc47.js",
+          "bytes": 392715,
+          "encodedBytes": 108482,
+          "durationMs": 1028.5
+        },
+        {
+          "name": "/fixture/assets/server-page-DRni8pGL.css",
+          "bytes": 231027,
+          "encodedBytes": 37566,
+          "durationMs": 499.5
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "scenario": "first-editor",
+      "durationMs": 5068.199999988079
+    },
+    {
+      "run": 2,
+      "scenario": "console-stream",
+      "interactionMs": 482.09999999403954,
+      "durationMs": 4879.299999982119,
+      "blockingMs": 212,
+      "domElements": 15865
+    },
+    {
+      "run": 3,
+      "scenario": "production-login",
+      "readyMs": 1189.800000011921,
+      "fcpMs": null,
+      "lcpMs": null,
+      "cls": 0,
+      "blockingMs": 30,
+      "resources": [
+        {
+          "name": "/assets/index-b4XGD-zI.js",
+          "bytes": 277435,
+          "encodedBytes": 93449,
+          "durationMs": 893.5999999940395
+        },
+        {
+          "name": "/assets/ods-C0YdzcVt.js",
+          "bytes": 321170,
+          "encodedBytes": 101350,
+          "durationMs": 929.5
+        },
+        {
+          "name": "/assets/charts-DuibMyJa.js",
+          "bytes": 392715,
+          "encodedBytes": 108480,
+          "durationMs": 947.6999999880791
+        },
+        {
+          "name": "/assets/index-GCFCP1A6.css",
+          "bytes": 190431,
+          "encodedBytes": 29688,
+          "durationMs": 380.59999999403954
+        },
+        {
+          "name": "/assets/ods-Dy22TTAk.css",
+          "bytes": 287831,
+          "encodedBytes": 93850,
+          "durationMs": 897.0999999940395
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "scenario": "production-server-fixture",
+      "readyMs": 2272.0999999940395,
+      "fcpMs": 1952,
+      "lcpMs": 1952,
+      "cls": 0,
+      "blockingMs": 323,
+      "resources": [
+        {
+          "name": "/fixture/assets/server-page.fixture-sBflst77.js",
+          "bytes": 1291559,
+          "encodedBytes": 373667,
+          "durationMs": 1560.1000000238419
+        },
+        {
+          "name": "/fixture/assets/ods-DD5P9R6H.js",
+          "bytes": 321178,
+          "encodedBytes": 101356,
+          "durationMs": 992.5999999940395
+        },
+        {
+          "name": "/fixture/assets/charts-ChyACc47.js",
+          "bytes": 392715,
+          "encodedBytes": 108482,
+          "durationMs": 1024.4000000059605
+        },
+        {
+          "name": "/fixture/assets/dndkit-G67EdqRe.js",
+          "bytes": 45388,
+          "encodedBytes": 15281,
+          "durationMs": 280.19999998807907
+        },
+        {
+          "name": "/fixture/assets/server-page-DRni8pGL.css",
+          "bytes": 231027,
+          "encodedBytes": 37566,
+          "durationMs": 505.59999999403954
+        },
+        {
+          "name": "/fixture/assets/ods-6NPP-5gV.css",
+          "bytes": 287871,
+          "encodedBytes": 93857,
+          "durationMs": 949.5
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "scenario": "first-editor",
+      "durationMs": 5095.300000011921
+    },
+    {
+      "run": 3,
+      "scenario": "console-stream",
+      "interactionMs": 491.69999998807907,
+      "durationMs": 4218.0999999940395,
+      "blockingMs": 212,
+      "domElements": 15865
+    }
+  ],
+  "errors": []
+}

@@ -1,3 +1,4 @@
+import { runtimeCapabilities } from '../utils/runtimeCapabilities.js';
 import type { Request, Response, NextFunction } from 'express';
 import type { IncomingMessage } from 'node:http';
 import http from 'node:http';
@@ -8,7 +9,7 @@ import { nodeTls } from '../nodes/transport.js';
 import { generateToken, verifyToken, extractTokenFromHeader } from '../utils/auth.js';
 import { delegatedPath } from '../nodes/delegation.js';
 import { getDatabase } from '../database/init.js';
-import { getAppVersion } from '../utils/appInfo.js';
+import { getAppVersion, getRuntimeBuild } from '../utils/appInfo.js';
 import { OperationJournal } from './journal.js';
 import { serverRepository } from '../database/index.js';
 
@@ -74,7 +75,7 @@ export function authorizeAgent(req: IncomingMessage): boolean {
 export function agentGate(req: Request, res: Response, next: NextFunction) {
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'GET' && req.url === '/api/health') {
-        res.json({ status: 'healthy', role: 'agent', protocol: 1, templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, portAllocationProtocol: 1 });
+        res.json({ ...getRuntimeBuild(), capabilities: runtimeCapabilities, status: 'healthy', role: 'agent', protocol: 1, templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, portAllocationProtocol: 1 });
         return;
     }
     if (!runtimePath(req.url) || /\/members(?:\/|\?|$)/.test(req.url)) {

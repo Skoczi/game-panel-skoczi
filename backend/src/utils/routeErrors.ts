@@ -28,9 +28,14 @@ export async function sendRouteError(
     const message = getPublicErrorMessage(error, context.fallbackMessage);
 
     if (statusCode >= 500) {
-        logError(context.route, error, context.logContext);
+        logError(context.route, error, { ...context.logContext, requestId: res.locals.requestId });
         await context.onServerError?.();
     }
 
-    return res.status(statusCode).json({ error: message });
+    const code = statusCode === 409 ? 'CONFLICT'
+        : statusCode === 428 ? 'VERSION_REQUIRED'
+        : statusCode === 403 ? 'FORBIDDEN'
+        : statusCode === 404 ? 'NOT_FOUND'
+        : statusCode >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_FAILED';
+    return res.status(statusCode).json({ error: message, code, requestId: res.locals.requestId });
 }

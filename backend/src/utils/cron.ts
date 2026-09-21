@@ -38,13 +38,14 @@ const WEEKDAY_NAMES: Record<string, number> = {
 
 function normalizeToken(token: string, names?: Record<string, number>): string {
     const lower = token.toLowerCase();
-    if (names && lower in names) return String(names[lower]);
+    if (names && Object.prototype.hasOwnProperty.call(names, lower)) return String(names[lower]);
     return token;
 }
 
 function parseNumber(value: string, min: number, max: number, names?: Record<string, number>): number {
     const normalized = normalizeToken(value, names);
-    const parsed = Number.parseInt(normalized, 10);
+    if (!/^\d+$/.test(normalized)) throw new Error(`Invalid cron field value: ${value}`);
+    const parsed = Number(normalized);
     if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
         throw new Error(`Invalid cron field value: ${value}`);
     }
@@ -66,7 +67,9 @@ function parseField(
     for (const part of field.split(',')) {
         if (!part) throw new Error('Cron field contains an empty list item');
 
-        const [rangePart, stepPart] = part.split('/');
+        const segments = part.split('/');
+        if (segments.length > 2) throw new Error('Invalid cron step');
+        const [rangePart, stepPart] = segments;
         const maxStep = max - min + 1;
         const step = stepPart === undefined ? 1 : parseNumber(stepPart, 1, maxStep);
         if (step < 1) throw new Error('Cron step must be positive');
@@ -78,13 +81,15 @@ function parseField(
             start = min;
             end = max;
         } else if (rangePart.includes('-')) {
-            const [rawStart, rawEnd] = rangePart.split('-');
+            const bounds = rangePart.split('-');
+            if (bounds.length !== 2) throw new Error('Invalid cron range');
+            const [rawStart, rawEnd] = bounds;
             start = parseNumber(rawStart, min, max, opts.names);
             end = parseNumber(rawEnd, min, max, opts.names);
             if (start > end) throw new Error('Cron range start must be <= end');
         } else {
             start = parseNumber(rangePart, min, max, opts.names);
-            end = start;
+            end = stepPart === undefined ? start : max;
         }
 
         for (let value = start; value <= end; value += step) {
@@ -128,9 +133,7 @@ function matchesCron(date: Date, cron: ParsedCron): boolean {
     const domMatches = cron.dayOfMonth.values.has(date.getDate());
     const dowMatches = cron.dayOfWeek.values.has(date.getDay());
 
-    if (cron.dayOfMonth.wildcard && cron.dayOfWeek.wildcard) return true;
-    if (cron.dayOfMonth.wildcard) return dowMatches;
-    if (cron.dayOfWeek.wildcard) return domMatches;
+    if (cron.dayOfMonth.wildcard || cron.dayOfWeek.wildcard) return domMatches && dowMatches;
     return domMatches || dowMatches;
 }
 
@@ -138,13 +141,13 @@ export function nextCronRunAt(expression: string, from = new Date()): Date {
     const cron = parseCronExpression(expression);
     const candidate = new Date(from.getTime());
     candidate.setSeconds(0, 0);
-    candidate.setMinutes(candidate.getMinutes() + 1);
+    candidate.setTime(candidate.getTime() + 60_000);
 
-    const maxIterations = 366 * 24 * 60;
+    const maxIterations = 8 * 366 * 24 * 60;
     for (let index = 0; index < maxIterations; index += 1) {
         if (matchesCron(candidate, cron)) return candidate;
-        candidate.setMinutes(candidate.getMinutes() + 1);
+        candidate.setTime(candidate.getTime() + 60_000);
     }
 
-    throw new Error('Could not compute next cron run within one year');
+    throw new Error('Could not compute next cron run within eight years');
 }

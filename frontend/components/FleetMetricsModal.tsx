@@ -1,3 +1,4 @@
+import { resourceBytes } from '../utils/resourceMetrics';
 import { useEffect, useState } from 'react';
 import {
   Area,
@@ -49,9 +50,9 @@ function normalize(raw: any): Point | null {
   if (!Number.isFinite(timestamp)) return null;
   return {
     timestamp,
-    cpu: number(raw.cpuUsage ?? raw.cpu_usage),
-    memory: number(raw.memoryUsage ?? raw.memory_usage),
-    disk: number(raw.diskUsage ?? raw.disk_usage),
+    cpu: number(raw.resources?.cpuCores),
+    memory: number(raw.resources?.memoryBytes),
+    disk: number(raw.resources?.diskBytes),
     networkIn: number(raw.networkIn ?? raw.network_in ?? raw.network?.in),
     networkOut: number(raw.networkOut ?? raw.network_out ?? raw.network?.out),
   };
@@ -168,9 +169,9 @@ export function FleetMetricsModal({
                   <YAxis
                     width={65}
                     domain={
-                      metric === 'network' ? [0, 'auto'] : [0, (max: number) => Math.max(100, max)]
+                      [0, 'auto']
                     }
-                    tickFormatter={(v) => (metric === 'network' ? formatNetworkSpeed(v) : `${v}%`)}
+                    tickFormatter={(v) => (metric === 'network' ? formatNetworkSpeed(v) : metric === 'cpu' ? `${v} vCPU` : resourceBytes(v))}
                     stroke="var(--fleet-muted)"
                     fontSize={11}
                   />
@@ -186,7 +187,7 @@ export function FleetMetricsModal({
                               <strong>
                                 {metric === 'network'
                                   ? formatNetworkSpeed(Number(entry.value))
-                                  : `${Number(entry.value).toFixed(2)}%`}
+                                  : metric === 'cpu' ? `${Number(entry.value).toFixed(2)} vCPU` : resourceBytes(Number(entry.value))}
                               </strong>
                             </div>
                           ))}

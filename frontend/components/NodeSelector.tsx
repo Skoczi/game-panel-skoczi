@@ -1,3 +1,4 @@
+import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Server, Radio } from 'lucide-react';
 import { ACTIVE_NODE, selectNode } from '../utils/nodeContext';
@@ -34,12 +35,12 @@ export function NodeSelector() {
       pending: 'Awaiting enrollment',
       disabled: 'Disabled',
     })[status] || status;
-  const choose = (id: string) => {
+  const choose = async (id: string) => {
     setOpen(false);
     trigger.current?.focus();
     if (
       id !== ACTIVE_NODE &&
-      window.confirm('Switch execution node? Open consoles and unsaved forms will close.')
+      await confirmDialog('Switch execution node? Open consoles and unsaved forms will close.')
     )
       selectNode(id);
   };
@@ -99,7 +100,7 @@ export function NodeSelector() {
         aria-haspopup="listbox"
         aria-activedescendant={open ? `${listId}-${activeIndex}` : undefined}
         className="gp-node-trigger"
-        onClick={() => {
+        onClick={async () => {
           setHighlight(options.findIndex((node) => node.id === ACTIVE_NODE));
           setOpen(!open);
         }}

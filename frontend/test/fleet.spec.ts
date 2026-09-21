@@ -44,6 +44,7 @@ test('fleet metric modals and action history are scoped to the selected server',
         serverId: 1,
         metrics: [0, 1, 2].map((i) => ({
           timestamp: new Date(Date.now() - (2 - i) * 10000).toISOString(),
+          resources: { cpuCores: (12 + i) / 10, cpuLimitCores: 2, cpuLimitPercent: 60, memoryBytes: 256 * 1024 ** 2, memoryLimitBytes: 1024 ** 3, memoryLimitPercent: 25, diskBytes: 1024 ** 3 },
           cpuUsage: 12 + i,
           memoryUsage: 24,
           diskUsage: 8,
@@ -101,7 +102,7 @@ test('fleet metric modals and action history are scoped to the selected server',
     await expect(modal.locator(`[aria-label="${metric} history chart"]`)).toBeVisible();
   }
   await page.evaluate(() => document.documentElement.classList.add('dark'));
-  await page.screenshot({ path: 'test-results/fleet-metrics-dark.png', animations: 'disabled' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-metrics-dark.png', animations: 'disabled' });
   const close = modal.locator('[data-part="close-trigger"]');
   await expect(close).toHaveCSS('width', '44px');
   await expect(close).toHaveCSS('height', '44px');
@@ -115,11 +116,12 @@ test('fleet metric modals and action history are scoped to the selected server',
     'aria-pressed',
     'true'
   );
-  await page.keyboard.press('Escape');
+  await modal.locator('[data-part="close-trigger"]').click();
+  await expect(modal).toHaveCount(0);
   await page.getByRole('button', { name: 'Open history logs for Community Arena' }).click();
   await expect(modal.getByText('[Admin] Scoped server started')).toBeVisible();
   await expect(page.getByText('WRONG SERVER')).toHaveCount(0);
-  await page.screenshot({ path: 'test-results/fleet-actions-dark.png', animations: 'disabled' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-actions-dark.png', animations: 'disabled' });
 });
 
 test('metrics errors can recover and empty history is not fabricated', async ({ page }) => {
@@ -148,7 +150,7 @@ test('metrics errors can recover and empty history is not fabricated', async ({ 
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBeLessThanOrEqual(390);
-  await page.screenshot({ path: 'test-results/fleet-metrics-empty-mobile.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-metrics-empty-mobile.png' });
 });
 
 test('header sorting toggles direction and persists while clipboard copies the full address', async ({
@@ -280,7 +282,7 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
     }
     return r.fulfill({
       json: r.request().url().includes('/metrics')
-        ? { metrics: [{ cpuUsage: 12.3, memoryUsage: 24.5 }] }
+        ? { metrics: [{ timestamp: new Date().toISOString(), cpuUsage: 12.3, memoryUsage: 24.5, resources: { cpuCores: 0.25, cpuLimitCores: 2, cpuLimitPercent: 12.5, memoryBytes: 256 * 1024 ** 2, memoryLimitBytes: 1024 ** 3, memoryLimitPercent: 25 } }] }
         : {
             server: {
               id: 1,
@@ -327,8 +329,8 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
   await expect(page.getByRole('button', { name: 'Add Game Server', exact: true })).toHaveCount(1);
   await select(page, 'Group servers', 'No grouping');
   await page.getByRole('button', { name: /^Filters/ }).click();
-  await expect(page.getByText('12.3%')).toHaveCount(2);
-  await page.screenshot({ path: 'test-results/fleet-premium-cards-dark.png', fullPage: true });
+  await expect(page.getByText('0.25 / 2.00 vCPU')).toHaveCount(2);
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-premium-cards-dark.png', fullPage: true });
   await page.getByRole('button', { name: 'List view' }).click();
   await expect(page.getByRole('button', { name: 'Add Game Server', exact: true })).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute(
@@ -361,15 +363,15 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
   expect(new URL(mutations[1].url).pathname).toBe(
     `/api/nodes/${nodeId}/runtime/api/servers/1/restart`
   );
-  await page.screenshot({ path: 'test-results/fleet-premium-list-dark.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-premium-list-dark.png', fullPage: true });
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
   await expect(page.locator('.gp-fleet')).toHaveCSS('color', 'rgb(23, 35, 61)');
-  await page.screenshot({ path: 'test-results/fleet-premium-list-light.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-premium-list-light.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 900 });
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBeLessThanOrEqual(390);
-  await page.screenshot({ path: 'test-results/fleet-premium-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-premium-mobile.png', fullPage: true });
 });
 test('custom dropdown supports keyboard, typeahead, cancellation and focus', async ({ page }) => {
   await page.goto('/test/fleet.fixture.html');
@@ -415,7 +417,7 @@ test('open custom menus fit mobile and dark desktop', async ({ page }) => {
   const bounds = (await menu.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
-  await page.screenshot({ path: 'test-results/fleet-select-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-select-mobile.png', fullPage: true });
   await page.getByRole('option', { name: 'Location', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Sort servers' })).toContainText('Location');
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
@@ -427,7 +429,7 @@ test('open custom menus fit mobile and dark desktop', async ({ page }) => {
     'aria-selected',
     'true'
   );
-  await page.screenshot({ path: 'test-results/fleet-select-dark.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-select-dark.png', fullPage: true });
 });
 
 test('view filters, grouping and sort persist per account and can be reset', async ({ page }) => {
@@ -669,13 +671,13 @@ test('administrator can assign and revoke scoped server permissions', async ({ p
   await expect(
     accessDialog.locator('.gp-app-modal-footer').getByRole('button', { name: 'Close', exact: true })
   ).toHaveCSS('background-color', 'rgb(17, 28, 48)');
-  await page.screenshot({ path: 'test-results/server-access-dark.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-access-dark.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Save access' })).toBeVisible();
   expect((await accessDialog.boundingBox())!.width).toBeLessThan(390);
-  await page.screenshot({ path: 'test-results/server-access-mobile.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-access-mobile.png' });
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
-  await page.screenshot({ path: 'test-results/server-access-light.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-access-light.png' });
   await page.getByRole('button', { name: 'Operator', exact: true }).click();
   await page.getByRole('button', { name: 'Save access' }).click();
   await expect
@@ -749,10 +751,10 @@ test('fleet workspace fits mobile and dark desktop', async ({ page }) => {
   await page.goto('/test/fleet.fixture.html');
   await expect(page.getByRole('heading', { name: 'Community Arena' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: 'test-results/fleet-mobile.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-mobile.png', fullPage: true });
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Community Arena' })).toBeVisible();
-  await page.screenshot({ path: 'test-results/fleet-desktop-dark.png', fullPage: true });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-desktop-dark.png', fullPage: true });
 });

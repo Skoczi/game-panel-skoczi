@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
 import JsonWorker from 'monaco-editor/language/json/json.worker?worker';
@@ -129,9 +129,10 @@ function CodeEditorImpl({ value, onChange, onSave, filename, readOnly = false }:
     };
   }, [filename]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const model = editor.current?.getModel();
-    // Controlled updates must not reset selection, find widget or undo history.
+    // Synchronize during commit, before another input event can arrive. A deferred
+    // effect may otherwise replace newer typed text with an older controlled value.
     if (model && model.getValue() !== value) model.setValue(value);
   }, [value, filename]);
   useEffect(() => {
@@ -144,3 +145,18 @@ function CodeEditorImpl({ value, onChange, onSave, filename, readOnly = false }:
 }
 
 export const CodeEditor = memo(CodeEditorImpl);
+
+export function ReadOnlyDiff({ before, after, filename }: { before: string; after: string; filename: string }) {
+  const element = useRef<HTMLDivElement>(null);
+  const { theme } = useTheme();
+  useEffect(() => {
+    if (!element.current) return;
+    const original = monaco.editor.createModel(before, detectLanguage(filename));
+    const modified = monaco.editor.createModel(after, detectLanguage(filename));
+    const editor = monaco.editor.createDiffEditor(element.current, { automaticLayout: true, readOnly: true, originalEditable: false, renderSideBySide: true, useInlineViewWhenSpaceIsLimited: true, minimap: { enabled: false }, scrollBeyondLastLine: false, wordWrap: 'on', maxComputationTime: 3000 });
+    editor.setModel({ original, modified });
+    return () => { editor.dispose(); original.dispose(); modified.dispose(); };
+  }, [before, after, filename]);
+  useEffect(() => { monaco.editor.setTheme(theme === 'dark' ? 'panel-dark' : 'vs'); }, [theme]);
+  return <div ref={element} style={{ height: 'min(45vh, 420px)', minHeight: 180 }} aria-label="Historical file comparison" />;
+}

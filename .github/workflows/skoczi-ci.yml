@@ -1,4 +1,4 @@
-name: Skoczi CI
+name: Game Panel PRO CI
 on:
   push:
   pull_request:

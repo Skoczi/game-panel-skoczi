@@ -1,3 +1,4 @@
+import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
 import { Network, Pencil, Plus, Save, Settings2, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/api';
@@ -217,8 +218,8 @@ export function GlobalSettings({
           <button
             className={button}
             disabled={busy}
-            onClick={() => {
-              if (!dirty || window.confirm('Discard unsaved changes and reload?')) {
+            onClick={async () => {
+              if (!dirty || await confirmDialog('Discard unsaved changes and reload?')) {
                 setNotice('');
                 void load();
               }
@@ -592,7 +593,7 @@ export function GlobalSettings({
                                     type="button"
                                     className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
                                     aria-label={`Edit ${row.ip}`}
-                                    onClick={() => {
+                                    onClick={async () => {
                                       setEditing(index);
                                       setDraft({ ...row });
                                     }}
@@ -605,7 +606,7 @@ export function GlobalSettings({
                                     aria-label={`Remove ${row.ip}`}
                                     disabled={assignments.some((used) => used.ip === row.ip)}
                                     title="Assigned IPs must be released by their servers first"
-                                    onClick={() => {
+                                    onClick={async () => {
                                       update({
                                         ...settings,
                                         network: {
@@ -677,7 +678,7 @@ export function GlobalSettings({
                         <button
                           className={button}
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             setEditing(null);
                             setDraft(blank);
                           }}

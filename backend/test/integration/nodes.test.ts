@@ -1,8 +1,9 @@
+import { exerciseNativeBackups } from './nativeAcceptance.js';
 // Disposable Linux CI only: two separate runtime databases and real Docker containers.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -44,6 +45,7 @@ test(
             method = 'GET',
             body?: unknown,
             key = randomUUID(),
+            discardReply = false,
         ) => {
             const response = await fetch(url, {
                 method,
@@ -58,6 +60,10 @@ test(
                 body: body === undefined ? undefined : JSON.stringify(body),
                 signal: AbortSignal.timeout(20000),
             });
+            if (discardReply) {
+                await response.body?.cancel();
+                return { status: response.status, value: null, headers: response.headers };
+            }
             const text = await response.text();
             let value: any;
             try {
@@ -65,7 +71,7 @@ test(
             } catch {
                 value = text;
             }
-            return { status: response.status, value };
+            return { status: response.status, value, headers: response.headers };
         };
         const ok = async (
             url: string,
@@ -253,12 +259,14 @@ test(
             assert.equal((await ok(runtime + '/api/health')).nativeRuntimeProtocol, 1);
             assert.equal((await ok(runtime + '/api/health')).templateScriptsProtocol, 1);
             // Operator preloads the reviewed image; Native Runtime never pulls during install.
-            docker('pull', 'nginxinc/nginx-unprivileged:stable-alpine');
-            docker('pull', 'debian:bookworm-slim');
+            for (const image of ['nginxinc/nginx-unprivileged:stable-alpine', 'debian:bookworm-slim']) {
+                try { docker('image', 'inspect', image); }
+                catch { docker('pull', image); }
+            }
             const template = await ok(panel + '/api/game-templates', 'POST', { document: {
                 schemaVersion: 2, name: 'CI HTTP runtime', description: '', author: 'CI', source: '',
                 runtime: { provider: 'external', image: 'nginxinc/nginx-unprivileged:stable-alpine',
-                    catalogId: '', gameServerName: '', architectures: ['x64'], identity: { user: '101', uid: 101, gid: 101 } },
+                    catalogId: '', gameServerName: '', architectures: ['x64', 'arm64'], identity: { user: '101', uid: 101, gid: 101 } },
                 ports: [{ key: 'http', label: 'HTTP', protocol: 'tcp', container: 8080, suggested: 32280, env: '', linuxgsmKey: '' }],
                 variables: [], mounts: [{ key: 'data', containerPath: '/test-data' }],
                 lifecycle: { startup: ['/usr/sbin/nginx', '-g', 'daemon off;'], workdir: '/test-data', stopSignal: 'SIGTERM', stopTimeoutSeconds: 10,
@@ -385,12 +393,20 @@ test(
                 'PUT',
                 {
                     content: 'remote file persists',
+                    version: (await request(runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`)).headers.get('etag'),
                 },
             );
             const content = await ok(
                 runtime + `/api/servers/${id}/file?path=%2Fagent-test.txt`,
             );
             assert.ok(JSON.stringify(content).includes('remote file persists'));
+            const history = await ok(runtime + `/api/servers/${id}/file/history?path=%2Fagent-test.txt`);
+            assert.equal(history.entries.length, 1);
+            assert.equal(history.entries[0].state, 'committed');
+            const snapshot = await ok(runtime + `/api/servers/${id}/file/history?path=%2Fagent-test.txt&entry=${history.entries[0].id}`);
+            assert.equal(snapshot.entry.before, '');
+            assert.equal(snapshot.entry.after, 'remote file persists');
+
             const download = await ok(
                 runtime + `/api/servers/${id}/files/download-token`,
                 'POST',
@@ -464,6 +480,7 @@ test(
             );
             await ok(runtime + `/api/servers/${id}/stop`, 'POST');
             await ok(runtime + `/api/servers/${id}/start`, 'POST');
+            await exerciseNativeBackups({ root, id, runtime, agentName, gameContainer, docker, ok, request, waitFor });
             // User workspace: same numeric ID on two runtimes, central UUIDs and single-server capabilities.
             const localSettings = await ok(panel + '/api/nodes/local/allocations');
             assert.equal((await request(panel + '/api/nodes/local/allocations', 'PUT', {
@@ -525,6 +542,60 @@ test(
             );
             assert.ok(remoteFleet?.id && localFleet?.id);
             assert.notEqual(remoteFleet.id, localFleet.id);
+            const apiCredential = await ok(panel + '/api/api-tokens', 'POST', {
+                name: 'CI scoped inventory', scopes: ['servers.read', 'resources.read', 'backups.read'], serverIds: [remoteFleet.id],
+                expiresAt: Date.now() + 60000,
+            });
+            const apiHeaders = { Authorization: `Bearer ${apiCredential.secret}` };
+            const apiList = await fetch(panel + '/api/v1/servers', { headers: apiHeaders });
+            assert.equal(apiList.status, 200);
+            const apiInventory = await apiList.json() as any;
+            assert.deepEqual(apiInventory.data.map((row: any) => row.id), [remoteFleet.id]);
+            assert.equal(apiInventory.requestId, apiList.headers.get('x-request-id'));
+            const apiResourceResponse = await fetch(panel + `/api/v1/servers/${remoteFleet.id}/resources`, { headers: apiHeaders });
+            assert.equal(apiResourceResponse.status, 200);
+            const apiResource = await apiResourceResponse.json() as any;
+            assert('observedAt' in apiResource.data && 'resources' in apiResource.data);
+            assert(!JSON.stringify(apiResource.data).includes('cpuUsage'));
+            assert(!JSON.stringify(apiResource.data).includes('nodeFreeBytes'));
+            assert.equal((await fetch(panel + `/api/v1/servers/${localFleet.id}/resources`, { headers: apiHeaders })).status, 404);
+            const apiBackupResponse = await fetch(panel + `/api/v1/servers/${remoteFleet.id}/backups?limit=1`, { headers: apiHeaders });
+            assert.equal(apiBackupResponse.status, 200);
+            const apiBackupPage = await apiBackupResponse.json() as any;
+            assert(Array.isArray(apiBackupPage.data)); assert(apiBackupPage.data.length <= 1);
+            assert(!JSON.stringify(apiBackupPage.data).includes('root'));
+            assert.equal((await fetch(panel + `/api/v1/servers/${localFleet.id}`, { headers: apiHeaders })).status, 404);
+            assert.equal((await fetch(panel + '/api/api-tokens', { headers: apiHeaders })).status, 401);
+            assert.equal((await fetch(panel + '/api/servers', { headers: apiHeaders })).status, 401);
+            const tokenListing = await ok(panel + '/api/api-tokens');
+            assert(!JSON.stringify(tokenListing).includes(apiCredential.secret));
+            await ok(panel + `/api/api-tokens/${apiCredential.token.id}`, 'DELETE');
+            assert.equal((await fetch(panel + '/api/v1/servers', { headers: apiHeaders })).status, 401);
+            const backupApiCredential = await ok(panel + '/api/api-tokens', 'POST', {
+                name: 'CI Native automation', scopes: ['backups.create', 'operations.read'], serverIds: [remoteFleet.id],
+                expiresAt: Date.now() + 300000,
+            });
+            const apiBackupKey = randomUUID();
+            const apiBackupHeaders = { Authorization: `Bearer ${backupApiCredential.secret}`, 'Content-Type': 'application/json', 'Idempotency-Key': apiBackupKey };
+            const postApiBackup = (name = 'API acceptance') => fetch(panel + `/api/v1/servers/${remoteFleet.id}/backups`, {
+                method: 'POST', headers: apiBackupHeaders, body: JSON.stringify({ name }),
+            });
+            const apiAccepted = await postApiBackup(); assert.equal(apiAccepted.status, 202);
+            const apiOperationLocation = apiAccepted.headers.get('location')!;
+            await apiAccepted.body?.cancel();
+            const apiReplay = await postApiBackup(); assert.equal(apiReplay.status, 202);
+            assert.equal(apiReplay.headers.get('location'), apiOperationLocation);
+            assert.equal(apiReplay.headers.get('idempotency-replayed'), 'true');
+            assert.equal((await postApiBackup('Other name')).status, 409);
+            await waitFor(async () => {
+                const response = await fetch(panel + apiOperationLocation, { headers: apiBackupHeaders });
+                assert.equal(response.status, 200);
+                const value = await response.json() as any;
+                assert(!['failed', 'interrupted', 'uncertain'].includes(value.data.status), JSON.stringify(value));
+                return value.data.status === 'completed';
+            }, 'public API Native backup');
+            const countApiArchives = () => readdirSync(`${root}/agent-app/servers/${id}/data/backups`).filter(name => name.includes('API-acceptance') && name.endsWith('.tar.gz')).length;
+            assert.equal(countApiArchives(), 1);
             serverHeader = remoteFleet.id;
             assert.equal((await request(runtime + `/api/servers/${id + 1}`)).status, 403, 'selected administrator context is also single-server');
             assert.equal((await ok(runtime + '/api/servers')).servers.length, 1);
@@ -820,6 +891,10 @@ test(
                 async () => (await fetch(panel + '/api/health')).ok,
                 'panel restart',
             );
+            const restartedApiReplay = await postApiBackup();
+            assert.equal(restartedApiReplay.status, 202);
+            assert.equal(restartedApiReplay.headers.get('location'), apiOperationLocation);
+            assert.equal(countApiArchives(), 1, 'panel restart must not dispatch another API backup');
             assert.equal(
                 (
                     await ok(

@@ -1,3 +1,4 @@
+import { ACTIVE_SERVER as DRAFT_SERVER_CONTEXT } from '../utils/nodeContext';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GameConfigTab } from './GameConfigTab';
 import { NativeGameConfig } from './serverSettings/NativeGameConfig';
@@ -398,7 +399,7 @@ export function ServerSettingsModal({
   const defaultTab = SETTINGS_TAB_PRIORITY.find((tab) => canAccessTab(tab)) ?? 'filemanager';
   const effectiveActiveTab = pageTab ?? (hasUserSelectedTabRef.current ? activeTab : defaultTab);
   useBodyScrollLock(isOpen && !pageTab);
-  const editorSession = useEditorSession(serverId, canWriteFiles, isOpen);
+  const editorSession = useEditorSession(serverId, canWriteFiles, isOpen, requestConfirm, currentUser && DRAFT_SERVER_CONTEXT && DRAFT_SERVER_CONTEXT.runtimeId === serverId ? { userId: String(currentUser.id), serverId: DRAFT_SERVER_CONTEXT.id, nodeId: DRAFT_SERVER_CONTEXT.nodeId } : undefined);
   const anyFileDirty = isFileDirty || editorSession.dirty;
   useEffect(() => {
     onDirtyChange?.(anyFileDirty);
@@ -623,7 +624,7 @@ export function ServerSettingsModal({
   }, [runUploads]);
 
   const [extractStatus, setExtractStatus] = useState<
-    { name: string; status: 'running' | 'done' | 'failed'; completedFiles: number; error?: string } | null
+    { name: string; status: 'running' | 'done' | 'failed' | 'unknown'; completedFiles: number; error?: string } | null
   >(null);
   const extractingRef = useRef(false);
 
@@ -633,8 +634,10 @@ export function ServerSettingsModal({
     const dirPath = currentPath.replace(/\/$/, '');
     const path = `${dirPath}/${fileName}`;
     setExtractStatus({ name: fileName, status: 'running', completedFiles: 0 });
+    let accepted = false;
     try {
       const job = await apiClient.extractServerArchive(serverId, path, currentRoot, options);
+      accepted = true;
       let current = job;
       let pollErrors = 0;
       while (current.status === 'pending' || current.status === 'running') {
@@ -656,7 +659,8 @@ export function ServerSettingsModal({
       }
     } catch (error: any) {
       const msg = error?.response?.data?.error || error?.message || 'Extraction failed';
-      setExtractStatus({ name: fileName, status: 'failed', completedFiles: 0, error: msg });
+      const uncertain = accepted || !error?.response || error.response.status >= 500;
+      setExtractStatus(previous => ({ name: fileName, status: uncertain ? 'unknown' : 'failed', completedFiles: previous?.completedFiles || 0, error: uncertain ? 'Open File operation history to check the saved result before retrying.' : msg }));
     } finally {
       extractingRef.current = false;
     }
@@ -704,6 +708,7 @@ export function ServerSettingsModal({
     setShowBackupNowWarningModal,
     executeBackupNow,
     hotBackupOnly: isHytaleOvhcloud,
+    alwaysConfirm: isNative,
     skipWarning: isMinecraftOvhcloud,
   });
 
@@ -719,6 +724,7 @@ export function ServerSettingsModal({
   });
 
   const handleRestoreBackup = createRestoreBackupHandler({
+    native: isNative,
     canRestoreBackups,
     serverId,
     setBackupRestoreLoading,
@@ -795,6 +801,7 @@ export function ServerSettingsModal({
         activeTab={effectiveActiveTab}
         fileManagerContent={
           <FileManagerTab
+            serverId={serverId || undefined}
             embeddedEditor={Boolean(pageTab)}
             borderColor={borderColor}
             contentBg={contentBg}
@@ -829,12 +836,12 @@ export function ServerSettingsModal({
               if (file.type === 'file') void editorSession.open(file, currentRoot, currentPath);
               else void handleFileDoubleClick(file);
             }}
-            handleDeleteSelected={() => { if (editorSession.prepareMutation()) handleDeleteSelected(); }}
-            handleMoveEntries={(names, target) => { if (editorSession.prepareMutation()) void handleMoveEntries(names, target); }}
+            handleDeleteSelected={() => { editorSession.prepareMutation(() => handleDeleteSelected()); }}
+            handleMoveEntries={(names, target) => { editorSession.prepareMutation(() => void handleMoveEntries(names, target)); }}
             handleRenameConfirm={handleRenameConfirm}
             handleRenameCancel={handleRenameCancel}
-            handleRenameFile={(file, event) => { if (editorSession.prepareMutation()) handleRenameFile(file, event); }}
-            handleDeleteFile={(file, event) => { if (editorSession.prepareMutation()) handleDeleteFile(file, event); }}
+            handleRenameFile={(file, event) => { editorSession.prepareMutation(() => handleRenameFile(file, event)); }}
+            handleDeleteFile={(file, event) => { editorSession.prepareMutation(() => handleDeleteFile(file, event)); }}
             handleDownloadPath={handleDownloadPath}
             handleDownloadSelected={handleDownloadSelected}
             fileLoading={fileLoading}
@@ -857,6 +864,8 @@ export function ServerSettingsModal({
         }
         backupContent={
           <BackupTab
+            serverStatus={serverStatus}
+            serverId={serverId!}
             contentBg={contentBg}
             borderColor={borderColor}
             hoverBg={hoverBg}
@@ -891,7 +900,7 @@ export function ServerSettingsModal({
             canDeleteBackups={canDeleteBackups}
             backupDeleteLoading={backupDeleteLoading}
             handleRestoreBackup={handleRestoreBackup}
-            canRestoreBackups={canRestoreBackups && !isNative}
+            canRestoreBackups={canRestoreBackups}
             backupRestoreLoading={backupRestoreLoading}
             handleRenameBackup={handleRenameBackup}
             canRenameBackups={canRenameBackups}
@@ -906,7 +915,7 @@ export function ServerSettingsModal({
             onOpen={(path, root) => { hasUserSelectedTabRef.current = true; setCurrentRoot(root); handleOpenFileManagerAtPath(path); }} /> : <GameConfigTab
             serverGame={serverGame}
             serverProvider={serverProvider}
-            serverId={serverId}
+            serverId={serverId!}
             canReadFileManager={canUseFileManager}
             canWriteFileManager={canWriteFiles}
             onOpenFileManagerPath={(path) => { hasUserSelectedTabRef.current = true; handleOpenFileManagerAtPath(path); }}
@@ -1050,7 +1059,7 @@ export function ServerSettingsModal({
         }
         scheduledTasksContent={
           <ScheduledTasksTab
-            serverId={serverId}
+            serverId={serverId!}
             serverBackupSupported={serverBackupSupported}
             serverProvider={isNative ? 'native' : serverProvider}
             serverGame={serverGame}
@@ -1067,7 +1076,7 @@ export function ServerSettingsModal({
         }
         containerConfigContent={
           <ContainerConfigTab
-            serverId={serverId}
+            serverId={serverId!}
             serverStatus={serverStatus}
             borderColor={borderColor}
             contentBg={contentBg}
@@ -1128,6 +1137,7 @@ export function ServerSettingsModal({
         backupNowLoading={backupNowLoading}
         stopOnBackup={stopOnBackup}
         hotBackupOnly={isHytaleOvhcloud}
+        nativeBackup={isNative}
         closeBackupWarningModal={() => {
           if (backupNowLoading) return;
           setShowBackupNowWarningModal(false);

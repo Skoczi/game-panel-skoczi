@@ -27,8 +27,8 @@ test('native settings expose configuration, backup, tasks and data roots without
   await expect(page.getByText(/Game files remain in the location/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Backups', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Create backup now' })).toBeVisible();
-  await expect(page.getByText(/Stop the server before creating/)).toBeVisible();
-  await page.screenshot({ path: 'test-results/native-settings-backups.png' });
+  await expect(page.getByText(/Live backups may contain/)).toBeVisible();
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-settings-backups.png' });
 });
 
 test('arbitrary external images keep their unsupported features hidden', async ({ page }) => {
@@ -69,7 +69,7 @@ test('declared config opens the actual nested file and native settings fit dark 
   });
   await page.goto('/test/native-settings.fixture.html?declared');
   await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
-  await page.screenshot({ path: 'test-results/native-settings-mobile.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-settings-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const requested = page.waitForRequest(r => new URL(r.url()).pathname.endsWith('/file'));
   await page.getByRole('button', { name: 'Open in File Manager' }).click();

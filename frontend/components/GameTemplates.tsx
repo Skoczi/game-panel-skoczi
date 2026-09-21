@@ -1,3 +1,4 @@
+import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
 import {
   Layers,
@@ -139,7 +140,7 @@ export function GameTemplates() {
   }
   async function status(row: TemplateVersion, value: string) {
     if (
-      !window.confirm(
+      !await confirmDialog(
         value === 'published'
           ? `Publish ${row.document.name} v${row.version}? Its Docker image will run on selected nodes.`
           : `Disable v${row.version} for new installations? Existing servers will not change.`
@@ -255,10 +256,10 @@ export function GameTemplates() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               className={button}
-              onClick={() => {
+              onClick={async () => {
                 if (
                   !(dirty || (tab === 'json' && json !== JSON.stringify(draft, null, 2))) ||
-                  window.confirm('Discard unsaved changes?')
+                  await confirmDialog('Discard unsaved changes?')
                 ) {
                   setDraft(null);
                   setSelected(null);
@@ -312,7 +313,7 @@ export function GameTemplates() {
                 role="tab"
                 aria-selected={tab === t}
                 className={tab === t ? primary : button}
-                onClick={() => {
+                onClick={async () => {
                   if (tab === 'json' && t !== 'json') {
                     void run(async () => {
                       const result = await nodesRequest<{ document: GameTemplate }>(
@@ -819,7 +820,7 @@ export function GameTemplates() {
                         {r.status === 'published' && (
                           <button
                             className={button}
-                            onClick={() => {
+                            onClick={async () => {
                               setDraft(null);
                               setInstalling(r);
                             }}
@@ -958,8 +959,8 @@ export function GameTemplates() {
                     <button
                       disabled={busy}
                       className={`${button} text-red-500`}
-                      onClick={() => {
-                        if (!window.confirm(`Remove "${r.document.name}" and all its versions from the catalog? Existing servers and their files will not be changed.`)) return;
+                      onClick={async () => {
+                        if (!await confirmDialog(`Remove "${r.document.name}" and all its versions from the catalog? Existing servers and their files will not be changed.`)) return;
                         void run(async () => {
                           await nodesRequest(`/api/game-templates/${r.id}`, { method: 'DELETE' });
                           await refresh();
@@ -1205,7 +1206,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, onInstallationStart
           <button className={primary} onClick={() => selectNode(installedServer?.nodeId || nodeId)}>
             Open node servers
           </button>
-          {['completed', 'failed'].includes(progress.status) && <button className={button} onClick={() => {
+          {['completed', 'failed'].includes(progress.status) && <button className={button} onClick={async () => {
             sessionStorage.removeItem(installStorageKey);
             setInstalledServer(null); setResult(''); setShowProgress(false);
           }}>Create another server</button>}

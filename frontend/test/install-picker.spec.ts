@@ -84,7 +84,7 @@ test('starting installation replaces the installer, and closing progress returns
   await expect(page.getByRole('heading', { name: 'Install Game Server', exact: true })).toBeHidden();
   await expect(page.getByLabel('Panel server name', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Catalog', exact: true })).toHaveCount(0);
-  await page.screenshot({ path: 'test-results/native-install-single-modal.png' });
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-install-single-modal.png' });
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Install Game Server', exact: true })).toHaveCount(0);

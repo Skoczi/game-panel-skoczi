@@ -37,7 +37,7 @@ function unique(values: string[]) {
 }
 export function validateTemplate(input: unknown): GameTemplate {
     if (JSON.stringify(input)?.length > 32768) throw new TemplateError('Template exceeds 32 KiB');
-    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles']);
+    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload']);
     if (v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new TemplateError('Unsupported template schema (expected 1 or 2; egg files require conversion)');
     if (v.schemaVersion === 1 && v.lifecycle !== undefined) throw new TemplateError('Native lifecycle requires schemaVersion 2');
     const r = object(v.runtime, ['provider', 'image', 'catalogId', 'gameServerName', 'architectures', 'identity']);
@@ -95,6 +95,32 @@ export function validateTemplate(input: unknown): GameTemplate {
         });
         unique(configFiles.map(f => `${f.root}:${f.path}`));
     }
+    let fastDownload: GameTemplate['fastDownload'];
+    if (v.fastDownload !== undefined) {
+        const f = object(v.fastDownload, ['enabled', 'gameRoot', 'folders', 'compression', 'configFile']);
+        if (typeof f.enabled !== 'boolean') throw new TemplateError('FastDownload enabled must be a boolean');
+        if (!f.enabled) fastDownload = { enabled: false };
+        else {
+            if (v.schemaVersion !== 2 || !mounts.some(m => m.key === 'data' && m.containerPath === '/data')) throw new TemplateError('FastDownload requires a native /data mount');
+            const safe = (value: unknown) => {
+                const s = text(value, 160);
+                if (!/^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)*$/.test(s) || s.split('/').some(p => p.startsWith('.') || /^(?:addons|cfg|logs?|bin|platform|steam|steamcmd|steamapps|backups|fastdownload)$/i.test(p))) throw new TemplateError('Invalid FastDownload asset directory');
+                return s;
+            };
+            const gameRoot = safe(f.gameRoot);
+            if (!gameRoot.startsWith('serverfiles/') || gameRoot.split('/').length > 4) throw new TemplateError('FastDownload game root must be under serverfiles/');
+            const folders = list(f.folders, 24).map(v => typeof v === 'string' ? v.trim() : v).filter(v => v !== '').map(safe);
+            if (!folders.length) throw new TemplateError('Choose at least one FastDownload asset folder');
+            unique(folders);
+            const compression = choice(f.compression, ['none', 'bzip2'] as const);
+            let configFile: string | undefined;
+            if (f.configFile !== undefined && f.configFile !== '') {
+                configFile = text(f.configFile, 200);
+                if (!configFile.startsWith(gameRoot + '/') || !configFile.endsWith('.cfg') || !/^[a-zA-Z0-9_./-]+$/.test(configFile) || configFile.split('/').some(p => p.startsWith('.'))) throw new TemplateError('FastDownload configuration must be a cfg file inside the game root');
+            }
+            fastDownload = { enabled: true, gameRoot, folders, compression, ...(configFile ? { configFile } : {}) };
+        }
+    }
     let lifecycle: GameTemplate['lifecycle'];
     if (v.schemaVersion === 2) {
         if (provider !== 'external') throw new TemplateError('Native lifecycle requires the generic runtime provider, not a legacy adapter');
@@ -146,7 +172,7 @@ export function validateTemplate(input: unknown): GameTemplate {
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
         lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}), ...(stopCommand ? { stopCommand } : {}) };
     }
-    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}) };
+    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}) };
 }
 export function validateVariable(v: GameTemplate['variables'][number], value: unknown): string {
     const s = text(value, 2048, !v.required);

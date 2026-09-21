@@ -1076,6 +1076,8 @@ export function ServerSettingsModal({
         }
         containerConfigContent={
           <ContainerConfigTab
+            onOpenFileManagerPath={canUseFileManager ? (path) => { hasUserSelectedTabRef.current = true; handleOpenFileManagerAtPath(path); } : undefined}
+            canWriteFiles={canWriteFiles}
             serverId={serverId!}
             serverName={serverName}
             canDelete={Boolean(currentUser?.isRoot || serverPermissions.includes('*') || serverPermissions.includes('server.delete'))}

@@ -57,6 +57,12 @@ test('Native restore validates before replacing files, preserves logs and recove
   assert.equal(await fs.readlink(path.join(data, 'serverfiles', 'libSDL2.so')), 'libSDL2-2.0.so.0');
   await assert.rejects(fs.stat(path.join(data, 'serverfiles', 'libSDL2.so')), { code: 'ENOENT' });
   assert.equal(releases, 6);
+  await archive(path.join(backups,'fdl.tar.gz'),[{name:'serverfiles',type:'directory'},{name:'serverfiles/world',content:'with fdl'},{name:'fastdownload',type:'directory'},{name:'fastdownload/manual.bsp',content:'manual asset'}]);
+  await module.restoreNativeBackup(server,'fdl.tar.gz');
+  assert.equal(await fs.readFile(path.join(data,'fastdownload/manual.bsp'),'utf8'),'manual asset');
+  await module.restoreNativeBackup(server,'good.tar.gz');
+  assert.equal(await fs.readFile(path.join(data,'fastdownload/manual.bsp'),'utf8'),'manual asset');
+
  } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 

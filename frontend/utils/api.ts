@@ -1,3 +1,4 @@
+import type { FastDownloadStatus } from '../components/serverSettings/FastDownloadCard';
 import { nodesRequest } from './nodesApi';
 import type { CpuTopology } from '../components/resources/CpuBindingPicker';
 import { clearEditorDrafts } from './editorDrafts';
@@ -449,6 +450,11 @@ class ApiClient {
     const response = await this.client.post(`/api/servers/${id}/restart`);
     return response.data;
   }
+
+  async getFastDownload(id: number): Promise<FastDownloadStatus> { return (await this.client.get(`/api/servers/${id}/fastdownload`)).data; }
+  async updateFastDownload(id: number, patch: {enabled?:boolean;compression?:boolean}) { return (await this.client.patch(`/api/servers/${id}/fastdownload`,patch)).data; }
+  async syncFastDownload(id: number) { return (await this.client.post(`/api/servers/${id}/fastdownload/sync`,{}, {timeout:300000})).data; }
+  async configureFastDownload(id: number): Promise<{message:string}> { return (await this.client.post(`/api/servers/${id}/fastdownload/configure`)).data; }
 
   async getAvailableCpus(nodeId = ACTIVE_NODE, serverId?: number): Promise<CpuTopology> {
     return nodesRequest<CpuTopology>(runtimeUrl(`/api/servers/${serverId ? `${serverId}/` : ''}available-cpus`, nodeId));

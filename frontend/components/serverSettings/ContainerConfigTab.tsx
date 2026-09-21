@@ -1,3 +1,4 @@
+import { FastDownloadCard } from './FastDownloadCard';
 import { CpuBindingPicker } from '../resources/CpuBindingPicker';
 import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { DeleteServerSection } from './DeleteServerSection';
@@ -50,6 +51,8 @@ interface ContainerConfigTabProps {
   canManageEnv: boolean;
   pickerManagedKeys?: string[];
   onSaved?: () => void;
+  onOpenFileManagerPath?: (path:string)=>void;
+  canWriteFiles?: boolean;
 }
 
 function parseField<T>(value: unknown, fallback: T): T {
@@ -173,6 +176,8 @@ export function ContainerConfigTab({
   isRoot = false,
   canManageEnv,
   onSaved,
+  onOpenFileManagerPath,
+  canWriteFiles,
 }: ContainerConfigTabProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -628,6 +633,8 @@ export function ContainerConfigTab({
         </div>
 
         </div>
+
+        {serverId && canEdit && <FastDownloadCard serverId={serverId} onOpenFiles={onOpenFileManagerPath} canConfigure={canWriteFiles} />}
 
         <details className="gp-settings-advanced"><summary>Advanced settings <span>Healthcheck &amp; maintenance</span></summary><div className="gp-settings-advanced-body">
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Healthcheck</h4>

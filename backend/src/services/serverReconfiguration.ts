@@ -1,3 +1,4 @@
+import { assertCpuBinding } from './cpuTopology.js';
 import { assertHostPortsAvailableForServer } from './hostPortAvailability.js';
 import { enterPortAllocationMutation } from './portAllocationLock.js';
 import { serverRepository } from '../database/index.js';
@@ -186,6 +187,7 @@ export async function reconfigureServerContainer(
     const nextEnv = validateEnvForServer(server, input.env ?? currentEnv);
     const nextHealthcheck = input.hasHealthcheckPatch ? input.healthcheck ?? null : currentHealthcheck;
     const nextResourceLimits = input.hasResourceLimitsPatch ? input.resourceLimits ?? null : currentResourceLimits;
+    await assertCpuBinding(nextResourceLimits);
     const metadata = { ...storedMetadata };
     delete metadata.pendingConfiguration;
     const native = nativeTemplate(metadata);
@@ -373,6 +375,7 @@ export async function updateServerResourceLimits(
         throw Object.assign(new Error('Server not found'), { statusCode: 404 });
     }
 
+    await assertCpuBinding(resourceLimits);
     let dockerUpdated = false;
     let containerStatus = 'missing';
 

@@ -1,3 +1,5 @@
+import { assertCpuBinding } from '../../services/cpuTopology.js';
+import { mergeResourceLimitsBinding, parseStoredResourceLimits } from '../../utils/resourceLimits.js';
 import { Router, type Response } from 'express';
 import {
     type AuthenticatedRequest,
@@ -34,7 +36,6 @@ import {
     type NormalizedMount,
 } from '../../utils/mounts.js';
 import {
-    normalizeResourceLimitsPayload,
     type NormalizedResourceLimits,
 } from '../../utils/resourceLimits.js';
 import { nowIso } from '../../utils/time.js';
@@ -187,12 +188,17 @@ export function createServerPatchRoutes(): Router {
                 let normalizedResourceLimits: NormalizedResourceLimits | undefined;
                 if (hasResourceLimitsPatch) {
                     try {
-                        normalizedResourceLimits = normalizeResourceLimitsPayload(body.resourceLimits);
+                        if (body.resourceLimits && typeof body.resourceLimits === 'object' && 'cpuSet' in body.resourceLimits && !req.user?.isRoot) return res.status(403).json({ error: 'CPU binding requires root administrator access' });
+                        const pending = JSON.parse(server.provider_metadata_json || '{}').pendingConfiguration;
+                        normalizedResourceLimits = mergeResourceLimitsBinding(body.resourceLimits, pending?.hasResourceLimitsPatch ? pending.resourceLimits : parseStoredResourceLimits(server));
+                        await assertCpuBinding(normalizedResourceLimits);
                     } catch (e) {
                         const msg = e instanceof Error ? e.message : 'Invalid resourceLimits payload';
                         return res.status(400).json({ error: msg });
                     }
                 }
+
+                const bindingAudit = hasResourceLimitsPatch && body.resourceLimits && typeof body.resourceLimits === 'object' && 'cpuSet' in body.resourceLimits ? ` · CPU binding: ${parseStoredResourceLimits(server)?.cpuSet?.join(',') || 'none'} → ${normalizedResourceLimits?.cpuSet?.join(',') || 'none'}` : '';
 
                 if (hasContainerPatch) {
                     const deleteHostData = parseOptionalBoolean(body.deleteHostData);
@@ -220,9 +226,9 @@ export function createServerPatchRoutes(): Router {
                     await actionsRepository.create(
                         serverId,
                         reconfigure.hostDataDeletionErrors.length ? 'error' : 'success',
-                        reconfigure.hostDataDeletionErrors.length
+                        (reconfigure.hostDataDeletionErrors.length
                             ? 'Server reconfigured with mount data deletion errors'
-                            : reconfigure.pendingRestart ? 'Settings saved for next restart' : 'Server reconfigured',
+                            : reconfigure.pendingRestart ? 'Settings saved for next restart' : 'Server reconfigured') + bindingAudit,
                         req.user?.username || ''
                     );
 
@@ -246,9 +252,9 @@ export function createServerPatchRoutes(): Router {
                     await actionsRepository.create(
                         serverId,
                         'success',
-                        resourceUpdate.dockerUpdated
+                        (resourceUpdate.dockerUpdated
                             ? 'Server resource limits updated'
-                            : 'Server resource limits saved',
+                            : 'Server resource limits saved') + bindingAudit,
                         req.user?.username || ''
                     );
 

@@ -1,3 +1,4 @@
+import { createAvailableCpuRoutes } from './servers/availableCpus.js';
 import { Router } from 'express';
 import serverFileRoutes from './serverFile.js';
 import serverFilesRoutes from './serverFiles.js';
@@ -63,6 +64,7 @@ router.use('/', createServerMetricsRoutes());
 
 // /api/servers
 router.use('/', createAvailablePortRoutes());
+router.use('/', createAvailableCpuRoutes());
 router.use('/', createServerReadRoutes());
 // POST /api/servers/install
 router.use('/', createServerInstallRoutes());

@@ -34,7 +34,7 @@ export interface InstallGameHandlerPayload {
   requireSteamCredentials?: boolean;
   steamUsername?: string;
   steamPassword?: string;
-  resourceLimits?: { memoryMb: number; cpu: number } | null;
+  resourceLimits?: { memoryMb?: number; cpu?: number; cpuSet?: number[] } | null;
 }
 
 interface CreateDeleteServerHandlerDeps {

@@ -1,3 +1,4 @@
+import { CpuBindingPicker } from './resources/CpuBindingPicker';
 import { AppOptionSelect } from '../src/ui/components/AppOptionSelect';
 import { InstallTargetContext } from '../contexts/InstallTargetContext';
 // Modified by Skoczi: explicit host IPv4 selection for every port binding.
@@ -385,6 +386,9 @@ interface ConfigModalProps {
   steamPassword?: string;
   setSteamPassword?: (v: string) => void;
   requireGameCopy?: boolean;
+  cpuSet: number[];
+  setCpuSet: (ids: number[]) => void;
+  cpuNodeId: string;
   cpuLimit: string;
   setCpuLimit: (v: string) => void;
   memoryLimitMb: string;
@@ -419,7 +423,7 @@ function ConfigModal({
   usedServerNames,
   requireSteamCredentials, steamUsername, setSteamUsername, steamPassword, setSteamPassword,
   requireGameCopy,
-  cpuLimit, setCpuLimit, memoryLimitMb, setMemoryLimitMb,
+  cpuLimit, setCpuLimit, memoryLimitMb, setMemoryLimitMb, cpuSet, setCpuSet, cpuNodeId,
   error, loading, onConfirm, onCancel,
   mcServerType, pickerInitialEnv, onPickerEnvChange, pickerJavaImages, onPickerJavaImageChange, requireEula,
 }: ConfigModalProps) {
@@ -941,6 +945,7 @@ function ConfigModal({
                         )}
                       </div>
                     </div>
+                    <div className="mt-4"><CpuBindingPicker value={cpuSet} onChange={setCpuSet} nodeId={cpuNodeId} disabled={loading} /></div>
                     <p className="mt-2 text-xs text-gray-400">Leave blank for no limit.</p>
                   </CollapsibleSection>
                 {catalogHealthcheck !== undefined && (
@@ -1057,6 +1062,9 @@ export function InstallGameServer({
   const [extHealthcheck, setExtHealthcheck] = useState<Record<string, unknown> | null>(null);
   const [extError, setExtError] = useState<string | null>(null);
 
+  const [cpuSet, setCpuSet] = useState<number[]>([]);
+  const [extCpuSet, setExtCpuSet] = useState<number[]>([]);
+  useEffect(() => { setCpuSet([]); setExtCpuSet([]); }, [targetNodeId]);
   const [cpuLimit, setCpuLimit] = useState('');
   const [memoryLimitMb, setMemoryLimitMb] = useState('');
   const [extCpuLimit, setExtCpuLimit] = useState('');
@@ -1124,7 +1132,7 @@ export function InstallGameServer({
     setPickerInitialEnv({});
     setPickerEnv({});
     setPickerJavaImages([]);
-    setCpuLimit('');
+    setCpuLimit(''); setCpuSet([]);
     setMemoryLimitMb('');
   };
 
@@ -1263,7 +1271,7 @@ export function InstallGameServer({
       env: configShowEnv ? { ...pickerEnv, ...envRowsToRecord(envRows) } : undefined,
       ...(showHytale ? { imageOptions: { patchline: hytaleOptions.patchline || undefined, profileUuid: hytaleOptions.profileUuid || null } } : {}),
       ...(isLgsm && requireSteamCredentials ? { requireSteamCredentials: true, steamUsername: steamUsername.trim(), steamPassword: steamPassword } : {}),
-      resourceLimits: (cpuVal > 0 || memVal > 0) ? { cpu: cpuVal > 0 ? cpuVal : 0, memoryMb: memVal > 0 ? memVal : 0 } : null,
+      resourceLimits: { ...(cpuVal > 0 ? { cpu: cpuVal } : {}), ...(memVal > 0 ? { memoryMb: memVal } : {}), ...(cpuSet.length ? { cpuSet } : {}) },
     };
     setInstallWasExternal(false);
     setInstallingName(uniqueName);
@@ -1303,7 +1311,7 @@ export function InstallGameServer({
       env: envRowsToRecord(extEnvRows),
       mounts: extMountRows.filter((m) => m.key.trim() && m.containerPath.trim()),
       runtimeIdentity: { user: extRuntimeUser.trim(), uid: runtimeUid, gid: runtimeGid },
-      resourceLimits: (extCpuVal > 0 || extMemVal > 0) ? { cpu: extCpuVal > 0 ? extCpuVal : 0, memoryMb: extMemVal > 0 ? extMemVal : 0 } : null,
+      resourceLimits: { ...(extCpuVal > 0 ? { cpu: extCpuVal } : {}), ...(extMemVal > 0 ? { memoryMb: extMemVal } : {}), ...(extCpuSet.length ? { cpuSet: extCpuSet } : {}) },
     };
     setInstallWasExternal(true);
     setInstallingName(uniqueExtName);
@@ -1660,6 +1668,7 @@ export function InstallGameServer({
                             )}
                           </div>
                         </div>
+                        <div className="mt-4"><CpuBindingPicker value={extCpuSet} onChange={setExtCpuSet} nodeId={targetNodeId || ACTIVE_NODE} disabled={installing} /></div>
                         <p className="text-xs text-gray-400">Leave blank for no limit.</p>
                       </div>
 
@@ -1742,6 +1751,9 @@ export function InstallGameServer({
           steamPassword={steamPassword}
           setSteamPassword={setSteamPassword}
           requireGameCopy={requireGameCopy || undefined}
+          cpuSet={cpuSet}
+          setCpuSet={setCpuSet}
+          cpuNodeId={targetNodeId || ACTIVE_NODE}
           cpuLimit={cpuLimit}
           setCpuLimit={setCpuLimit}
           memoryLimitMb={memoryLimitMb}

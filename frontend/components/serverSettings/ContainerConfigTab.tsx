@@ -1,3 +1,4 @@
+import { CpuBindingPicker } from '../resources/CpuBindingPicker';
 import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { DeleteServerSection } from './DeleteServerSection';
 // Modified by Skoczi: retain and edit host IPv4 allocations without widening bindings.
@@ -194,6 +195,9 @@ export function ContainerConfigTab({
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>([]);
   const [mounts, setMounts] = useState<MountEntry[]>([]);
   const [healthcheck, setHealthcheck] = useState<HealthcheckState>(() => parseHealthcheck(null));
+  const [cpuSet, setCpuSet] = useState<number[]>([]);
+  const [savedCpuSet, setSavedCpuSet] = useState<number[]>([]);
+  const [cpuRefresh, setCpuRefresh] = useState(0);
   const [cpuLimit, setCpuLimit] = useState('');
   const [memoryLimitMb, setMemoryLimitMb] = useState('');
 
@@ -212,9 +216,10 @@ export function ContainerConfigTab({
     JSON.stringify(envEntries) !== JSON.stringify(savedEnvEntries) ||
     JSON.stringify(mounts) !== JSON.stringify(savedMounts) ||
     JSON.stringify(healthcheck) !== JSON.stringify(savedHealthcheck) ||
+    JSON.stringify(cpuSet) !== JSON.stringify(savedCpuSet) ||
     cpuLimit !== savedCpuLimit ||
     memoryLimitMb !== savedMemoryLimitMb
-  ), [customParams, savedCustomParams, startupText, savedStartupText, tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
+  ), [cpuSet, savedCpuSet, customParams, savedCustomParams, startupText, savedStartupText, tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
 
   const applyLoaded = (raw: any) => {
     const pending = raw?.providerMetadata?.pendingConfiguration;
@@ -233,6 +238,7 @@ export function ContainerConfigTab({
     const mnts = mountsFromRaw(raw?.mounts);
     const hc = parseHealthcheck(raw?.healthcheck);
     const rl = raw?.resourceLimits ?? null;
+    setCpuSet(rl?.cpuSet ?? []); setSavedCpuSet(rl?.cpuSet ?? []);
     const cpu = rl?.cpu != null ? String(rl.cpu) : '';
     const mem = rl?.memoryMb != null ? String(rl.memoryMb) : '';
     setTcpPorts(ports.tcp);   setSavedTcpPorts(ports.tcp);
@@ -330,7 +336,7 @@ export function ContainerConfigTab({
       },
       mounts: mounts.filter(m => m.key && m.containerPath),
       healthcheck: buildHealthcheckPayload(healthcheck),
-      resourceLimits: (cpuVal > 0 || memVal > 0) ? { cpu: cpuVal > 0 ? cpuVal : 0, memoryMb: memVal > 0 ? memVal : 0 } : null,
+      resourceLimits: { ...(cpuVal > 0 ? { cpu: cpuVal } : {}), ...(memVal > 0 ? { memoryMb: memVal } : {}), ...(isRoot && JSON.stringify(cpuSet) !== JSON.stringify(savedCpuSet) ? { cpuSet } : {}) },
     };
 
     if (customParams !== savedCustomParams) payload.customParams = customArgv;
@@ -351,6 +357,7 @@ export function ContainerConfigTab({
       setSavedEnvEntries(envEntries);
       setSavedMounts(mounts);
       setSavedHealthcheck(healthcheck);
+      setSavedCpuSet(cpuSet); setCpuRefresh(v => v + 1);
       setSavedCpuLimit(cpuLimit);
       setSavedMemoryLimitMb(memoryLimitMb);
       setPendingRestart(applyMode === 'defer');
@@ -562,6 +569,7 @@ export function ContainerConfigTab({
               )}
             </div>
           </div>
+          <div className="mt-5">{isRoot ? <CpuBindingPicker value={cpuSet} onChange={setCpuSet} serverId={serverId ?? undefined} disabled={saving || !canEdit} refreshKey={cpuRefresh} /> : <p className={`text-sm ${textSecondary}`}>CPU binding: {cpuSet.length ? cpuSet.join(', ') : 'No binding'} · Managed by administrator</p>}</div>
         <div className="gp-settings-volumes">          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Volumes</h4>
           <div className={sectionClass}>
             {mounts.length === 0 && (

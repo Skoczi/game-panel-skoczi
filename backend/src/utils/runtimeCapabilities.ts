@@ -1,6 +1,7 @@
 // Increment each protocol only when its semantics change incompatibly.
 // Package versions alone do not prove that a runtime supports an operation.
 export const runtimeCapabilities = Object.freeze({
+    cpuBinding: 1,
     versionedFiles: 1,
     backupJobs: 1,
     nativeRestoreRecovery: 1,

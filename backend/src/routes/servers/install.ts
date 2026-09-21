@@ -1,3 +1,4 @@
+import { assertCpuBinding } from '../../services/cpuTopology.js';
 import { Router, type Response } from 'express';
 import { agentIdentity, isAgent } from '../../agent/identity.js';
 import { getConfig } from '../../config.js';
@@ -127,7 +128,9 @@ export function createServerInstallRoutes(): Router {
 
                 let normalizedResourceLimits: NormalizedResourceLimits = null;
                 try {
+                    if (resourceLimits && typeof resourceLimits === 'object' && 'cpuSet' in resourceLimits && !req.user?.isRoot) return res.status(403).json({ error: 'CPU binding requires root administrator access' });
                     normalizedResourceLimits = normalizeResourceLimitsPayload(resourceLimits);
+                    await assertCpuBinding(normalizedResourceLimits);
                 } catch (e) {
                     const msg = e instanceof Error ? e.message : 'Invalid resourceLimits payload';
                     return res.status(400).json({ error: msg });

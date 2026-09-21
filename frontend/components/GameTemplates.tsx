@@ -1,3 +1,4 @@
+import { CpuBindingPicker } from './resources/CpuBindingPicker';
 import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
 import {
@@ -995,6 +996,8 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
   const [name, setName] = useState(row.document.name);
   const [memory, setMemory] = useState('1024');
   const [cpu, setCpu] = useState('1');
+  const [cpuSet, setCpuSet] = useState<number[]>([]);
+  useEffect(() => { setCpuSet([]); }, [nodeId]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1125,6 +1128,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         bindings,
         variables,
         resourceLimits: {
+          ...(cpuSet.length ? { cpuSet } : {}),
           ...(memory ? { memoryMb: Number(memory) } : {}),
           ...(cpu ? { cpu: Number(cpu) } : {}),
         },
@@ -1198,12 +1202,13 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
               onChange={setMemory}
             />
             <Field
-              label="CPU limit (cores; empty = unlimited)"
+              label="vCPU limit (empty = unlimited)"
               type="number"
               value={cpu}
               onChange={setCpu}
             />
           </div>
+          <CpuBindingPicker value={cpuSet} onChange={setCpuSet} nodeId={nodeId} disabled={busy || uncertain} />
           {fixedNodeId ? <p className="text-sm">Execution node: <strong>{nodeId === 'local' ? localNode?.name || 'Local' : nodes.find(n => n.id === nodeId)?.name || nodeId}</strong></p> : <Choice
             label="Execution node"
             value={nodeId}

@@ -1,3 +1,4 @@
+import { assertCpuBinding, parseCpuList } from '../../services/cpuTopology.js';
 import { tryGracefulGameStop, restoreGracefulRestartPolicy } from '../../services/gracefulGameStop.js';
 // Modified by Skoczi: preserve explicit HostIp and multiple bindings per container port.
 import { ownsContainer, runtimeNodeId } from './ownership.js';
@@ -197,6 +198,7 @@ export async function createContainer(
     serverId: number,
     name: string
 ): Promise<ContainerInfo> {
+    await assertCpuBinding(spec.resourceLimits ?? null);
     const safeName = sanitizeContainerName(name);
     const { exposedPorts, portBindings } = buildPortMaps(spec.ports);
     const healthcheck = buildDockerHealthcheck(spec.healthcheck);
@@ -346,6 +348,8 @@ async function assertContainerPortPolicy(containerId: string): Promise<void> {
 }
 
 export async function startContainer(containerId: string): Promise<void> {
+    const info = await docker.getContainer(containerId).inspect();
+    if (info.HostConfig.CpusetCpus) await assertCpuBinding({ cpuSet: parseCpuList(info.HostConfig.CpusetCpus), ...(info.HostConfig.NanoCpus ? { cpu: info.HostConfig.NanoCpus / 1e9 } : {}) });
     await assertContainerPortPolicy(containerId);
     const finishRestore = await restoreGracefulRestartPolicy(containerId);
     await docker.getContainer(containerId).start();
@@ -358,6 +362,8 @@ export async function stopContainer(containerId: string, timeoutSeconds = 30): P
 }
 
 export async function restartContainer(containerId: string, timeoutSeconds = 30): Promise<void> {
+    const info = await docker.getContainer(containerId).inspect();
+    if (info.HostConfig.CpusetCpus) await assertCpuBinding({ cpuSet: parseCpuList(info.HostConfig.CpusetCpus), ...(info.HostConfig.NanoCpus ? { cpu: info.HostConfig.NanoCpus / 1e9 } : {}) });
     await assertContainerPortPolicy(containerId);
     if (await tryGracefulGameStop(containerId, timeoutSeconds)) {
         await startContainer(containerId);
@@ -370,6 +376,7 @@ export async function updateContainerResourceLimits(
     containerId: string,
     limits: NormalizedResourceLimits
 ): Promise<void> {
+    await assertCpuBinding(limits);
     await docker.getContainer(containerId).update(resourceLimitsToDockerUpdatePayload(limits));
 }
 

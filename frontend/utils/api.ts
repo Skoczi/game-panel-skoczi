@@ -1,3 +1,5 @@
+import { nodesRequest } from './nodesApi';
+import type { CpuTopology } from '../components/resources/CpuBindingPicker';
 import { clearEditorDrafts } from './editorDrafts';
 import { mutationOutcomeUnknown } from './apiError';
 import type { ResourceUsage } from './resourceMetrics';
@@ -412,7 +414,7 @@ class ApiClient {
     requireSteamCredentials?: boolean;
     steamUsername?: string;
     steamPassword?: string;
-    resourceLimits?: { memoryMb: number; cpu: number } | null;
+    resourceLimits?: { memoryMb?: number; cpu?: number; cpuSet?: number[] } | null;
   }) {
     const response = await this.client.post('/api/servers/install', payload, {
       timeout: LONG_TIMEOUT_MS,
@@ -448,6 +450,10 @@ class ApiClient {
     return response.data;
   }
 
+  async getAvailableCpus(nodeId = ACTIVE_NODE, serverId?: number): Promise<CpuTopology> {
+    return nodesRequest<CpuTopology>(runtimeUrl(`/api/servers/${serverId ? `${serverId}/` : ''}available-cpus`, nodeId));
+  }
+
   async updateServer(
     serverId: number,
     payload: {
@@ -463,9 +469,12 @@ class ApiClient {
       env?: Record<string, string>;
       healthcheck?: null | { mode: string; [key: string]: unknown };
       deleteHostData?: boolean;
-      resourceLimits?: { memoryMb: number; cpu: number } | null;
+      resourceLimits?: { memoryMb?: number; cpu?: number; cpuSet?: number[] } | null;
     }
   ) {
+    if (payload.resourceLimits && Object.prototype.hasOwnProperty.call(payload.resourceLimits, 'cpuSet')) {
+      return nodesRequest<{ success?: boolean; server?: { id: number; name?: string } }>(runtimeUrl(`/api/servers/${serverId}`), payload, 'PATCH');
+    }
     const response = await this.client.patch(`/api/servers/${serverId}`, payload);
     return response.data as { success?: boolean; server?: { id: number; name?: string } };
   }

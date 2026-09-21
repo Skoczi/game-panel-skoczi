@@ -20,7 +20,7 @@ interface PrePostStep {
 
 interface ScheduledTask {
   id: number;
-  type: 'restart' | 'backup' | 'custom';
+  type: 'restart' | 'backup' | 'custom' | 'game_command';
   schedule: string;
   enabled: boolean;
   payload: {
@@ -40,7 +40,7 @@ interface ScheduledTask {
 }
 
 interface TaskForm {
-  type: 'restart' | 'backup' | 'custom';
+  type: 'restart' | 'backup' | 'custom' | 'game_command';
   schedule: string;
   enabled: boolean;
   pre: PrePostStep[];
@@ -116,9 +116,9 @@ function taskFormToPayload(form: TaskForm, showPrePost: boolean, showIncludeServ
     if (form.cleanup.length) base.cleanup = form.cleanup;
   }
   if (form.type === 'backup' && showIncludeServerArtifact) base.includeServerArtifact = form.includeServerArtifact;
-  if (form.type === 'custom') {
+  if (form.type === 'custom' || form.type === 'game_command') {
     base.command = form.command.trim();
-    if (form.workdir.trim()) base.workdir = form.workdir.trim();
+    if (form.type === 'custom' && form.workdir.trim()) base.workdir = form.workdir.trim();
   }
   return base;
 }
@@ -157,11 +157,12 @@ function TypeBadge({ type }: { type: ScheduledTask['type'] }) {
   const map = {
     restart: 'bg-blue-500/10 text-blue-500 border-blue-500/30',
     backup:  'bg-green-500/10 text-green-500 border-green-500/30',
+    game_command: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
     custom:  'bg-purple-500/10 text-purple-400 border-purple-500/30',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${map[type]}`}>
-      {type}
+      {type === 'game_command' ? 'Game console' : type === 'custom' ? 'Container shell' : type}
     </span>
   );
 }
@@ -386,7 +387,7 @@ export function ScheduledTasksTab({
   const handleSave = async () => {
     if (!serverId || !canWrite || saving) return;
     if (!form.schedule.trim()) { setFormError('Schedule is required.'); return; }
-    if (form.type === 'custom' && !form.command.trim()) { setFormError('Command is required.'); return; }
+    if ((form.type === 'custom' || form.type === 'game_command') && !form.command.trim()) { setFormError('Command is required.'); return; }
     setSaving(true);
     setFormError(null);
     try {
@@ -451,7 +452,8 @@ export function ScheduledTasksTab({
   const availableTypes: Array<{ value: TaskForm['type']; label: string }> = [
     { value: 'restart', label: 'Restart' },
     ...(serverBackupSupported ? [{ value: 'backup' as const, label: 'Backup' }] : []),
-    { value: 'custom', label: 'Custom Command' },
+    ...(!isExternal ? [{ value: 'game_command' as const, label: 'Game console command' }] : []),
+    { value: 'custom', label: 'Container shell command' },
   ];
 
   return (
@@ -512,7 +514,7 @@ export function ScheduledTasksTab({
                     key={value}
                     aria-pressed={form.type === value}
                     type="button"
-                    onClick={() => { setF('type', value); setF('command', ''); setF('workdir', ''); }}
+                    onClick={() => { setF('type', value); if (!['custom', 'game_command'].includes(value)) setF('command', ''); if (value !== 'custom') setF('workdir', ''); }}
                     style={form.type === value ? { color: 'white' } : undefined}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       form.type === value
@@ -566,7 +568,7 @@ export function ScheduledTasksTab({
               </div>
             )}
 
-            {form.type === 'custom' && (
+            {(form.type === 'custom' || form.type === 'game_command') && (
               <div className="space-y-4">
                 <div>
                   <label htmlFor={`${formId}-command`} className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
@@ -578,11 +580,12 @@ export function ScheduledTasksTab({
                     type="text"
                     value={form.command}
                     onChange={(e) => setF('command', e.target.value)}
-                    placeholder="echo hello && ./my-script.sh"
+                    placeholder={form.type === 'game_command' ? 'say Hello' : 'echo hello && ./my-script.sh'}
                     className={`${inputCls} font-mono`}
                   />
                 </div>
-                <div>
+                <p className={`text-xs ${textSecondary}`}>{form.type === 'game_command' ? 'Sent directly to the game console. The server must be running.' : 'Runs a shell command inside the container.'}</p>
+                {form.type === 'custom' && <div>
                   <label htmlFor={`${formId}-workdir`} className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
                     Working directory <span className={`normal-case font-normal ${textSecondary}`}>(optional)</span>
                   </label>
@@ -594,12 +597,13 @@ export function ScheduledTasksTab({
                     placeholder="/data"
                     className={`${inputCls} font-mono`}
                   />
-                </div>
+                </div>}
               </div>
             )}
 
             {showPrePost && (
               <div className="space-y-5">
+                <p className={`text-xs ${textSecondary}`}>Pre, post and cleanup commands run in the game console. Use any command supported by your game.</p>
                 <StepsEditor
                   label="Pre-commands"
                   steps={form.pre}

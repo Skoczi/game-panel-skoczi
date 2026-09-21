@@ -766,7 +766,7 @@ class ApiClient {
       tasks: Array<{
         id: number;
         serverId: number;
-        type: 'restart' | 'backup' | 'custom';
+        type: 'restart' | 'backup' | 'custom' | 'game_command';
         schedule: string;
         enabled: boolean;
         payload: Record<string, unknown>;
@@ -781,7 +781,7 @@ class ApiClient {
   async createScheduledTask(
     serverId: number,
     payload: {
-      type: 'restart' | 'backup' | 'custom';
+      type: 'restart' | 'backup' | 'custom' | 'game_command';
       schedule: string;
       enabled?: boolean;
       payload?: Record<string, unknown>;

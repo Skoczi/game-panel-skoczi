@@ -55,7 +55,7 @@ export interface FileTransferJobRow {
 export interface ScheduledTaskRow {
   id: number;
   server_id: number;
-  type: 'restart' | 'backup' | 'custom';
+  type: 'restart' | 'backup' | 'custom' | 'game_command';
   schedule: string;
   enabled: number;
   payload_json: string;

@@ -331,7 +331,7 @@ async function createSchema(database: Database): Promise<void> {
       CREATE TABLE IF NOT EXISTS server_scheduled_tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         server_id INTEGER NOT NULL,
-        type TEXT NOT NULL CHECK(type IN ('restart','backup','custom')),
+        type TEXT NOT NULL CHECK(type IN ('restart','backup','custom','game_command')),
         schedule TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
         payload_json TEXT NOT NULL DEFAULT '{}',

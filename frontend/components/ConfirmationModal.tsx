@@ -120,7 +120,7 @@ export function ConfirmationModal({
                     autoComplete="off"
                     spellCheck={false}
                     disabled={submitting}
-                    className={matches ? 'w-full border-red-500' : 'w-full'}
+                    className={`gp-confirmation-input w-full ${matches ? 'border-red-500' : ''}`}
                     placeholder={requiredText}
                   />
                 </div>

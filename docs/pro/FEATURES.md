@@ -1,6 +1,6 @@
 # Features and compatibility
 
-| Function | Native 2.0.52 | Existing providers |
+| Function | Native 2.0.53 | Existing providers |
 | --- | --- | --- |
 | Console, power, files | Supported through the installed runtime | Existing adapter behavior |
 | Backup | `data/serverfiles` only; archive in `data/backups` | Provider-specific archive or directory |

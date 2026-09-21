@@ -11,7 +11,8 @@ import '../src/ui/theme/ods-dark.css';
 import '../src/ui/theme/ods-light.css';
 import '../styles/globals.css';
 const noop = () => {};
-const admin = !location.search.includes('restricted');
+const deleteOnly = location.search.includes('deleteOnly');
+const admin = !location.search.includes('restricted') && !deleteOnly;
 const metadata = JSON.stringify({
   template: {
     document: {
@@ -90,7 +91,7 @@ function Fixture() {
       ],
     },
     gameNamesByKey: {},
-    serverPermissionsById: { '7': admin ? ['*'] : [] },
+    serverPermissionsById: { '7': admin ? ['*'] : deleteOnly ? ['server.delete'] : [] },
     handleServerAction: async (id: string, name: string, action: string) => {
       (window as any).actions = [...((window as any).actions || []), { id, name, action }];
     },

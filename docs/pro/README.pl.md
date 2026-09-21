@@ -1,4 +1,4 @@
-# Game Panel PRO 2.0.52
+# Game Panel PRO 2.0.53
 
 Niezależny fork OVH Game Panel, rozwijany przez Skoczi. Zachowujemy oryginalne prawa autorskie OVH i licencję Apache 2.0. Projekt bazuje na OVHcloud Game Panel 1.5.0 i kontynuuje rozwój własnego forka.
 
@@ -18,7 +18,7 @@ Wydanie można zainstalować samodzielnie — bez wcześniejszej instalacji OVH 
 
 ## Przed wdrożeniem
 
-Wydanie 2.0.52 wymaga aktualizacji panelu i agentów. Aktualizacja agenta nie wymaga restartowania kontenerów gier.
+Wydanie 2.0.53 aktualizuje panel. Agenci 2.0.52 pozostają kompatybilni i nie wymagają aktualizacji.
 
 Stare archiwa `.native-backups` nie są usuwane ani automatycznie konwertowane. Nowy format dotyczy układu `data/serverfiles`; inne stare układy wymagają jawnej migracji. Nie zmieniamy automatycznie danych istniejących gier.
 

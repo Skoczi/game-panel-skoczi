@@ -142,10 +142,20 @@ test("publishes one selected format and migrates legacy copies; preserves manual
     await assert.rejects(
       module.resolveFastDownload(8, "cstrike/maps/leak.bsp"),
     );
+    assert.deepEqual((await module.listFastDownloadDirectory(8, "")).entries.map((e: any) => e.name).join(","), "cstrike");
+    assert.deepEqual((await module.listFastDownloadDirectory(8, "cstrike/")).entries.map((e: any) => e.name).join(","), "maps");
+    const maps = await module.listFastDownloadDirectory(8, "cstrike/maps/");
+    assert.deepEqual(maps.entries.map((e: any) => e.name).join(","), "test.bsp");
+    assert.equal(maps.entries[0].size, 900);
+    assert.equal(await module.listFastDownloadDirectory(8, "cstrike/other/"), null);
+    assert.equal(await module.listFastDownloadDirectory(8, "cstrike/addons/"), null);
+    assert.equal(await module.listFastDownloadDirectory(8, "cstrike/maps/missing/"), null);
+    await assert.rejects(module.listFastDownloadDirectory(8, "cstrike/maps/../"));
     await fs.unlink(path.join(source, "maps/leak.bsp"));
     await module.updateFastDownload(8, { compression: true }, "test");
     await module.synchronizeFastDownload(8);
     await assert.rejects(fs.stat(path.join(target, "maps/test.bsp")));
+    assert.deepEqual((await module.listFastDownloadDirectory(8, "cstrike/maps/")).entries.map((e: any) => e.name).join(","), "test.bsp.bz2");
     const compressedStat = await fs.stat(
       path.join(target, "maps/test.bsp.bz2"),
     );
@@ -246,6 +256,7 @@ test("publishes one selected format and migrates legacy copies; preserves manual
       null,
     );
     assert.equal((await module.fastDownloadStatus(8)).enabled, false);
+    assert.equal(await module.listFastDownloadDirectory(8, ""), null);
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }

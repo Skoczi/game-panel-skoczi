@@ -666,3 +666,134 @@ export async function resolveFastDownload(id: number, relative: string) {
   await handle.close();
   return `${id}/data/fastdownload/${relative}`;
 }
+
+export interface FastDownloadEntry {
+  name: string;
+  path: string;
+  directory: boolean;
+  size: number | null;
+}
+export interface FastDownloadListing {
+  serverId: number;
+  path: string;
+  entries: FastDownloadEntry[];
+  total: number;
+  page: number;
+  pages: number;
+}
+export async function listFastDownloadDirectory(
+  id: number,
+  relative: string,
+  requestedPage = 1,
+): Promise<FastDownloadListing | null> {
+  const server = await serverFor(id),
+    profile = fastDownloadProfile(server);
+  if (!profile || !fastDownloadOrigin()) return null;
+  const state = await readState(id, profile.compression);
+  if (!state.enabled) return null;
+  const directory = relative.replace(/\/$/, "");
+  if (directory) parts(directory);
+  if (!directory)
+    return {
+      serverId: id,
+      path: "",
+      entries: [
+        { name: profile.game, path: profile.game, directory: true, size: null },
+      ],
+      total: 1,
+      page: 1,
+      pages: 1,
+    };
+  if (directory !== profile.game && !directory.startsWith(profile.game + "/"))
+    return null;
+  const inside =
+    directory === profile.game ? "" : directory.slice(profile.game.length + 1);
+  const allowedDirectory = (name: string) =>
+    !name ||
+    (allowedAsset(name + "/asset.bsp") &&
+      (state.compression ||
+        profile.folders.some(
+          (f) =>
+            name === f || name.startsWith(f + "/") || f.startsWith(name + "/"),
+        )));
+  if (!allowedDirectory(inside)) return null;
+  const root = path.join(
+    getServerStoragePaths(id).dataDir,
+    state.compression ? "fastdownload/" + profile.game : profile.source,
+  );
+  const entries: FastDownloadEntry[] = [];
+  try {
+    await inDirectory(root, inside ? parts(inside) : [], false, async (dir) => {
+      const children = await fs.readdir(dir, { withFileTypes: true });
+      if (children.length > 10000)
+        throw new Error("FastDownload directory exceeds 10,000 entries");
+      for (const child of children) {
+        const name = inside ? inside + "/" + child.name : child.name;
+        try {
+          parts(name);
+        } catch {
+          continue;
+        }
+        if (child.isSymbolicLink()) continue;
+        if (child.isDirectory() && allowedDirectory(name)) {
+          try {
+            await inDirectory(root, parts(name), false, async () => {});
+            entries.push({
+              name: child.name,
+              path: profile.game + "/" + name,
+              directory: true,
+              size: null,
+            });
+          } catch {
+            /* A disappearing, inaccessible or linked directory is not public. */
+          }
+        } else if (child.isFile()) {
+          const source = name.replace(/\.bz2$/i, "");
+          if (
+            !allowedAsset(source) ||
+            (!state.compression &&
+              (source !== name ||
+                !profile.folders.some((f) => name.startsWith(f + "/"))))
+          )
+            continue;
+          try {
+            const file = await openAsset(root, name);
+            try {
+              entries.push({
+                name: child.name,
+                path: profile.game + "/" + name,
+                directory: false,
+                size: (await file.stat()).size,
+              });
+            } finally {
+              await file.close();
+            }
+          } catch {
+            /* Do not list hard links, symlinks or files removed during enumeration. */
+          }
+        }
+      }
+    });
+  } catch (e: any) {
+    if (["ENOENT", "ENOTDIR", "ELOOP", "EACCES"].includes(e.code)) return null;
+    throw e;
+  }
+  entries.sort(
+    (a, b) =>
+      Number(b.directory) - Number(a.directory) ||
+      a.name.localeCompare(b.name, "en", { numeric: true }),
+  );
+  const pages = Math.max(1, Math.ceil(entries.length / 200));
+  const page = Math.min(
+    pages,
+    Math.max(1, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1),
+  );
+  return {
+    serverId: id,
+    path: directory,
+    entries: entries.slice((page - 1) * 200, page * 200),
+    total: entries.length,
+    page,
+    pages,
+  };
+}

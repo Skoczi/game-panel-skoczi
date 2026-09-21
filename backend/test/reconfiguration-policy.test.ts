@@ -9,6 +9,7 @@ test('tightened policy blocks recreation before touching a running container or 
     const mark = (name: string) => async () => { calls.push(name); };
     const policy = configuredPortPolicy('{"192.0.2.10":{"tcp":"27015-27030"}}');
     const module = loadWithMocks('../src/services/serverReconfiguration.ts', {
+        './cpuTopology.js': { assertCpuBinding: async () => {} },
         './hostPortAvailability.js': {}, './portAllocationLock.js': {},
         '../templates/nativeContract.js': nativeContract,
         '../database/index.js': {}, '../providers/ovhcloud/adapters/registry.js': {},

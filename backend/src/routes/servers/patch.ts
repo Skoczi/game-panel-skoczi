@@ -94,7 +94,7 @@ export function createServerPatchRoutes(): Router {
                 const hasEnvPatch = hasOwn(body, 'env') && canSeeEnv;
                 const hasHealthcheckPatch = hasOwn(body, 'healthcheck');
                 const hasResourceLimitsPatch = hasOwn(body, 'resourceLimits');
-                const hasContainerPatch = (body.applyMode === 'defer' && (hasNamePatch || hasResourceLimitsPatch)) || hasCustomParamsPatch || hasStartupPatch || hasPortsPatch || hasMountsPatch || hasEnvPatch || hasHealthcheckPatch;
+                const hasContainerPatch = (body.applyMode === 'restart' && body.resourceLimits && typeof body.resourceLimits === 'object' && 'cpuSet' in body.resourceLimits) || (body.applyMode === 'defer' && (hasNamePatch || hasResourceLimitsPatch)) || hasCustomParamsPatch || hasStartupPatch || hasPortsPatch || hasMountsPatch || hasEnvPatch || hasHealthcheckPatch;
 
                 if (!hasNamePatch && !hasContainerPatch && !hasResourceLimitsPatch) {
                     return res.status(400).json({ error: 'No supported server fields provided' });

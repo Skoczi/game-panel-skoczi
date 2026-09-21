@@ -377,6 +377,12 @@ export async function updateContainerResourceLimits(
     limits: NormalizedResourceLimits
 ): Promise<void> {
     await assertCpuBinding(limits);
+    // Docker ignores an empty CpusetCpus in live updates. Never report a removal
+    // as successful while the old affinity remains in force.
+    if (!limits?.cpuSet?.length) {
+        const current = await docker.getContainer(containerId).inspect();
+        if (current.HostConfig.CpusetCpus) throw Object.assign(new Error('Removing CPU binding requires applying settings with a container restart. Save for the next restart or choose Save and restart.'), { statusCode: 409 });
+    }
     await docker.getContainer(containerId).update(resourceLimitsToDockerUpdatePayload(limits));
 }
 

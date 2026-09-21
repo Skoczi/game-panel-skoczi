@@ -10,7 +10,7 @@ function setup() {
         '../database/index.js': {
             serverRepository: { findById: async () => ({ provider_metadata_json: '{}' }) },
             actionsRepository: {
-                create: async (_id: number, _level: string, message: string) => { events.push(message); },
+                create: async (_id: number, _level: string, message: string, _actor: string, timestamp = '2026-09-21T13:00:00.000Z') => { events.push(message); rows.unshift({ message, timestamp }); },
                 getRecent: async () => rows,
             },
         },
@@ -50,4 +50,26 @@ test('history interleaves lifecycle markers and Docker output without losing ins
     rows.push({ timestamp: '2026-09-21T13:00:00.001Z', message: '[GamePanel] Starting container…' }, { timestamp: '2026-09-21T13:00:00.003Z', message: '[GamePanel] Container is running.' }, { timestamp: '2026-09-21T13:00:00.005Z', message: 'Unrelated private action' });
     const history = await module.consoleLogHistory(7, ['Installer output'], ['2026-09-21T13:00:00.002000001Z Game boot', '2026-09-21T13:00:00.004000001Z Steam connected']);
     assert.deepEqual(Array.from(history), ['Installer output', '2026-09-21T13:00:00.001Z [GamePanel] Starting container…', '2026-09-21T13:00:00.002000001Z Game boot', '2026-09-21T13:00:00.003Z [GamePanel] Container is running.', '2026-09-21T13:00:00.004000001Z Steam connected']);
+});
+
+
+test('concurrent status reports emit once while a later start remains visible', async () => {
+    const { module, events } = setup();
+    await Promise.all([module.recordConsoleStatus(7, 'running'), module.recordConsoleStatus(7, 'running')]);
+    assert.equal(events.length, 1);
+    await module.recordConsoleStatus(7, 'stopping');
+    await Promise.all([module.recordConsoleStatus(7, 'stopped'), module.recordConsoleStatus(7, 'stopped')]);
+    await module.recordConsoleStatus(7, 'starting');
+    await module.recordDockerLifecycle(7, 'container', 'start');
+    await Promise.all([module.recordConsoleStatus(7, 'running'), module.recordConsoleStatus(7, 'running')]);
+    assert.equal(events.filter(e => e === '[GamePanel] Container is running.').length, 2);
+    assert.equal(events.filter(e => e === '[GamePanel] Server is offline.').length, 1);
+});
+
+test('history hides old duplicate status markers but preserves real game output and later cycles', async () => {
+    const { module, rows } = setup();
+    rows.push(...['Container is running.', 'Container is running.', 'Restarting server…', 'Container is running.', 'Container is running.'].map((m, i) => ({ message: '[GamePanel] ' + m, timestamp: `2026-09-21T13:00:00.00${i}Z` })).reverse());
+    const history = Array.from(await module.consoleLogHistory(7, [], ['game line', 'game line'])) as string[];
+    assert.equal(history.filter(l => l.includes('Container is running.')).length, 2);
+    assert.equal(history.filter(l => l === 'game line').length, 2);
 });

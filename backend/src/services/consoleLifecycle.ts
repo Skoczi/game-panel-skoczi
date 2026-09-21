@@ -48,6 +48,8 @@ export function recordConsoleStatus(serverId: number, status: string, timestamp?
         if (!message) return;
         const server = await serverRepository.findById(serverId);
         if (!server) return;
+        const latest = (await actionsRepository.getRecent(serverId, 100)).find(a => a.message.startsWith(CONSOLE_PREFIX));
+        if (latest?.message === CONSOLE_PREFIX + message) return;
         await actionsRepository.create(serverId, 'info', CONSOLE_PREFIX + message, '', timestamp);
     }).catch(error => logError('CONSOLE:LIFECYCLE', error, { serverId }));
     pending.set(serverId, next);
@@ -85,7 +87,13 @@ export function recordDockerLifecycle(serverId: number, containerId: string, act
 export async function consoleLogHistory(serverId: number, install: string[], container: string[]): Promise<string[]> {
     await pending.get(serverId);
     const actions = await actionsRepository.getRecent(serverId, 100);
-    const markers = actions.filter(a => a.message.startsWith(CONSOLE_PREFIX)).reverse().map(a => `${a.timestamp} ${a.message}`);
+    const statusMessages = new Set(Object.values(messages).map(message => CONSOLE_PREFIX + message));
+    let previousMarker = '';
+    const markers = actions.filter(a => a.message.startsWith(CONSOLE_PREFIX)).reverse().filter(action => {
+        const duplicate = statusMessages.has(action.message) && action.message === previousMarker;
+        previousMarker = action.message;
+        return !duplicate;
+    }).map(a => `${a.timestamp} ${a.message}`);
     // Keep untimestamped installer output first; timestamped Docker and panel events interleave.
     const lines = [...install, ...container, ...markers];
     return lines.map((line, index) => ({ line, index, time: Date.parse(/^\d{4}-\d\d-\d\dT\S+/.exec(line)?.[0] || '') || 0 }))

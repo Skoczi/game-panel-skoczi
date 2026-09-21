@@ -176,8 +176,11 @@ export function ContainerConfigTab({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [pendingRestart, setPendingRestart] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
+  const [customParams, setCustomParams] = useState('');
+  const [savedCustomParams, setSavedCustomParams] = useState('');
   const [startupText, setStartupText] = useState('');
   const [savedStartupText, setSavedStartupText] = useState('');
   const [editingStartup, setEditingStartup] = useState(false);
@@ -202,7 +205,7 @@ export function ContainerConfigTab({
   const [savedMemoryLimitMb, setSavedMemoryLimitMb] = useState('');
 
   const hasChanges = useMemo(() => (
-    startupText !== savedStartupText ||
+    customParams !== savedCustomParams || startupText !== savedStartupText ||
     JSON.stringify(tcpPorts) !== JSON.stringify(savedTcpPorts) ||
     JSON.stringify(udpPorts) !== JSON.stringify(savedUdpPorts) ||
     JSON.stringify(envEntries) !== JSON.stringify(savedEnvEntries) ||
@@ -210,12 +213,17 @@ export function ContainerConfigTab({
     JSON.stringify(healthcheck) !== JSON.stringify(savedHealthcheck) ||
     cpuLimit !== savedCpuLimit ||
     memoryLimitMb !== savedMemoryLimitMb
-  ), [startupText, savedStartupText, tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
+  ), [customParams, savedCustomParams, startupText, savedStartupText, tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
 
   const applyLoaded = (raw: any) => {
+    const pending = raw?.providerMetadata?.pendingConfiguration;
+    setPendingRestart(!!pending);
+    if (pending) raw = { ...raw, ...pending, providerMetadata: { ...raw.providerMetadata, ...(pending.hasStartupPatch ? { startupCommand: pending.startupCommand } : {}), ...(pending.hasCustomParamsPatch ? { customParams: pending.customParams } : {}) } };
     const snapshot = raw?.providerMetadata?.template;
     setNativeSnapshot(snapshot?.document?.schemaVersion === 2 ? snapshot : null);
     setDockerImage(raw?.dockerImage ?? '');
+    const custom = formatStartup(raw?.providerMetadata?.customParams || []);
+    setCustomParams(custom); setSavedCustomParams(custom);
     const game = gameStartup(snapshot?.document?.lifecycle?.startup || []);
     const command = game ? formatStartup(raw?.providerMetadata?.startupCommand || game.command) : '';
     setStartupText(command); setSavedStartupText(command); setEditingStartup(false);
@@ -287,11 +295,13 @@ export function ContainerConfigTab({
   let startupError = '';
   let startupCommand = '';
   let startupArgv: string[] | undefined;
+  let customArgv: string[] = [];
   try {
     if (startupText && nativeSnapshot?.document.lifecycle) {
       startupArgv = parseStartup(startupText);
-      applyStartupOverride(nativeSnapshot.document.lifecycle.startup, startupArgv, [...nativeSnapshot.document.variables.map(v => v.key), ...nativeSnapshot.document.ports.map(p => p.env)]);
-      startupCommand = formatStartup(startupArgv.map(arg => arg.replace(/\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/g, (placeholder, key) => {
+      customArgv = customParams.trim() ? parseStartup(customParams) : [];
+      applyStartupOverride(nativeSnapshot.document.lifecycle.startup, [...startupArgv, ...customArgv], [...nativeSnapshot.document.variables.map(v => v.key), ...nativeSnapshot.document.ports.map(p => p.env)]);
+      startupCommand = formatStartup([...startupArgv, ...customArgv].map(arg => arg.replace(/\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/g, (placeholder, key) => {
         const variable = nativeSnapshot.document.variables.find(v => v.key === key);
         if (variable?.secret || !canManageEnv) return '[hidden]';
         return envEntries.find(e => e.key === key)?.value ?? variable?.default ?? placeholder;
@@ -299,7 +309,7 @@ export function ContainerConfigTab({
     }
   } catch (e) { startupError = (e as Error).message; }
 
-  const handleSave = async () => {
+  const handleSave = async (applyMode: 'restart' | 'defer' = 'restart') => {
     if (!serverId || !canEdit || startupError) return;
     setSaving(true);
     setError(null);
@@ -308,6 +318,7 @@ export function ContainerConfigTab({
     const cpuVal = parseFloat(cpuLimit);
     const memVal = parseInt(memoryLimitMb, 10);
     const payload: any = {
+      applyMode,
       ports: {
         tcp: tcpPorts
           .filter(p => p.host && p.container)
@@ -321,6 +332,7 @@ export function ContainerConfigTab({
       resourceLimits: (cpuVal > 0 || memVal > 0) ? { cpu: cpuVal > 0 ? cpuVal : 0, memoryMb: memVal > 0 ? memVal : 0 } : null,
     };
 
+    if (customParams !== savedCustomParams) payload.customParams = customArgv;
     if (startupText !== savedStartupText) payload.startupCommand = startupArgv;
     if (canManageEnv) {
       payload.env = entriesToEnv(envEntries);
@@ -331,6 +343,7 @@ export function ContainerConfigTab({
       setPortCheck(checked);
       if (Object.keys(checked.errors).length) throw new Error(Object.values(checked.errors)[0]);
       await apiClient.updateServer(serverId, payload);
+      setSavedCustomParams(customParams);
       setSavedStartupText(startupText);
       setSavedTcpPorts(tcpPorts);
       setSavedUdpPorts(udpPorts);
@@ -339,6 +352,7 @@ export function ContainerConfigTab({
       setSavedHealthcheck(healthcheck);
       setSavedCpuLimit(cpuLimit);
       setSavedMemoryLimitMb(memoryLimitMb);
+      setPendingRestart(applyMode === 'defer');
       setSuccess(true);
       onSaved?.();
       setTimeout(() => setSuccess(false), 4000);
@@ -398,7 +412,7 @@ export function ContainerConfigTab({
           <section className="gp-settings-card gp-settings-startup">
             <div className="gp-settings-section-head"><h4>Startup command</h4>{startupText && canEdit && canManageEnv && <AppButton tone="ghost" onClick={() => setEditingStartup(v => !v)}>{editingStartup ? 'Close editor' : 'Edit startup parameters'}</AppButton>}</div>
             <pre>{startupCommand || (startupError ? 'Fix the parameters below to preview the command.' : 'Default image entrypoint')}</pre>
-            {editingStartup && <div className="gp-settings-startup-editor"><textarea aria-label="Startup parameters" rows={4} spellCheck={false} value={startupText} disabled={saving} onChange={e => setStartupText(e.target.value)} /><small>Use template variables, for example {'{{MAP}}'}. Changes apply when you save.</small>{startupError && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
+            {editingStartup && <div className="gp-settings-startup-editor"><textarea aria-label="Startup parameters" rows={4} spellCheck={false} value={startupText} disabled={saving} onChange={e => setStartupText(e.target.value)} /><div className="gp-startup-variables"><small>Dostępne parametry:</small>{[...new Set([...(nativeSnapshot?.document.variables.map(v => v.key) || []), ...(nativeSnapshot?.document.ports.map(p => p.env).filter(Boolean) || [])])].map(key => <code key={key}>{'{{' + key + '}}'}</code>)}</div>{startupError && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
           </section>
           <section className="gp-settings-card"><h4>Docker image</h4><code>{dockerImage || '—'}</code></section>
         </div>
@@ -431,7 +445,8 @@ export function ContainerConfigTab({
                   onChange={e => updateEnv(idx, 'value', e.target.value)}
                   disabled={saving || !canEdit || !!nativeSnapshot?.document.ports.some(p => p.env === entry.key)}
                 />
-                {canEdit && !nativeSnapshot && (
+                {nativeSnapshot && startupText && <div className="gp-settings-variable"><label htmlFor="custom-startup-params">Custom params</label><input id="custom-startup-params" className={inputClass} placeholder="e.g. -tickrate 128 +sv_lan 0" value={customParams} disabled={saving || !canEdit} onChange={e => setCustomParams(e.target.value)} /><small className="text-xs text-slate-400">Appended to the startup command.</small>{startupError && !editingStartup && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
+            {canEdit && !nativeSnapshot && (
                   <AppButton
                     tone="ghost"
                     onClick={() => removeEnv(idx)}
@@ -734,9 +749,10 @@ export function ContainerConfigTab({
         )}
         {success && (
           <div className="text-sm text-green-400 bg-green-400/10 border border-green-400/30 rounded-lg px-4 py-3">
-            Settings saved.
+            {pendingRestart ? 'Saved. Changes apply on the next start or restart from the panel.' : 'Settings saved.'}
           </div>
         )}
+        {pendingRestart && !success && <p role="status" className="text-sm text-slate-400">Saved changes will apply on the next start or restart from the panel.</p>}
         {canEdit && (
           <div className="flex justify-end pb-4">
             <AppButton
@@ -755,13 +771,13 @@ export function ContainerConfigTab({
 
       {showRestartConfirm && (
         <WorkspaceModalOverlay>
-          <div role="dialog" aria-modal="true" aria-label="Restart required" className={`${contentBg} border ${borderColor} w-full max-w-md rounded-xl shadow-2xl`}>
+          <div role="dialog" aria-modal="true" aria-label="Save changes" className={`${contentBg} border ${borderColor} w-full max-w-xl rounded-xl shadow-2xl`}>
             <div className={`flex items-center justify-between border-b ${borderColor} px-6 py-4`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
                   <RefreshCw className="h-4 w-4 text-amber-500" />
                 </div>
-                <h3 className={`text-base font-semibold ${textPrimary}`}>Restart required</h3>
+                <h3 className={`text-base font-semibold ${textPrimary}`}>Save changes</h3>
               </div>
               <AppButton
                 onClick={() => setShowRestartConfirm(false)}
@@ -772,21 +788,18 @@ export function ContainerConfigTab({
             </div>
 
             <div className="px-6 py-5 space-y-4">
-              <p className={`text-sm ${textSecondary}`}>
-                Saving the container configuration will <span className={`font-medium ${textPrimary}`}>immediately restart the server</span>. Any ongoing game session will be interrupted.
-              </p>
-              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>Make sure players are warned before proceeding.</span>
-              </div>
+              <p className={`text-sm ${textSecondary}`}>Save for the next restart, or apply now and restart the server.</p>
             </div>
 
-            <div className={`flex justify-end gap-3 border-t ${borderColor} px-6 py-4`}>
+            <div className={`flex flex-wrap justify-end gap-3 border-t ${borderColor} px-6 py-4`}>
               <AppButton
                 onClick={() => setShowRestartConfirm(false)}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${textSecondary} hover:bg-gray-100 dark:hover:bg-white/10`}
               >
                 Cancel
+              </AppButton>
+              <AppButton tone="secondary" disabled={saving} onClick={() => { setShowRestartConfirm(false); void handleSave('defer'); }}>
+                Save without restart
               </AppButton>
               <AppButton
                 onClick={() => { setShowRestartConfirm(false); void handleSave(); }}

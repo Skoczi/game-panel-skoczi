@@ -451,6 +451,8 @@ class ApiClient {
   async updateServer(
     serverId: number,
     payload: {
+      applyMode?: 'restart' | 'defer';
+      customParams?: string[];
       startupCommand?: string[] | null;
       name?: string;
       ports?: {

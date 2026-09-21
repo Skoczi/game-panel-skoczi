@@ -18,6 +18,8 @@ test('settings preview, parameter editing and port checks preserve IP and block 
  await page.getByLabel('Map', { exact: true }).fill('de_dust2');
  await expect(page.locator('.gp-settings-startup pre')).toContainText('+map de_dust2');
  await page.getByRole('button', { name: 'Edit startup parameters' }).click();
+ await expect(page.getByText('Dostępne parametry:', { exact: true })).toBeVisible();
+ await expect(page.locator('.gp-startup-variables')).toContainText('{{SERVER_PORT}}');
  await page.getByLabel('Startup parameters').fill('./hlds_linux -port {{SERVER_PORT}} +map {{MAP}} +maxplayers {{MAX_PLAYERS}}');
  await expect(page.locator('.gp-settings-startup pre')).toContainText('+maxplayers 32');
  const port = page.getByLabel('UDP public port 1');
@@ -43,4 +45,27 @@ test('settings preview, parameter editing and port checks preserve IP and block 
  await page.setViewportSize({ width: 390, height: 844 });
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
  await page.screenshot({ path: 'test-results/settings-mobile.png', fullPage: true });
+});
+
+test('running servers can save for later without submitting a restart', async ({ page }) => {
+ let payload: any;
+ await page.route('**/api/**', route => {
+  const path = new URL(route.request().url()).pathname;
+  if (!path.startsWith('/api/')) return route.continue();
+  if (path.endsWith('/available-ports')) return route.fulfill({ json: { ports: [27050] } });
+  if (route.request().method() === 'PATCH') { payload=route.request().postDataJSON(); return route.fulfill({ json: { success: true } }); }
+  return route.fulfill({ json: server });
+ });
+ await page.goto('/test/container-settings.fixture.html?running');
+ await page.getByLabel('Custom params', { exact: true }).fill('+sv_lan 0 -tickrate 128');
+ await expect(page.locator('.gp-settings-startup pre')).toContainText('+sv_lan 0 -tickrate 128');
+ await page.getByLabel('Map', { exact: true }).fill('de_dust2');
+ await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+ const dialog = page.getByRole('dialog', { name: 'Save changes' });
+ await expect(dialog.getByRole('button', { name: 'Save without restart' })).toBeVisible();
+ await dialog.getByRole('button', { name: 'Save without restart' }).click();
+ await expect(page.getByText('Saved. Changes apply on the next start or restart from the panel.')).toBeVisible();
+ expect(payload.applyMode).toBe('defer');
+ expect(payload.customParams).toEqual(['+sv_lan','0','-tickrate','128']);
+ expect(payload.env.MAP).toBe('de_dust2');
 });

@@ -24,10 +24,16 @@ function requestedHostPorts(ports: NormalizedPorts): HostBinding[] {
     ];
 }
 
+function savedBindings(server: { ports_json: string; provider_metadata_json?: string | null }): HostBinding[] {
+    const active = requestedHostPorts(parseStoredPorts(server as any));
+    const pending = JSON.parse(server.provider_metadata_json || '{}').pendingConfiguration?.ports;
+    return pending ? [...active, ...requestedHostPorts(pending)] : active;
+}
+
 export async function reservedHostBindings(excludeServerId?: number, excludeContainerIds?: string[]): Promise<HostBinding[]> {
     const servers = await serverRepository.listAll();
     const docker = await dockerUtils.listPublishedHostPorts({ excludeServerIds: excludeServerId ? [excludeServerId] : [], excludeContainerIds });
-    return [...servers.filter(s => s.id !== excludeServerId).flatMap(server => requestedHostPorts(parseStoredPorts(server))), ...docker];
+    return [...servers.filter(s => s.id !== excludeServerId).flatMap(server => savedBindings(server)), ...docker];
 }
 
 function matchesRequestedPort(
@@ -47,8 +53,7 @@ export async function assertHostPortsAvailableForServer(input: HostPortCheckInpu
     for (const server of servers) {
         if (server.id === input.excludeServerId) continue;
 
-        const storedPorts = parseStoredPorts(server);
-        for (const port of requestedHostPorts(storedPorts)) {
+        for (const port of savedBindings(server)) {
             if (!matchesRequestedPort(requested, port.protocol, port.hostPort, port.hostIp)) continue;
 
             throw conflictError(

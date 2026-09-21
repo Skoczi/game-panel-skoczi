@@ -3,3 +3,5 @@
 @media(max-width:760px){.gp-settings-runtime,.gp-settings-variables{grid-template-columns:minmax(0,1fr)}.gp-settings-card{padding:18px}.gp-settings-port{grid-template-columns:repeat(2,minmax(0,1fr))}.gp-settings-address,.gp-settings-port-name{grid-column:1/-1}.gp-settings-advanced>summary span{display:none}}
 
 .gp-settings-runtime pre,.gp-settings-runtime code{font-size:14px}.gp-settings-startup .gp-settings-section-head button{font-size:12px;white-space:nowrap}@media(max-width:760px){.gp-settings-startup .gp-settings-section-head{flex-wrap:wrap}}
+
+.gp-startup-variables{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.gp-startup-variables code{padding:3px 7px;border:1px solid #334258;border-radius:5px;font-size:11px;line-height:1.4;color:#99dbe7}

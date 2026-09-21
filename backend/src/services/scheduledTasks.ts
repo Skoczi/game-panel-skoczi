@@ -1,3 +1,4 @@
+import { applyPendingServerConfiguration } from './serverReconfiguration.js';
 import { isPanelMaintenance } from './panelMaintenance.js';
 import { nativeServerTemplate } from './nativeBackups.js';
 import { scheduledTaskRepository, serverRepository, actionsRepository } from '../database/index.js';
@@ -374,6 +375,9 @@ async function completeDockerPowerTransition(serverId: number): Promise<void> {
 
 async function executeRestartTask(server: GameServerRow & { docker_container_id: string }): Promise<void> {
     try {
+        const applied = await applyPendingServerConfiguration(server.id);
+        if (applied?.wasRunning) return;
+        if (applied) server = (await serverRepository.findById(server.id)) as typeof server;
         await serverRepository.updateDesiredState(server.id, 'running');
         await beginServerTransition(server.id, 'restarting', {
             timeoutMs: POWER_TRANSITION_TIMEOUT_MS,

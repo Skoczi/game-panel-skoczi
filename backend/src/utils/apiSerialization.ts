@@ -118,7 +118,11 @@ export function serializeInstallationProgress(
 
 export function redactServerEnv<T extends { env: Record<string, string>; providerMetadata?: JsonObject }>(server: T): T {
     if (!server.providerMetadata) return { ...server, env: {} };
-    const { startupCommand: _startup, ...metadata } = server.providerMetadata;
+    const { startupCommand: _startup, customParams: _customParams, ...metadata } = server.providerMetadata;
+    if (metadata.pendingConfiguration && typeof metadata.pendingConfiguration === 'object') {
+        const { env: _env, startupCommand: _command, customParams: _custom, ...pending } = metadata.pendingConfiguration as JsonObject;
+        metadata.pendingConfiguration = pending;
+    }
     return { ...server, env: {}, providerMetadata: metadata };
 }
 

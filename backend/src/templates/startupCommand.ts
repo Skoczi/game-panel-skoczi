@@ -37,3 +37,10 @@ export function applyStartupOverride(original: string[], override: unknown, allo
     }
     return game.wrapped ? [...original.slice(0, 4), ...override.slice(1)] : [...override];
 }
+
+export function appendStartupParams(argv: string[], params: unknown, allowed: string[]): string[] {
+    if (params == null || (Array.isArray(params) && params.length === 0)) return argv;
+    const game = gameStartup(argv);
+    if (!game || !Array.isArray(params)) throw new Error('Invalid custom parameters.');
+    return applyStartupOverride(argv, [...game.command, ...params], allowed);
+}

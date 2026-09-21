@@ -1,3 +1,4 @@
+import { applyPendingServerConfiguration } from '../../services/serverReconfiguration.js';
 import { Router, type Response } from 'express';
 import {
     type AuthenticatedRequest,
@@ -67,9 +68,11 @@ export function createServerPowerRoutes(): Router {
                 serverId = parseServerId(req.params.id);
                 if (!serverId) return res.status(400).json({ error: 'Invalid server id' });
 
-                const server = await getServerForPowerAction(serverId);
+                let server = await getServerForPowerAction(serverId);
                 const currentStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);
                 if (currentStatus !== 'running') {
+                    await applyPendingServerConfiguration(serverId);
+                    server = await getServerForPowerAction(serverId);
                     await assertHostPortsAvailableForServer({
                         ports: parseStoredPorts(server),
                         excludeServerId: serverId,
@@ -178,7 +181,13 @@ export function createServerPowerRoutes(): Router {
                 serverId = parseServerId(req.params.id);
                 if (!serverId) return res.status(400).json({ error: 'Invalid server id' });
 
-                const server = await getServerForPowerAction(serverId);
+                let server = await getServerForPowerAction(serverId);
+                const applied = await applyPendingServerConfiguration(serverId);
+                if (applied?.wasRunning) {
+                    await actionsRepository.create(serverId, 'info', 'Saved settings applied; server restarted', req.user?.username || '');
+                    return res.json({ success: true, message: 'Saved settings applied; server restarted' });
+                }
+                if (applied) server = await getServerForPowerAction(serverId);
                 const currentStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);
                 if (currentStatus !== 'running') {
                     await assertHostPortsAvailableForServer({

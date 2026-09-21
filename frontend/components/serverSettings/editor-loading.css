@@ -1,0 +1,37 @@
+.gp-editor-loading {
+  --loading-muted: #7e91ab;
+  --loading-border: #2a3b51;
+  --loading-surface: #0c1625;
+  --loading-line: #25364c;
+  --loading-accent: #00c8df;
+  display: grid;
+  place-items: center;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  padding: 32px 24px;
+  box-sizing: border-box;
+  overflow: auto;
+  background: radial-gradient(ellipse at 50% 42%, #00c8df06, transparent 65%);
+}
+.gp-editor-loading-content { width: min(100%, 300px); text-align: center; }
+.gp-editor-loading-icon { position: relative; display: grid; place-items: center; width: 60px; height: 60px; margin: 0 auto 20px; border-radius: 18px; color: var(--loading-accent); background: #00c8df0b; border: 1px solid #00c8df25; }
+.gp-editor-loading-icon::after { content: ''; position: absolute; inset: -6px; border: 1px solid transparent; border-top-color: var(--loading-accent); border-radius: 50%; animation: gp-editor-loading-spin 1.8s linear infinite; }
+.gp-editor-loading-title { font-size: 15px; line-height: 24px; font-weight: 600; color: inherit; }
+.gp-editor-loading-filename { margin-top: 5px; color: var(--loading-muted); font: 12px/20px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.gp-editor-loading-preview { margin-top: 24px; padding: 15px 18px; border: 1px solid var(--loading-border); border-radius: 12px; background: var(--loading-surface); text-align: left; animation: gp-editor-loading-breathe 2s ease-in-out infinite; }
+.gp-editor-loading-line { display: flex; align-items: center; gap: 15px; height: 20px; }
+.gp-editor-loading-line span { width: 8px; flex-shrink: 0; color: var(--loading-muted); opacity: .5; font: 10px/1 ui-monospace, monospace; }
+.gp-editor-loading-line i { display: block; height: 5px; border-radius: 4px; background: var(--loading-line); }
+.gp-editor-loading-line:nth-child(2) i, .gp-editor-loading-line:nth-child(4) i { background: color-mix(in srgb, var(--loading-accent) 20%, var(--loading-line)); }
+:root:not(.dark) .gp-editor-loading { --loading-muted: #64748b; --loading-border: #dce5ee; --loading-surface: #f8fafc; --loading-line: #dce5ee; --loading-accent: #087e96; }
+@keyframes gp-editor-loading-spin { to { transform: rotate(360deg); } }
+@keyframes gp-editor-loading-breathe { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  .gp-editor-loading-icon::after, .gp-editor-loading-preview { animation: none; }
+}
+@media (max-height: 600px) {
+  .gp-editor-loading { min-height: 180px; padding-block: 24px; }
+  .gp-editor-loading-preview { display: none; }
+}

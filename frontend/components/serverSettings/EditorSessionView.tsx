@@ -1,3 +1,4 @@
+import { EditorLoadingState } from './EditorLoadingState';
 import { FileHistoryModal } from './FileHistoryModal';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Copy, Download, FolderOpen, Save, X, FileText, History } from 'lucide-react';
@@ -123,11 +124,11 @@ export function EditorSessionView({
               style={{ display: doc.id === active?.id ? undefined : 'none' }}
             >
               {doc.loading ? (
-                <p>Loading file…</p>
+                <EditorLoadingState filename={doc.name} />
               ) : doc.loaded && doc.kind !== 'text' ? (
                 doc.id === active?.id && session.serverId ? <MediaPreview key={doc.id} doc={doc} serverId={session.serverId} /> : null
               ) : doc.loaded ? (
-                <Suspense fallback={<p>Loading editor…</p>}>
+                <Suspense fallback={<EditorLoadingState filename={doc.name} phase="editor" />}>
                   <CodeEditor
                     filename={doc.name}
                     value={doc.content}

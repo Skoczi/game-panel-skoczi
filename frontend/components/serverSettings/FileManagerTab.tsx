@@ -1,3 +1,4 @@
+import { EditorLoadingState } from './EditorLoadingState';
 import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { FileOperations } from './FileOperations';
 import {
@@ -853,11 +854,11 @@ export function FileManagerTab({
 
             <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
               {fileLoading ? (
-                <div className={`p-4 text-sm ${textSecondary}`}>Loading file...</div>
+                <EditorLoadingState filename={selectedFile.name} />
               ) : (
                 <div className="flex-1 overflow-hidden">
                   <Suspense
-                    fallback={<div className={`p-4 text-sm ${textSecondary}`}>Loading editor…</div>}
+                    fallback={<EditorLoadingState filename={selectedFile.name} phase="editor" />}
                   >
                     <CodeEditor
                       // Each file owns an independent model, find state and undo history.

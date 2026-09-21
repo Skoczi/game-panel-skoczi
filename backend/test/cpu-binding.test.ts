@@ -52,4 +52,9 @@ test('assignment inventory preserves stopped/pending servers, includes external 
     assert.equal(data.assignments.length,3); assert.equal(data.unboundContainerCount,1);
     assert.deepEqual(Array.from(data.assignments[0].pendingCpuSet),[1,3]); assert.equal(data.assignments[0].state,'exited');
     assert.equal(data.assignments[1].source,'external');
+    const external = { Id: '123456789abc', Name: '/620475c4-ea82-478c-98d4-7d9e93093a78', Config: { Labels: { Service: 'Pterodactyl' }, Env: ['HOSTNAME=OnlyDD2 ^ CSCO.PL', 'SERVER_PORT=27015', 'STEAM_ACC=never-display-this'] } };
+    assert.equal(module.externalContainerName(external), 'OnlyDD2 ^ CSCO.PL · :27015');
+    assert.equal(module.externalContainerName({ ...external, Config: { ...external.Config, Env: ['SERVER_PORT=27015'] } }), 'Pterodactyl 620475c4 · :27015');
+    assert.equal(module.externalContainerName({ ...external, Config: { ...external.Config, Env: ['HOSTNAME=123456789abc', 'SERVER_PORT=99999'] } }), 'Pterodactyl 620475c4');
+    assert.equal(module.externalContainerName({ ...external, Name: '/postgres', Config: { Env: ['HOSTNAME=123456789abc'] } }), 'postgres');
 });

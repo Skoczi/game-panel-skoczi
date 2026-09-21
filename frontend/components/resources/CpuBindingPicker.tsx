@@ -8,7 +8,7 @@ export type CpuTopology = {
   cpuBindingProtocol: number; model: string; availableCpuIds: number[];
   cores: { socketId: number; coreId: number; cpuIds: number[] }[];
   checkedAt: string; unboundContainerCount: number;
-  assignments: { serverId: number | null; containerId: string | null; name: string; source: string; state: string; configuredCpuSet: number[]; effectiveCpuSet: number[]; pendingCpuSet: number[] | null }[];
+  assignments: { serverId: number | null; containerId: string | null; containerName?: string; name: string; source: string; state: string; configuredCpuSet: number[]; effectiveCpuSet: number[]; pendingCpuSet: number[] | null }[];
 };
 export function CpuBindingPicker({ value, onChange, nodeId = ACTIVE_NODE, serverId, disabled = false, refreshKey = 0 }: {
   value: number[]; onChange: (ids: number[]) => void; nodeId?: string; serverId?: number; disabled?: boolean; refreshKey?: number;
@@ -68,7 +68,7 @@ export function CpuBindingPicker({ value, onChange, nodeId = ACTIVE_NODE, server
               const actualOnCore = a.effectiveCpuSet.some(id => core.cpuIds.includes(id));
               const configuredOnCore = a.configuredCpuSet.some(id => core.cpuIds.includes(id));
               return <div key={a.serverId ? `server-${a.serverId}` : a.containerId}>
-                <span title={a.name}>{a.name}{a.serverId === serverId ? ' · this server' : ''}</span>
+                <span title={a.containerName ? `${a.name}\nContainer: ${a.containerName}` : a.name}>{a.name}{a.serverId === serverId ? ' · this server' : ''}</span>
                 <small>{a.source === 'external' ? 'External · ' : ''}{a.state}{!actualOnCore && configuredOnCore ? ' · configured' : ''}{pending ? ` · next restart: ${a.pendingCpuSet!.join(', ') || 'no binding'}` : ''}</small>
               </div>;
             }) : <small>No explicit assignments</small>}</div>

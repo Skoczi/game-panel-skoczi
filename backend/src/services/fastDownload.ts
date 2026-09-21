@@ -5,7 +5,11 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { getConfig } from "../config.js";
-import { serverRepository, actionsRepository, fileTransferJobRepository } from "../database/index.js";
+import {
+  serverRepository,
+  actionsRepository,
+  fileTransferJobRepository,
+} from "../database/index.js";
 import { getServerStoragePaths } from "../utils/storage.js";
 import { nativeServerTemplate } from "./nativeBackups.js";
 import { enterServerMutation } from "./nativeOperationLock.js";
@@ -25,6 +29,7 @@ type Asset = {
   source: string;
   outputs: Record<string, string>;
   signatures?: Record<string, string>;
+  format?: "none" | "bzip2";
 };
 type State = {
   enabled: boolean;
@@ -144,7 +149,11 @@ export async function fastDownloadStatus(id: number) {
     compression: state.compression,
     busy: busy.has(id) || queued.has(id),
     url: profile && origin ? `${origin}/fdl/srv${id}/${profile.game}/` : null,
-    directory: profile ? `/fastdownload/${profile.game}` : null,
+    directory: profile
+      ? state.compression
+        ? `/fastdownload/${profile.game}`
+        : `/${profile.source}`
+      : null,
     lastSync: state.lastSync,
     error: state.error,
     published: state.published,
@@ -160,7 +169,8 @@ export async function updateFastDownload(
   actor: string,
 ) {
   const server = await serverFor(id);
-  if (!fastDownloadProfile(server) || !fastDownloadOrigin())
+  const profile = fastDownloadProfile(server);
+  if (!profile || !fastDownloadOrigin())
     throw Object.assign(
       new Error("FastDownload is not available for this server"),
       { statusCode: 409 },
@@ -178,7 +188,7 @@ export async function updateFastDownload(
       new Error("Expected enabled and/or compression booleans"),
       { statusCode: 400 },
     );
-  const state = await readState(id);
+  const state = await readState(id, profile.compression);
   Object.assign(state, input);
   await saveState(id, state);
   await actionsRepository.create(
@@ -317,144 +327,182 @@ export async function synchronizeFastDownload(id: number, requestHeld = false) {
       targetRoot = path.join(data, "fastdownload", profile.game);
     // Complete scan first: failures and missing game roots must never mean deletions.
     const sources = await scan(sourceRoot, profile.folders);
-    await inDirectory(
-      data,
-      ["fastdownload", ...profile.game.split("/")],
-      true,
-      async (dir) => {
-        if (process.getuid?.() === 0)
-          await fs.chown(dir, profile.uid, profile.gid);
-      },
-    );
-    for (const key of Object.keys(state.assets)) {
-      if (!allowedAsset(key)) throw new Error("Invalid FastDownload manifest");
-      if (!sources.has(key)) {
-        // A symlink or unreadable replacement is not proof that the source was deleted.
-        try {
-          const h = await openAsset(sourceRoot, key);
-          await h.close();
-          continue;
-        } catch (e: any) {
-          if (e.code !== "ENOENT") throw e;
-        }
-        for (const suffix of ["", ".bz2"])
-          await removeAsset(targetRoot, key + suffix);
-        delete state.assets[key];
-      }
-    }
-    // Persist deletion ownership before creating outputs. Recovery treats unknown files as manual.
-    await saveState(id, state);
-    let bytes = 0,
-      completed = 0;
-    for (const [key, sig] of sources) {
-      const previous = state.assets[key];
-      const asset: Asset = previous ?? { source: "", outputs: {} };
-      const handle = await openAsset(sourceRoot, key);
-      try {
-        const st = await handle.stat();
-        if (signature(st) !== sig) continue;
-        // Let uploads settle; never publish an in-progress transfer.
-        if (Date.now() - st.mtimeMs < 2000) continue;
-        const currentSignatures: Record<string, string> = {};
+    if (!state.compression) {
+      // Direct publication needs no copies. Delete only outputs still owned by our manifest.
+      const directories = new Set<string>();
+      for (const [key, asset] of Object.entries(state.assets)) {
+        if (!allowedAsset(key))
+          throw new Error("Invalid FastDownload manifest");
         for (const suffix of ["", ".bz2"]) {
-          try {
-            const output = await openAsset(targetRoot, key + suffix);
-            try {
-              currentSignatures[suffix] = signature(await output.stat());
-            } finally {
-              await output.close();
-            }
-          } catch (e: any) {
-            if (e.code !== "ENOENT") throw e;
-          }
+          const hash = asset.outputs[suffix];
+          if (hash && (await fileHash(targetRoot, key + suffix)) === hash)
+            await removeAsset(targetRoot, key + suffix);
         }
-        if (
-          previous?.source === sig &&
-          asset.signatures &&
-          JSON.stringify(currentSignatures) ===
-            JSON.stringify(asset.signatures) &&
-          (!!asset.outputs[".bz2"] === state.compression || !asset.outputs[""])
-        )
-          continue;
-        for (const suffix of ["", ".bz2"]) {
-          const name = key + suffix;
-          const existing = await fileHash(targetRoot, name);
-          const owned = existing !== null && existing === asset.outputs[suffix];
-          if (!state.compression && suffix) {
-            if (owned) await removeAsset(targetRoot, name);
-            delete asset.outputs[suffix];
-            continue;
-          }
-          if (existing !== null && !owned) {
-            delete asset.outputs[suffix];
-            continue;
-          }
-
-          // Do not retain generated compression over a manually replaced original.
-          if (
-            suffix &&
-            (await fileHash(targetRoot, key)) !== asset.outputs[""]
-          ) {
-            if (owned) await removeAsset(targetRoot, name);
-            delete asset.outputs[suffix];
-            continue;
-          }
-          if (previous?.source === sig && owned) continue;
-          const space = await fs.statfs(targetRoot);
-          if (
-            Number(space.bavail) * Number(space.bsize) <
-            st.size * 2 + 64 * 1024 * 1024
-          )
-            throw new Error(
-              "Not enough free space to publish FastDownload assets",
-            );
-          bytes += st.size;
-          if (bytes > 4 * 1024 ** 3)
-            throw new Error(
-              "Publication batch reached 4 GiB; synchronize again to continue",
-            );
-          await atomicAsset(
-            targetRoot,
-            name,
-            existing,
-            async (temporary) => {
-              if (suffix) await compress(handle, temporary);
-              else await copyAsset(handle, temporary);
-              const current = await openAsset(sourceRoot, key);
-              try {
-                if (
-                  signature(await current.stat()) !== sig ||
-                  signature(await handle.stat()) !== sig
-                )
-                  throw new Error(
-                    "Source changed during publication; retry synchronization",
-                  );
-              } finally {
-                await current.close();
-              }
-            },
-            profile,
+        const names = parts(key);
+        names.pop();
+        for (let i = 0; i <= names.length; i++)
+          directories.add(
+            ["fastdownload", ...parts(profile.game), ...names.slice(0, i)].join(
+              "/",
+            ),
           );
-          asset.outputs[suffix] = (await fileHash(targetRoot, name))!;
-        }
-        asset.signatures = {};
-        for (const suffix of ["", ".bz2"]) {
+      }
+      directories.add("fastdownload");
+      for (const directory of [...directories].sort(
+        (a, b) => b.split("/").length - a.split("/").length,
+      )) {
+        const names = parts(directory),
+          name = names.pop()!;
+        await inDirectory(data, names, false, (dir) =>
+          fs.rmdir(path.join(dir, name)),
+        ).catch((e) => {
+          if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(e.code)) throw e;
+        });
+      }
+      state.assets = {};
+    } else {
+      await inDirectory(
+        data,
+        ["fastdownload", ...profile.game.split("/")],
+        true,
+        async (dir) => {
+          if (process.getuid?.() === 0)
+            await fs.chown(dir, profile.uid, profile.gid);
+        },
+      );
+      for (const key of Object.keys(state.assets)) {
+        if (!allowedAsset(key))
+          throw new Error("Invalid FastDownload manifest");
+        if (!sources.has(key)) {
+          // A symlink or unreadable replacement is not proof that the source was deleted.
           try {
-            const output = await openAsset(targetRoot, key + suffix);
-            try {
-              asset.signatures[suffix] = signature(await output.stat());
-            } finally {
-              await output.close();
-            }
+            const h = await openAsset(sourceRoot, key);
+            await h.close();
+            continue;
           } catch (e: any) {
             if (e.code !== "ENOENT") throw e;
           }
+          for (const suffix of ["", ".bz2"])
+            await removeAsset(targetRoot, key + suffix);
+          delete state.assets[key];
         }
-        asset.source = sig;
-        state.assets[key] = asset;
-        if (++completed % 20 === 0) await saveState(id, state);
-      } finally {
-        await handle.close();
+      }
+      // Persist deletion ownership before creating outputs. Recovery treats unknown files as manual.
+      await saveState(id, state);
+      let bytes = 0,
+        completed = 0;
+      for (const [key, sig] of sources) {
+        const previous = state.assets[key];
+        const asset: Asset = previous ?? { source: "", outputs: {} };
+        const handle = await openAsset(sourceRoot, key);
+        try {
+          const st = await handle.stat();
+          if (signature(st) !== sig) continue;
+          // Let uploads settle; never publish an in-progress transfer.
+          if (Date.now() - st.mtimeMs < 2000) continue;
+          const currentSignatures: Record<string, string> = {};
+          for (const suffix of ["", ".bz2"]) {
+            try {
+              const output = await openAsset(targetRoot, key + suffix);
+              try {
+                currentSignatures[suffix] = signature(await output.stat());
+              } finally {
+                await output.close();
+              }
+            } catch (e: any) {
+              if (e.code !== "ENOENT") throw e;
+            }
+          }
+          if (
+            previous?.source === sig &&
+            asset.signatures &&
+            JSON.stringify(currentSignatures) ===
+              JSON.stringify(asset.signatures) &&
+            asset.format === (state.compression ? "bzip2" : "none")
+          )
+            continue;
+          // Publish the selected format before removing a generated obsolete variant.
+          const selected = state.compression ? ".bz2" : "";
+          for (const suffix of [selected, selected ? "" : ".bz2"]) {
+            const name = key + suffix;
+            const existing = await fileHash(targetRoot, name);
+            const owned =
+              existing !== null && existing === asset.outputs[suffix];
+            if (suffix !== selected) {
+              if (owned) await removeAsset(targetRoot, name);
+              delete asset.outputs[suffix];
+              continue;
+            }
+            if (existing !== null && !owned) {
+              delete asset.outputs[suffix];
+              continue;
+            }
+
+            // Do not retain generated compression over a manually replaced original.
+            const original = suffix ? await fileHash(targetRoot, key) : null;
+            if (suffix && original !== null && original !== asset.outputs[""]) {
+              if (owned) await removeAsset(targetRoot, name);
+              delete asset.outputs[suffix];
+              continue;
+            }
+            if (previous?.source === sig && owned) continue;
+            const space = await fs.statfs(targetRoot);
+            if (
+              Number(space.bavail) * Number(space.bsize) <
+              st.size * 2 + 64 * 1024 * 1024
+            )
+              throw new Error(
+                "Not enough free space to publish FastDownload assets",
+              );
+            bytes += st.size;
+            if (bytes > 4 * 1024 ** 3)
+              throw new Error(
+                "Publication batch reached 4 GiB; synchronize again to continue",
+              );
+            await atomicAsset(
+              targetRoot,
+              name,
+              existing,
+              async (temporary) => {
+                if (suffix) await compress(handle, temporary);
+                else await copyAsset(handle, temporary);
+                const current = await openAsset(sourceRoot, key);
+                try {
+                  if (
+                    signature(await current.stat()) !== sig ||
+                    signature(await handle.stat()) !== sig
+                  )
+                    throw new Error(
+                      "Source changed during publication; retry synchronization",
+                    );
+                } finally {
+                  await current.close();
+                }
+              },
+              profile,
+            );
+            asset.outputs[suffix] = (await fileHash(targetRoot, name))!;
+          }
+          asset.signatures = {};
+          for (const suffix of ["", ".bz2"]) {
+            try {
+              const output = await openAsset(targetRoot, key + suffix);
+              try {
+                asset.signatures[suffix] = signature(await output.stat());
+              } finally {
+                await output.close();
+              }
+            } catch (e: any) {
+              if (e.code !== "ENOENT") throw e;
+            }
+          }
+          asset.format = state.compression ? "bzip2" : "none";
+          asset.source = sig;
+          state.assets[key] = asset;
+          if (++completed % 20 === 0) await saveState(id, state);
+        } finally {
+          await handle.close();
+        }
       }
     }
     if (!state.lastSync && profile.config) {
@@ -591,7 +639,7 @@ export async function applyFastDownloadConfig(id: number, actor: string) {
 export async function resolveFastDownload(id: number, relative: string) {
   const server = await serverFor(id),
     profile = fastDownloadProfile(server),
-    state = await readState(id);
+    state = await readState(id, profile?.compression);
   if (
     !profile ||
     !state.enabled ||
@@ -602,6 +650,17 @@ export async function resolveFastDownload(id: number, relative: string) {
   const asset = relative.slice(profile.game.length + 1),
     source = asset.replace(/\.bz2$/i, "");
   if (!allowedAsset(source)) return null;
+  if (!state.compression) {
+    if (
+      asset !== source ||
+      !profile.folders.some((folder) => asset.startsWith(folder + "/"))
+    )
+      return null;
+    const root = path.join(getServerStoragePaths(id).dataDir, profile.source);
+    const handle = await openAsset(root, asset);
+    await handle.close();
+    return `${id}/data/${profile.source}/${asset}`;
+  }
   const root = path.join(getServerStoragePaths(id).dataDir, "fastdownload");
   const handle = await openAsset(root, relative);
   await handle.close();

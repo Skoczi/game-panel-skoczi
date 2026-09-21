@@ -148,11 +148,22 @@ export function FastDownloadCard({
             onChange={(compression) =>
               void action(() => apiClient.updateFastDownload(serverId, { compression }))
             }
-            label="Create compressed .bz2 copies"
+            label="Publish .bz2 only (Source games)"
           />
           <p>
-            Uploads go in <code>/data{data.directory}</code>. Deleted source files are removed from
-            FastDownload; standalone uploads stay. Automatic sync runs every minute.
+            {data.compression ? (
+              <>
+                Only .bz2 files are generated in <code>/data{data.directory}</code>. Deleted source
+                files are removed from FastDownload; standalone uploads stay. Automatic sync runs
+                every minute.
+              </>
+            ) : (
+              <>
+                Files are served directly from <code>/data{data.directory}</code>, limited to the
+                template’s folders. No copies or links are created; source changes apply
+                immediately.
+              </>
+            )}
           </p>
           <div className="gp-fdl-actions">
             <AppButton
@@ -168,7 +179,8 @@ export function FastDownloadCard({
                 disabled={!data.lastSync}
                 onClick={() => onOpenFiles(data.directory!)}
               >
-                <FolderOpen size={16} /> Browse FastDownload
+                <FolderOpen size={16} />{' '}
+                {data.compression ? 'Browse FastDownload' : 'Browse game files'}
               </AppButton>
             )}
             {canConfigure && data.canApplyConfig && (

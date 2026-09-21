@@ -16,7 +16,7 @@ const profile = {
   enabled: true,
   gameRoot: "serverfiles/cstrike",
   folders: ["maps", "models"],
-  compression: "bzip2",
+  compression: "none",
   configFile: "serverfiles/cstrike/server.cfg",
 };
 test("template FastDownload profile is explicit, validated and does not change legacy snapshot hashes", () => {
@@ -40,7 +40,7 @@ test("template FastDownload profile is explicit, validated and does not change l
     false,
   );
 });
-test("publishes originals/compression; preserves manual updates; deletes linked variants; rejects unsafe paths and retains files on scan errors", async () => {
+test("publishes one selected format and migrates legacy copies; preserves manual updates; deletes linked variants; rejects unsafe paths and retains files on scan errors", async () => {
   const directory = await fs.realpath(
     await fs.mkdtemp(path.join(tmpdir(), "gp-fdl-")),
   );
@@ -60,7 +60,10 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     {
       "node:fs": fsModule,
       "./gameConsole.js": {
-        sendGameConsoleCommand: async (_server: unknown, command: string) => { commands.push(command); return {ok:true}; },
+        sendGameConsoleCommand: async (_server: unknown, command: string) => {
+          commands.push(command);
+          return { ok: true };
+        },
       },
       "node:path": path,
       "node:crypto": crypto,
@@ -77,7 +80,9 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
           listAll: async () => [server],
         },
         actionsRepository: { create: async () => {} },
-        fileTransferJobRepository: {hasActiveForServer:async()=>transferActive},
+        fileTransferJobRepository: {
+          hasActiveForServer: async () => transferActive,
+        },
       },
       "../utils/storage.js": {
         getServerStoragePaths: () => ({ dataDir: data }),
@@ -113,20 +118,68 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     await write("server.cfg", 'hostname "test"\n');
     await write("addons/private.mdl", "private");
     await module.synchronizeFastDownload(8);
-    assert.deepEqual(commands, ['sv_downloadurl "https://waw2.example.test/fdl/srv8/cstrike/"']);
+    assert.deepEqual(commands, [
+      'sv_downloadurl "https://waw2.example.test/fdl/srv8/cstrike/"',
+    ]);
+    await assert.rejects(fs.stat(path.join(data, "fastdownload")));
     assert.equal(
-      await fs.readFile(path.join(target, "maps/test.bsp"), "utf8"),
-      "map data ".repeat(100),
+      await module.resolveFastDownload(8, "cstrike/maps/test.bsp"),
+      "8/data/serverfiles/cstrike/maps/test.bsp",
     );
+    await write("other/private.bsp", "not in allowed folders");
+    assert.equal(
+      await module.resolveFastDownload(8, "cstrike/other/private.bsp"),
+      null,
+    );
+    assert.equal(
+      await module.resolveFastDownload(8, "cstrike/maps/test.bsp.bz2"),
+      null,
+    );
+    await fs.symlink(
+      path.join(source, "server.cfg"),
+      path.join(source, "maps/leak.bsp"),
+    );
+    await assert.rejects(
+      module.resolveFastDownload(8, "cstrike/maps/leak.bsp"),
+    );
+    await fs.unlink(path.join(source, "maps/leak.bsp"));
+    await module.updateFastDownload(8, { compression: true }, "test");
+    await module.synchronizeFastDownload(8);
+    await assert.rejects(fs.stat(path.join(target, "maps/test.bsp")));
+    const compressedStat = await fs.stat(
+      path.join(target, "maps/test.bsp.bz2"),
+    );
+    await module.synchronizeFastDownload(8);
+    assert.equal(
+      (await fs.stat(path.join(target, "maps/test.bsp.bz2"))).mtimeMs,
+      compressedStat.mtimeMs,
+    );
+    // Legacy manifests owned both formats: remove only their generated original.
+    const legacy = "map data ".repeat(100);
+    await fs.writeFile(path.join(target, "maps/test.bsp"), legacy);
+    const stateFile = path.join(directory, "private/fastdownload/8.json");
+    const state = JSON.parse(await fs.readFile(stateFile, "utf8"));
+    state.assets["maps/test.bsp"].outputs[""] = crypto
+      .createHash("sha256")
+      .update(legacy)
+      .digest("hex");
+    delete state.assets["maps/test.bsp"].format;
+    await fs.writeFile(stateFile, JSON.stringify(state));
+    await module.synchronizeFastDownload(8);
+    await assert.rejects(fs.stat(path.join(target, "maps/test.bsp")));
     assert.equal(
       (await fs.readFile(path.join(target, "maps/test.bsp.bz2")))
         .subarray(0, 3)
         .toString(),
       "BZh",
     );
+    await module.updateFastDownload(8, { compression: false }, "test");
+    await module.synchronizeFastDownload(8);
+    await assert.rejects(fs.stat(path.join(target, "maps/test.bsp.bz2")));
+    await assert.rejects(fs.stat(path.join(data, "fastdownload")));
     assert.equal(
       await module.resolveFastDownload(8, "cstrike/maps/test.bsp"),
-      "8/data/fastdownload/cstrike/maps/test.bsp",
+      "8/data/serverfiles/cstrike/maps/test.bsp",
     );
     for (const name of [
       "cstrike/server.cfg",
@@ -135,8 +188,10 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
       "cstrike/maps/.hidden.bsp",
     ])
       assert.equal(await module.resolveFastDownload(8, name), null);
+    await fs.mkdir(path.join(target, "maps"), { recursive: true });
     await fs.writeFile(path.join(target, "maps/manual.bsp"), "standalone");
     await fs.writeFile(path.join(target, "maps/test.bsp"), "manual override");
+    await module.updateFastDownload(8, { compression: true }, "test");
     await module.synchronizeFastDownload(8);
     assert.equal(
       await fs.readFile(path.join(target, "maps/test.bsp"), "utf8"),
@@ -157,7 +212,10 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     await fs.unlink(path.join(source, "maps/test.bsp"));
     transferActive = true;
     await module.synchronizeFastDownload(8);
-    assert.equal(await fs.readFile(path.join(target,"maps/test.bsp"),"utf8"),"manual override");
+    assert.equal(
+      await fs.readFile(path.join(target, "maps/test.bsp"), "utf8"),
+      "manual override",
+    );
     transferActive = false;
     await module.synchronizeFastDownload(8);
     await assert.rejects(fs.stat(path.join(target, "maps/test.bsp")));
@@ -172,6 +230,15 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     );
     await assert.rejects(
       module.resolveFastDownload(8, "cstrike/maps/leak.bsp"),
+    );
+    await module.updateFastDownload(8, { compression: false }, "test");
+    await module.synchronizeFastDownload(8);
+    assert.equal(
+      await fs.readFile(path.join(target, "maps/manual.bsp"), "utf8"),
+      "standalone",
+    );
+    await assert.rejects(
+      module.resolveFastDownload(8, "cstrike/maps/test.bsp"),
     );
     await module.updateFastDownload(8, { enabled: false }, "test");
     assert.equal(

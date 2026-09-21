@@ -33,7 +33,7 @@ export function TemplateFastDownloadEditor({
                   enabled: true,
                   gameRoot: 'serverfiles/cstrike',
                   folders: ['maps', 'models', 'sound', 'sprites', 'gfx', 'overviews'],
-                  compression: 'bzip2',
+                  compression: 'none',
                   configFile: 'serverfiles/cstrike/server.cfg',
                 }
               : { enabled: false },
@@ -73,8 +73,8 @@ export function TemplateFastDownloadEditor({
             controlLabel="Default compression"
             value={f.compression || 'none'}
             options={[
-              { value: 'none', label: 'Original files only' },
-              { value: 'bzip2', label: 'Originals and .bz2 copies' },
+              { value: 'none', label: 'Direct game files · GoldSrc / CS 1.6' },
+              { value: 'bzip2', label: '.bz2 files only · Source' },
             ]}
             onChange={(value) => update({ compression: value as 'none' | 'bzip2' })}
           />

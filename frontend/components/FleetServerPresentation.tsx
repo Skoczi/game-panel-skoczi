@@ -112,17 +112,19 @@ export function FleetMetrics({
       ).map((key, index) => {
         const resources = runtime?.server.resources;
         const value = key === 'cpuUsage' ? resources?.cpuLimitPercent : key === 'memoryUsage' ? resources?.memoryLimitPercent : undefined;
+        const metricName = index === 0 ? 'CPU' : index === 1 ? 'Memory' : 'Disk';
+        const label = resourceLabel(resources, index === 0 ? 'cpu' : index === 1 ? 'memory' : 'disk');
         return (
           <button
             type="button"
             className="fleet-node-metric"
             key={key}
-            title={`Open ${index === 0 ? 'CPU' : index === 1 ? 'Memory' : 'Disk'} history`}
-            aria-label={`Open ${index === 0 ? 'CPU' : index === 1 ? 'Memory' : 'Disk'} history for ${name}`}
+            title={compact ? `${metricName}: ${label} · Open history` : `Open ${metricName} history`}
+            aria-label={`Open ${metricName} history for ${name}${compact ? `: ${label}` : ''}`}
             onClick={() => onOpen(index === 0 ? 'cpu' : index === 1 ? 'memory' : 'disk')}
           >
             <span>{index === 0 ? 'CPU' : index === 1 ? (compact ? 'RAM' : 'Memory') : 'Disk'}</span>
-            <strong>{resourceLabel(resources, index === 0 ? 'cpu' : index === 1 ? 'memory' : 'disk')}</strong>
+            {!compact && <strong>{label}</strong>}
             <span className="fleet-node-track">
               <i style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} />
             </span>

@@ -51,7 +51,7 @@ interface ContainerConfigTabProps {
   canManageEnv: boolean;
   pickerManagedKeys?: string[];
   onSaved?: () => void;
-  onOpenFileManagerPath?: (path:string)=>void;
+  onOpenFileManagerDirectory?: (path:string)=>void;
   canWriteFiles?: boolean;
 }
 
@@ -176,7 +176,7 @@ export function ContainerConfigTab({
   isRoot = false,
   canManageEnv,
   onSaved,
-  onOpenFileManagerPath,
+  onOpenFileManagerDirectory,
   canWriteFiles,
 }: ContainerConfigTabProps) {
   const [loading, setLoading] = useState(false);
@@ -634,7 +634,7 @@ export function ContainerConfigTab({
 
         </div>
 
-        {serverId && canEdit && <FastDownloadCard serverId={serverId} onOpenFiles={onOpenFileManagerPath} canConfigure={canWriteFiles} />}
+        {serverId && canEdit && <FastDownloadCard serverId={serverId} onOpenFiles={onOpenFileManagerDirectory} canConfigure={canWriteFiles} />}
 
         <details className="gp-settings-advanced"><summary>Advanced settings <span>Healthcheck &amp; maintenance</span></summary><div className="gp-settings-advanced-body">
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Healthcheck</h4>

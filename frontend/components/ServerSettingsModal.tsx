@@ -258,6 +258,7 @@ export function ServerSettingsModal({
     setSelectedItems,
     deleteMultiNames,
     setDeleteMultiNames,
+    openDirectory,
   } = useFileManagerState({
     activeTab,
     isOpen,
@@ -1076,7 +1077,17 @@ export function ServerSettingsModal({
         }
         containerConfigContent={
           <ContainerConfigTab
-            onOpenFileManagerPath={canUseFileManager ? (path) => { hasUserSelectedTabRef.current = true; handleOpenFileManagerAtPath(path); } : undefined}
+            onOpenFileManagerDirectory={canUseFileManager ? (path) => {
+              hasUserSelectedTabRef.current = true;
+              setPendingFilePath(null);
+              editorSession.select(null);
+              setSelectedFile(null);
+              setSelectedItems([]);
+              setFileError(null);
+              setFilesError(null);
+              openDirectory('data', path);
+              setActiveTab('filemanager');
+            } : undefined}
             canWriteFiles={canWriteFiles}
             serverId={serverId!}
             serverName={serverName}

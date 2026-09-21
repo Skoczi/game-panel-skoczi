@@ -1,3 +1,4 @@
+import { CONSOLE_PREFIX, recordConsoleStatus } from '../services/consoleLifecycle.js';
 import type { WebSocketServer } from 'ws';
 import { bus } from '../realtime/bus.js';
 import type { AuthenticatedWebSocket } from './types.js';
@@ -105,6 +106,8 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
         const e = evt as ServerStatusEvent;
         if (!e.serverId) return;
 
+        await recordConsoleStatus(e.serverId, e.status, e.timestamp);
+
         try {
             await broadcastToServersSubscribers(e.serverId, 'servers:updated');
         } catch (err) {
@@ -145,6 +148,10 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
         for (const client of wss.clients) {
             const ws = client as AuthenticatedWebSocket;
             if (!ws.userId || !ws.subs) continue;
+
+            if (ws.subs.logs.has(e.serverId) && e.message.startsWith(CONSOLE_PREFIX)) {
+                sendSafe(ws, { type: 'logs:new', serverId: e.serverId, lines: [`${timestamp} ${e.message}`], timestamp });
+            }
 
             if (!ws.subs.actions?.has(e.serverId)) continue;
 

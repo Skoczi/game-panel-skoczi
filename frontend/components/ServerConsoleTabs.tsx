@@ -64,9 +64,10 @@ const getLogColor = (type: LogEntry['type']) => {
 };
 
 const ServerLogLine = memo(function ServerLogLine({ log }: { log: LogEntry }) {
+  const panelMessage = log.message.startsWith('[GamePanel] ');
   return <div className="mb-1 flex items-start gap-2 rounded px-1 leading-5 hover:bg-white/5">
     <span className="gp-log-time shrink-0 text-gray-500">[{log.displayTime ?? formatLogDisplayTime(log.timestamp)}]</span>
-    <AnsiLine className={`m-0 inline-block min-w-max flex-none whitespace-pre font-mono text-sm ${getLogColor(log.type)}`} message={log.message} />
+    <AnsiLine className={`m-0 inline-block min-w-max flex-none whitespace-pre font-mono text-sm ${panelMessage ? 'text-cyan-400 font-semibold' : getLogColor(log.type)}`} message={log.message} />
   </div>;
 });
 

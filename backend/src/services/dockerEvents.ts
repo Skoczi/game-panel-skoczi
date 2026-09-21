@@ -1,3 +1,4 @@
+import { recordDockerLifecycle } from './consoleLifecycle.js';
 import { docker } from '../utils/docker/client.js';
 import { ownsContainer } from '../utils/docker/ownership.js';
 import { nativeOperationRunning } from './nativeOperationLock.js';
@@ -172,6 +173,9 @@ export function startDockerHealthEventListener(): { stop: () => void } {
                     if (!containerId) continue;
 
                     try {
+                        const eventMillis = evt.timeNano ? Number(evt.timeNano) / 1e6 : Number(evt.time) * 1000;
+                        const eventTime = Number.isFinite(eventMillis) && eventMillis > 0 ? new Date(eventMillis).toISOString() : undefined;
+                        await recordDockerLifecycle(serverId, containerId, action, attrs.exitCode, eventTime);
                         if (action.startsWith('health_status:')) {
                             const health = action.split(':')[1]?.trim() as HealthStatus | undefined;
                             if (health) await applyDockerHealthStatus(serverId, containerId, health);

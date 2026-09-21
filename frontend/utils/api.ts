@@ -774,6 +774,7 @@ class ApiClient {
         lastRunAt: string | null;
         lastStatus: string | null;
         lastError: string | null;
+        lockedAt: string | null;
       }>;
     };
   }

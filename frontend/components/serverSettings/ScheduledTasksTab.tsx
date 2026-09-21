@@ -1,5 +1,5 @@
 import { AppSectionHeader } from '../../src/ui/layout';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertTriangle, CheckCircle, Clock, GripVertical, Loader2, Pencil, Plus,
   RefreshCw, Trash2, XCircle, X, Save, RotateCcw,
@@ -37,6 +37,7 @@ interface ScheduledTask {
   lastRunAt: string | null;
   lastStatus: string | null;
   lastError: string | null;
+  lockedAt: string | null;
 }
 
 interface TaskForm {
@@ -350,21 +351,45 @@ export function ScheduledTasksTab({
     title: string; message: string; onConfirm: () => Promise<void>;
   } | null>(null);
 
-  const load = async () => {
-    if (!serverId || !canRead) return;
-    setLoading(true);
-    setError(null);
+  const loadSequence = useRef(0);
+  const loadPending = useRef(false);
+  const load = useCallback(async (background = false) => {
+    if (!serverId || !canRead || (background && loadPending.current)) return;
+    const sequence = ++loadSequence.current;
+    loadPending.current = true;
+    if (!background) setLoading(true);
     try {
       const res = await apiClient.getScheduledTasks(serverId);
+      if (sequence !== loadSequence.current) return;
       setTasks((res.tasks ?? []) as ScheduledTask[]);
+      setError(null);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to load scheduled tasks');
+      if (sequence === loadSequence.current) {
+        setError(err?.response?.data?.error || 'Failed to load scheduled tasks');
+      }
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) {
+        loadPending.current = false;
+        setLoading(false);
+      }
     }
-  };
+  }, [serverId, canRead]);
 
-  useEffect(() => { void load(); }, [serverId]);
+  useEffect(() => {
+    setTasks([]);
+    void load();
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    const timer = window.setInterval(refresh, 5000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      ++loadSequence.current;
+      loadPending.current = false;
+    };
+  }, [load]);
 
   const openNew = () => {
     const defaultType = 'restart';
@@ -441,7 +466,7 @@ export function ScheduledTasksTab({
     setError(null);
     try {
       await apiClient.updateScheduledTask(serverId, task.id, { enabled: !task.enabled });
-      setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, enabled: !t.enabled } : t));
+      await load();
     } catch {
       setError('Could not confirm the schedule change. Refresh scheduled tasks before trying again.');
     } finally { setTogglingId(null); }
@@ -476,7 +501,7 @@ export function ScheduledTasksTab({
         <AppSectionHeader className="gp-server-tab-header" title="Schedules" actions={
           <div className="flex gap-2">
             <AppButton
-              onClick={load}
+              onClick={() => void load()}
               aria-label="Refresh scheduled tasks"
               className="flex items-center gap-2 px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white"
             >
@@ -686,10 +711,10 @@ export function ScheduledTasksTab({
                       <span className={`text-xs ${textSecondary}`}>{desc}</span>
                     </div>
                     <div className="flex items-center gap-4 flex-wrap">
-                      <StatusBadge status={task.lastStatus} />
-                      {task.nextRunAt && (
+                      <StatusBadge status={task.lockedAt ? 'running' : task.lastStatus} />
+                      {!task.lockedAt && task.enabled && task.nextRunAt && (
                         <span className={`text-xs ${textSecondary}`}>
-                          Next: {formatRelative(task.nextRunAt)} · {task.timeZone || 'node timezone'}
+                          Next: {Date.parse(task.nextRunAt) <= Date.now() ? 'Due now' : formatRelative(task.nextRunAt)} · {task.timeZone || 'node timezone'}
                         </span>
                       )}
                       {task.lastRunAt && (
@@ -699,7 +724,7 @@ export function ScheduledTasksTab({
                       )}
                     </div>
                     {task.nextRuns && <details className={`text-xs ${textSecondary}`}><summary>Next 3 runs · {task.timeZone}</summary>{task.nextRuns.map(date => <div key={date}>{new Date(date).toLocaleString(undefined, { timeZone: task.timeZone, timeZoneName: 'short' })}</div>)}</details>}
-                    {task.lastStatus === 'failed' && task.lastError && (
+                    {!task.lockedAt && task.lastStatus === 'failed' && task.lastError && (
                       <p className="text-xs text-red-400 truncate">{task.lastError}</p>
                     )}
                   </div>

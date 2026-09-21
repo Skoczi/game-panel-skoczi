@@ -2,12 +2,18 @@ import { test, expect } from '@playwright/test';
 const node = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
 const globalServer = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => { sessionStorage.setItem('gamepanel_admin_runtime', '1'); sessionStorage.setItem('gamepanel_active_node', 'local'); });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('test-local-initialized')) return;
+    sessionStorage.setItem('test-local-initialized', '1');
+    sessionStorage.setItem('gamepanel_admin_runtime', '1');
+    sessionStorage.setItem('gamepanel_active_node', 'local');
+  });
   await page.route('**/api/**', route => !new URL(route.request().url()).pathname.startsWith('/api/') ? route.continue() : route.fulfill({ json: { server: { id: 7, name: 'CS16 Test', status: 'running', ports: { tcp: [], udp: [] }, mounts: [], env: {} }, nodes: [], settings: {} } }));
 });
 for (const remote of [false, true]) test(`Settings deletes only the confirmed server and returns to fleet; remote=${remote}`, async ({ page }) => {
   if (remote) await page.addInitScript(({ node, globalServer }) => {
-    if (location.pathname !== '/test/server-page.fixture.html') return;
+    if (location.pathname !== '/test/server-page.fixture.html' || sessionStorage.getItem('test-remote-initialized')) return;
+    sessionStorage.setItem('test-remote-initialized', '1');
     sessionStorage.removeItem('gamepanel_admin_runtime');
     sessionStorage.setItem('gamepanel_active_server', JSON.stringify({ id: globalServer, nodeId: node, runtimeId: 7, name: 'CS16 Test', nodeName: 'WAW2', location: 'Warsaw', permissions: ['*'], placementRevision: 1 }));
   }, { node, globalServer });

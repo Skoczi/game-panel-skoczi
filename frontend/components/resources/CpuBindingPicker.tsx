@@ -36,7 +36,7 @@ export function CpuBindingPicker({ value, onChange, nodeId = ACTIVE_NODE, server
   const unavailable = data ? value.filter(id => !data.availableCpuIds.includes(id)) : [];
   return <div className="gp-cpu-binding">
     <span className="gp-cpu-label">CPU binding</span>
-    <button type="button" className="gp-cpu-trigger" aria-expanded={open} onClick={() => setOpen(v => !v)} disabled={disabled}>
+    <button type="button" className="gp-cpu-trigger" aria-expanded={open} onClick={() => { if (!open) setRefresh(v => v + 1); setOpen(v => !v); }} disabled={disabled}>
       <Cpu size={18} /><span>{value.length ? `CPU ${value.join(', ')}` : 'No binding'}</span><ChevronDown size={16} />
     </button>
     <small>Choose where this server can run. vCPU remains a separate limit.</small>

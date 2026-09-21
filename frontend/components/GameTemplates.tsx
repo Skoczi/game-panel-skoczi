@@ -984,6 +984,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
   const [localNode, setLocalNode] = useState<LocalNode>();
   const [nodeId, setNodeId] = useState(fixedNodeId || initialNodeId || 'local');
+  useEffect(() => { if (fixedNodeId) setNodeId(fixedNodeId); }, [fixedNodeId]);
   const [allocations, setAllocations] = useState<
     Array<{ ip: string; alias: string; tcp: string; udp: string }>
   >([]);

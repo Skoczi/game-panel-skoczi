@@ -165,7 +165,7 @@ export function ServerSettingsModalLayout({
                   className={`gp-settings-menu-btn flex items-center gap-2 px-3 py-2 rounded text-sm whitespace-nowrap ${tabButtonClass('containerconfig')}`}
                 >
                   <Container className="w-4 h-4" />
-                  <span>Container</span>
+                  <span>Settings</span>
                 </AppButton>
             </nav>
           </div>
@@ -230,7 +230,7 @@ export function ServerSettingsModalLayout({
                   className={`gp-settings-menu-btn w-full flex items-center gap-3 px-4 py-3 rounded ${tabButtonClass('containerconfig')}`}
                 >
                   <Container className="w-5 h-5" />
-                  <span className="font-medium">Container Config</span>
+                  <span className="font-medium">Settings</span>
                 </AppButton>
             </nav>
           </div>

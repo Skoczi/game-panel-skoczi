@@ -1621,13 +1621,13 @@ body:has(.fixed.inset-0) {
 }
 
 /* Compact backup forms, including modals rendered outside the page surface. */
-.gp-backup-input { width: 100%; }
-.gp-backup-input [data-ods='input'] {
+:is(.gp-backup-input, .gp-confirmation-input) { width: 100%; }
+:is(.gp-backup-input, .gp-confirmation-input) [data-ods='input'] {
   display: block; width: 100%; min-height: 38px; padding: 8px 10px;
   border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #0f172a;
 }
-.dark .gp-backup-input [data-ods='input'] { border-color: #475569; background: #0b1423; color: #e2e8f0; }
-.gp-backup-input [data-ods='input']:focus-visible { outline: 2px solid #00c8e5; outline-offset: 2px; }
+.dark :is(.gp-backup-input, .gp-confirmation-input) [data-ods='input'] { border-color: #475569; background: #0b1423; color: #e2e8f0; }
+:is(.gp-backup-input, .gp-confirmation-input) [data-ods='input']:focus-visible { outline: 2px solid #00c8e5; outline-offset: 2px; }
 
 .gp-page-title, .gp-fleet-heading h1 { font-size: 20px; line-height: 28px; font-weight: 600; margin: 0; }
 .gp-section-title, .gp-server-page .gp-section-title { font-size: 18px; line-height: 26px; font-weight: 600; margin: 0; }

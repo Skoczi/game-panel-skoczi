@@ -1,5 +1,5 @@
 import './panel-update.css';
-import localReleaseNotes from '../../docs/pro/RELEASE-2.0.52.md?raw';
+import localReleaseNotes from '../../docs/pro/RELEASE-2.0.53.md?raw';
 import { getAppVersion } from '../utils/appInfo';
 import { useState, useEffect } from 'react';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -125,9 +125,9 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
           <p className="text-xs opacity-70">{info?.managedUpdates?.reason || 'Checking GitHub does not change this installation. Managed updates require the standalone installer.'}</p>
           {info?.updateAvailable && info.managedUpdates?.enabled && <AppButton disabled={starting || updateRunning || uncertainStart} onClick={() => setConfirmUpdate(true)}>Update to {info.latestVersion}</AppButton>}
           {updateStatus && <p role="status" className="text-sm">{updateStatus}</p>}
-          {getAppVersion() === '2.0.52' && <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · 2.0.52</summary><Markdown>{localReleaseNotes}</Markdown></details>}
+          {getAppVersion() === '2.0.53' && <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · 2.0.53</summary><Markdown>{localReleaseNotes}</Markdown></details>}
           {info?.newerReleases?.map(release => <ReleaseNotesBlock key={release.version} release={release} isDark={isDark} heading={release.version} />)}
-          {info?.currentRelease && getAppVersion() !== '2.0.52' && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
+          {info?.currentRelease && getAppVersion() !== '2.0.53' && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
           <AppButton onClick={onClose}>Close</AppButton>
         </AppModalBody>
       </AppModalContent>

@@ -351,13 +351,13 @@ test('version dialog keeps bundled notes offline and disables updates on unmanag
   await page.getByTestId('panel-revision').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Game Panel PRO · Version & changelog' })).toBeVisible();
-  await expect(dialog.getByText('Installed changelog · 2.0.52')).toBeVisible();
+  await expect(dialog.getByText('Installed changelog · 2.0.53')).toBeVisible();
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('No published stable release');
   unavailable = true;
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('Version status is unknown');
-  await expect(dialog.getByText(/File Editor saves directly/)).toBeVisible();
+  await expect(dialog.getByText(/Renamed Startup & Settings/)).toBeVisible();
   await expect(dialog.getByRole('button', { name: /Update to/ })).toHaveCount(0);
 });
 

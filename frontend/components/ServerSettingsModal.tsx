@@ -1077,6 +1077,8 @@ export function ServerSettingsModal({
         containerConfigContent={
           <ContainerConfigTab
             serverId={serverId!}
+            serverName={serverName}
+            canDelete={Boolean(currentUser?.isRoot || serverPermissions.includes('*') || serverPermissions.includes('server.delete'))}
             serverStatus={serverStatus}
             borderColor={borderColor}
             contentBg={contentBg}

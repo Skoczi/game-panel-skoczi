@@ -185,7 +185,7 @@ test('workspace and dock fill the viewport with matching bottom edges across tab
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await page.getByRole('button', { name: 'Open side console' }).click();
-  for (const name of ['File Editor', 'Game Config', 'Backups', 'Schedules', 'Network', 'Startup & Settings', 'Terminal', 'Activity']) {
+  for (const name of ['File Editor', 'Game Config', 'Backups', 'Schedules', 'Network', 'Settings', 'Terminal', 'Activity']) {
     await page.locator('.gp-server-tabs').getByRole('link', { name, exact: true }).click();
     const main = page.locator('.gp-server-workspace-main > section');
     await expect(main).toBeVisible();

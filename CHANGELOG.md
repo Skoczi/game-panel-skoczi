@@ -1,5 +1,15 @@
 # Game Panel PRO — Changelog
 
+## 2.0.53
+
+- Renamed Startup & Settings to Settings, including the settings heading and modal navigation.
+- Added Delete server at the bottom of Settings, gated by server.delete. Confirm the exact server name before removing its runtime, files and local backups.
+- Successful deletion returns to the shared fleet with the chosen node scope. Remote deletion retains the global server identity and node routing.
+- Permission failures remain visible; an unconfirmed deletion requires checking the fleet before another attempt.
+
+Panel update only. Agents 2.0.52 are compatible; no agent or game restart is required. No database migration.
+
+
 ## 2.0.52 — Editor, backups and unified navigation
 
 - File Editor saves directly, including when the game changed the file after opening it. Writes remain atomic; the previous contents are kept in file history within its size and retention limits.

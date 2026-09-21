@@ -61,7 +61,7 @@ const labels: Record<ServerPageTab, string> = {
   backup: 'Backups',
   scheduledtasks: 'Schedules',
   network: 'Network',
-  containerconfig: 'Startup & Settings',
+  containerconfig: 'Settings',
   terminal: 'Terminal',
   activity: 'Activity',
 };

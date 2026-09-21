@@ -266,6 +266,7 @@ export function mountFleet(app: express.Application) {
                     provider: row.provider,
                     catalogId: row.catalog_id,
                     node: {
+                        ...(req.user!.isRoot ? { id: row.node_id } : {}),
                         name: node?.name || 'Local',
                         location: node?.location || 'Panel host',
                     },

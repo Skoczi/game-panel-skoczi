@@ -1,4 +1,4 @@
-# Install Game Panel PRO 2.0.50
+# Install Game Panel PRO 2.0.51
 
 No prior OVHcloud Game Panel installation is needed. This release contains the panel, frontend, runtime agent code and its deployment tools. The installer builds our source locally; it does not pull an upstream panel or updater image.
 
@@ -7,14 +7,14 @@ No prior OVHcloud Game Panel installation is needed. This release contains the p
 Use a supported Debian or Ubuntu host with root access, Git and a domain pointing to the host. The installer checks the distribution, installs Docker/Compose when necessary and configures Traefik with Let's Encrypt. Ports 80/443 must be available. Game ports are configured separately. Allow space for source builds, game data and rollback copies. Building the frontend uses a 4 GiB Node heap; allow at least 6 GiB available RAM for the build (8 GiB host RAM recommended when games also run). Runtime memory usage is separate from this build requirement.
 
 ```sh
-git clone --branch v2.0.50 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v2.0.51 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh
 ```
 
 Enter the panel domain, administrator username/password and certificate email when prompted. The default root is `/opt/gamepanel`. A non-empty root is rejected; installation never overwrites an existing panel. Telemetry is off unless explicitly enabled.
 
-The installer builds the backend, frontend and local `gamepanel-pro-updater:2.0.50` image. Successful installation requires an HTTP health check. It prints the URL and configuration paths, not the password.
+The installer builds the backend, frontend and local `gamepanel-pro-updater:2.0.51` image. Successful installation requires an HTTP health check. It prints the URL and configuration paths, not the password.
 
 For a different root use `sudo bash deploy/install.sh --app-root /opt/game-panel-pro`. Keep the checkout outside that root. See `deploy/install.sh` for noninteractive `GP_*` inputs; keep passwords out of shell history and source control.
 

@@ -1,5 +1,12 @@
 # Game Panel PRO — Changelog
 
+## 2.0.51 — Global node selection
+
+- Sidebar node filter on every administrator page, with All nodes as the default.
+- Per-node server filtering and an all-host metrics overview with individual history charts.
+- Isolated metrics streams and explicit unavailable states; no reused host cache.
+- Compatible with 2.0.50 agents; central panel update only.
+
 ## 2.0.50 — Game Panel PRO
 
 First published Game Panel PRO release, based on the expanded OVHcloud Game Panel 1.5.0 fork. Includes the backup, editor, resources, API and UI work recorded in the 2.0.49 development candidate below.

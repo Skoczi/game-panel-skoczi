@@ -1,3 +1,4 @@
+import { NodeScopeProvider, useNodeScope } from '../../contexts/NodeScopeContext';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { lazy, Suspense, useRef } from 'react';
 import { Menu } from 'lucide-react';
@@ -16,7 +17,9 @@ import { ConfirmationModal } from '../ConfirmationModal';
 import { ChangePasswordModal } from '../ChangePasswordModal';
 import { AppPageLayout } from '../../src/ui/layout';
 
-const HostStatus = lazy(() => import('../HostStatus').then((m) => ({ default: m.HostStatus })));
+const HostStatus = lazy(() =>
+  import('../hostStatus/HostStatusWorkspace').then((m) => ({ default: m.HostStatusWorkspace }))
+);
 const GlobalSettings = lazy(() =>
   import('../GlobalSettings').then((m) => ({ default: m.GlobalSettings }))
 );
@@ -111,7 +114,19 @@ interface AppShellProps {
   currentUserId: number | null;
 }
 
-export function AppShell({
+export function AppShell(props: AppShellProps) {
+  return (
+    <NodeScopeProvider
+      key={props.currentUser?.id}
+      userId={props.currentUser?.id || 0}
+      enabled={Boolean(props.currentUser?.isRoot)}
+    >
+      <AppShellContent {...props} />
+    </NodeScopeProvider>
+  );
+}
+
+function AppShellContent({
   activeTab,
   setActiveTab,
   mobileMenuOpen,
@@ -170,6 +185,13 @@ export function AppShell({
   currentUserId,
 }: AppShellProps) {
   const { route, navigate, setDirty, allowLeave } = useServerPageRoute();
+  const { selectScope } = useNodeScope();
+  const changeNodeScope = async (id: string) => {
+    if (!(await allowLeave())) return;
+    selectScope(id);
+    setMobileMenuOpen(false);
+    if (activeTab === 'game-servers' && (ACTIVE_SERVER || ADMIN_RUNTIME)) openFleet();
+  };
   const managedServer =
     route?.node === ACTIVE_NODE ? gameServers.find((server) => server.id === route.id) : undefined;
   const changeMainTab = async (tab: string) => {
@@ -221,6 +243,7 @@ export function AppShell({
     <div className="flex min-h-screen overflow-x-hidden bg-transparent">
       <div className="hidden md:block">
         <Sidebar
+          onNodeScopeChange={changeNodeScope}
           activeTab={activeTab}
           onTabChange={changeMainTab}
           onLogout={handleRequestLogout}
@@ -273,6 +296,7 @@ export function AppShell({
             className={`fixed top-0 left-0 bottom-0 w-[280px] z-50 md:hidden overflow-y-auto focus:outline-none ${isDark ? 'bg-[#111827]' : 'bg-white'}`}
           >
             <Sidebar
+          onNodeScopeChange={changeNodeScope}
               activeTab={activeTab}
               onTabChange={(tab) => {
                 changeMainTab(tab);

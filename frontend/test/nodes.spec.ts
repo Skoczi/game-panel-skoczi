@@ -39,7 +39,9 @@ test('local identity saves metadata, survives reload and reports real response h
   await expect(page.getByRole('heading', { name: 'WAW2', exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'WAW2', exact: true })).toBeVisible();
-  await expect(page.getByRole('combobox')).toContainText('WAW2');
+  await page.getByRole('combobox').click();
+  await expect(page.getByRole('option', { name: /^WAW2/ })).toBeVisible();
+  await page.getByRole('combobox').press('Escape');
   await expect(page.getByText('https://eserv.pl', { exact: true })).toBeVisible();
   await page.route('**/api/nodes', (r) =>
     r.fulfill({ status: 503, json: { error: 'Unavailable' } })
@@ -231,14 +233,15 @@ test('desktop dark theme keeps node controls readable', async ({ page }) => {
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/nodes-desktop-dark.png', fullPage: true });
 });
 
-test('custom node menu supports keyboard, selection cancellation and outside dismissal', async ({
+test('custom node menu supports keyboard, view selection and outside dismissal', async ({
   page,
 }) => {
   await page.goto('/test/nodes.fixture.html');
-  const trigger = page.getByRole('combobox', { name: 'Execution node Local' });
+  const trigger = page.getByRole('combobox');
+  await expect(trigger).toHaveAccessibleName('Node scope All nodes');
   await trigger.click();
   await expect(page.getByRole('option', { name: /Warsaw test/ })).toBeVisible();
-  await expect(page.getByRole('option', { name: /^Local/ })).toHaveAttribute(
+  await expect(page.getByRole('option', { name: /^All nodes/ })).toHaveAttribute(
     'aria-selected',
     'true'
   );
@@ -249,7 +252,7 @@ test('custom node menu supports keyboard, selection cancellation and outside dis
     (await option.getAttribute('id'))!
   );
   await trigger.press('Enter');
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(trigger).toContainText('Warsaw test');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
   expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_node'))).toBeNull();
@@ -261,7 +264,7 @@ test('custom node menu supports keyboard, selection cancellation and outside dis
   await expect(page.getByRole('listbox')).toHaveCount(0);
 });
 
-test('custom node menu selects confirmed runtime and stays within mobile viewport', async ({
+test('custom node menu selects view scope without changing runtime and stays within mobile viewport', async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -272,16 +275,16 @@ test('custom node menu selects confirmed runtime and stays within mobile viewpor
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/node-selector-mobile.png', fullPage: true });
   await page.getByRole('option', { name: /Warsaw test/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('combobox')).toContainText('Warsaw test');
-  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_node'))).toBe(id);
+  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_node_scope_2'))).toBe(id);
+  expect(await page.evaluate(() => sessionStorage.getItem('gamepanel_active_node'))).toBeNull();
 });
 
 test('custom node menu shows unavailable selection without silently switching to Local', async ({
   page,
 }) => {
   await page.addInitScript((value) => {
-    sessionStorage.setItem('gamepanel_active_node', value);
+    sessionStorage.setItem('gamepanel_node_scope_2', value);
     sessionStorage.setItem('gamepanel_admin_runtime', '1');
   }, id);
   await page.route('**/api/nodes', (r) =>
@@ -318,8 +321,8 @@ test('custom node menu handles Local-only inventory without prompting or navigat
     await dialog.dismiss();
   });
   await page.getByRole('combobox').click();
-  await expect(page.getByRole('option')).toHaveCount(1);
-  await page.getByRole('option').click();
+  await expect(page.getByRole('option')).toHaveCount(2);
+  await page.getByRole('option', { name: /^All nodes/ }).click();
   await expect(page.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
   expect(dialogs).toBe(0);
 });
@@ -357,7 +360,7 @@ test('narrow node list has no host icons and keeps location separate from status
     element.style.width = '220px';
   });
   await page.getByRole('combobox').click();
-  await expect(page.getByRole('option')).toHaveCount(4);
+  await expect(page.getByRole('option')).toHaveCount(5);
   await expect(page.locator('[role="option"] .lucide-server')).toHaveCount(0);
   await expect(page.locator('.gp-node-trigger .lucide-server')).toHaveCount(1);
   for (const row of await page.getByRole('option').all()) {

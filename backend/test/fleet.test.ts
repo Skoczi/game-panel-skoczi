@@ -63,6 +63,16 @@ test('short context aliases use the same scoped grants and unavailable checks as
             json(body: unknown) { resolve({ status, body }); },
         }, reject);
     });
+    const inventory = (isRoot: boolean) => new Promise<any>((resolve, reject) => {
+        routes.get('/')({ user: { userId: isRoot ? 1 : 2, isRoot } }, { json: resolve }, reject);
+    });
+    const rootInventory = await inventory(true);
+    assert.equal(rootInventory.servers.length, 2);
+    assert.equal(rootInventory.servers.find((s: any) => s.id === a.id).node.id, a.node_id);
+    const playerInventory = await inventory(false);
+    assert.equal(playerInventory.servers.length, 1);
+    assert.equal(playerInventory.servers[0].id, a.id);
+    assert.equal('id' in playerInventory.servers[0].node, false);
     const numeric = await request(String(a.server_number));
     assert.equal(numeric.status, 200);
     assert.equal(numeric.body.id, a.id);

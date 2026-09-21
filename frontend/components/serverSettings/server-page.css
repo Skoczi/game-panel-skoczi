@@ -671,3 +671,10 @@
 .dark .gp-server-context { color: #94a3b8; }
 .gp-server-context button { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; overflow-wrap: anywhere; text-align: left; }
 .gp-server-context button:focus-visible { outline: 2px solid #6366f1; outline-offset: 3px; border-radius: 4px; }
+
+.gp-server-state > .gp-server-back, .gp-server-state .gp-server-state-retry { width: auto; padding: 7px 12px; white-space: nowrap; }
+.gp-server-state > .gp-server-back { margin-bottom: 16px; }
+.gp-server-state-message { gap: 14px; padding: 20px; border-radius: 12px; }
+.gp-server-state-message h1 { font-size: 18px; line-height: 26px; margin: 0 0 4px; }
+.gp-server-state-message p { font-size: 14px; }
+.gp-server-state-icon { width: 40px; height: 40px; border-radius: 10px; }

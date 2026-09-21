@@ -39,7 +39,7 @@ export function NativeGameConfig({ serverId, metadata, onOpen }: {
     return () => { cancelled = true; };
   }, [serverId, metadata]);
   return <div className="p-6 space-y-5 text-gray-800 dark:text-gray-200">
-    <h3 className="font-semibold">Native game configuration</h3>
+    <h3 className="gp-section-title">Game Config</h3>
     {template?.configFiles !== undefined ? template.configFiles.map(file => <section key={`${file.root}:${file.path}`}>
       <h4 className="text-sm font-medium mb-2">{file.label}</h4>
       <GameConfigAdvancedLinks configFiles={[file.path]} isLoading={false} canReadFileManager canWriteFileManager={false}

@@ -219,7 +219,7 @@ export function FleetManagement({
         onClick={onConsole}
       >
         <Terminal size={18} />
-        Log/Console
+        Console
       </button>
     </div>
   );

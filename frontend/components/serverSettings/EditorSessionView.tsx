@@ -23,7 +23,6 @@ export function EditorSessionView({
   const saveReason = !session.canWrite ? 'You do not have permission to save files.'
     : !active?.loaded || active.loading ? 'Wait for the file to load.'
     : active.saving ? 'Saving the current version…'
-    : active.conflict ? 'Compare and resolve the server version before saving.'
     : active.content === active.saved ? 'No unsaved changes.' : '';
   const tabs = (
     <div className="gp-editor-tabs" role="tablist" aria-label="Open files">
@@ -52,7 +51,7 @@ export function EditorSessionView({
   );
   return (
     <>
-      {active && session.serverId && historyId === active.id && <FileHistoryModal key={`${session.serverId}:${active.id}`} serverId={session.serverId} doc={active} canRestore={session.canWrite && !active.saving && !active.conflict} onClose={() => setHistoryId(null)} onRestore={content => { setHistoryId(null); session.stageHistory(active.id, content); }} />}
+      {active && session.serverId && historyId === active.id && <FileHistoryModal key={`${session.serverId}:${active.id}`} serverId={session.serverId} doc={active} canRestore={session.canWrite && !active.saving} onClose={() => setHistoryId(null)} onRestore={content => { setHistoryId(null); session.stageHistory(active.id, content); }} />}
       {!active && tabs}
       <section
         onKeyDown={(event) => event.stopPropagation()}
@@ -115,7 +114,7 @@ export function EditorSessionView({
             {active?.saving ? 'Saving…' : 'Save'}
           </AppButton>}
         </div>
-        {active?.kind === 'text' && <p id="editor-save-reason" className="min-h-6 shrink-0 px-3 py-1 text-xs text-gray-500 dark:text-gray-400">{saveReason}</p>}
+        {active?.kind === 'text' && <p id="editor-save-reason" className="sr-only">{saveReason}</p>}
         <div className="gp-editor-documents">
           {session.documents.map((doc) => (
             <div
@@ -152,12 +151,6 @@ export function EditorSessionView({
               )}
               {doc.historyNotice && <p role="note" className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{doc.historyNotice}</p>}
               {doc.draftNotice && <p role="note" className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{doc.draftNotice}</p>}
-              {doc.conflict && <div role="alert" className="gp-editor-error space-y-2">
-                <p>The file changed on the server. Your edits are still in the editor above.</p>
-                <details><summary>Compare: current server file</summary><pre className="max-h-48 overflow-auto whitespace-pre-wrap">{doc.conflict.content}</pre></details>
-                <AppButton onClick={() => session.update(doc.id, { version: doc.conflict!.version, saved: doc.conflict!.content, conflict: undefined, error: undefined })}>Keep my edits for merging</AppButton>
-                <p>Merge the changes in the editor, then save. A further server change will be checked again.</p>
-              </div>}
               {doc.error && (
                 <div role="alert" className="gp-editor-error">
                   {doc.error}

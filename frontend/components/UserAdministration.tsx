@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { nodesRequest } from '../utils/nodesApi';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -24,6 +25,7 @@ import {
 
 interface UserAdministrationProps {
   servers: Array<{ id: string; name: string; provider?: string; catalogId?: string; providerMetadataJson?: string | null }>;
+  fleetAdministration?: boolean;
   currentUserId?: number | null;
   canManageUsers?: boolean;
 }
@@ -49,10 +51,26 @@ function apiError(error: any, fallback: string) {
 }
 
 export function UserAdministration({
-  servers,
+  servers: localServers,
+  fleetAdministration = false,
   currentUserId = null,
   canManageUsers = true,
 }: UserAdministrationProps) {
+  const [fleetServers, setFleetServers] = useState<UserAdministrationProps['servers']>([]);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(fleetAdministration);
+  const servers = fleetAdministration ? fleetServers : localServers;
+  const requestId = useRef(0);
+  useEffect(() => {
+    if (!fleetAdministration) return;
+    let active = true;
+    setInventoryLoading(true);
+    void nodesRequest<{ servers: Array<{ id: string; name: string; provider: string; catalogId?: string; node: { name: string } }> }>('/api/fleet')
+      .then(result => { if (active) { setFleetServers(result.servers.map(server => ({ ...server, name: `${server.name} · ${server.node.name}` }))); setInventoryError(null); } })
+      .catch(() => { if (active) setInventoryError('Unable to load servers from all nodes. Reopen this page to retry.'); })
+      .finally(() => { if (active) setInventoryLoading(false); });
+    return () => { active = false; };
+  }, [fleetAdministration]);
   const [users, setUsers] = useState<PanelUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -75,7 +93,7 @@ export function UserAdministration({
 
   const [selectedServerId, setSelectedServerId] = useState('');
   const [members, setMembers] = useState<ServerMember[]>([]);
-  const [, setMembersLoading] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
 
   const [addMemberUserId, setAddMemberUserId] = useState('');
@@ -136,19 +154,21 @@ export function UserAdministration({
   }, []);
 
   const loadMembers = useCallback(async (serverId: string) => {
-    if (!serverId) return;
-    setMembersLoading(true);
-    setMembersError(null);
+    const request = ++requestId.current;
+    setMembers([]); setAddMemberKnown([]);
+    if (!serverId) { setMembersLoading(false); return; }
+    setMembersLoading(true); setMembersError(null);
     try {
-      const res = await apiClient.getServerMembers(Number(serverId));
-      setMembers(res.members);
+      const result = fleetAdministration
+        ? await nodesRequest<{ members: ServerMember[] }>(`/api/fleet/${serverId}/members`)
+        : await apiClient.getServerMembers(Number(serverId));
+      if (request === requestId.current) setMembers(result.members);
     } catch (error: any) {
-      setMembers([]);
-      setMembersError(apiError(error, 'Failed to load server permissions.'));
+      if (request === requestId.current) setMembersError(error?.message || 'Failed to load server permissions.');
     } finally {
-      setMembersLoading(false);
+      if (request === requestId.current) setMembersLoading(false);
     }
-  }, []);
+  }, [fleetAdministration]);
 
   useEffect(() => {
     loadUsers();
@@ -242,7 +262,7 @@ export function UserAdministration({
   }, [createModalOpen, resetCreateForm]);
 
   const handleSaveEdit = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser || membersLoading || membersError || inventoryLoading || inventoryError) return;
     if (selectedUser.isRoot) {
       setEditError('Super Admin account cannot be edited here.');
       return;
@@ -287,18 +307,18 @@ export function UserAdministration({
         const selectedUserMember =
           members.find((member) => String(member.userId) === String(selectedUser.id)) ?? null;
 
-        if (addMemberPerms.length === 0) {
-          if (selectedUserMember) {
-            await apiClient.removeServerMember(Number(selectedServerId), selectedUser.id);
+        if (fleetAdministration) {
+          if (addMemberPerms.length > 0) {
+            await nodesRequest(`/api/fleet/${selectedServerId}/members/${selectedUser.id}`, { permissions: addMemberPerms }, 'PUT');
+          } else if (selectedUserMember) {
+            await nodesRequest(`/api/fleet/${selectedServerId}/members/${selectedUser.id}`, undefined, 'DELETE');
           }
+        } else if (addMemberPerms.length === 0) {
+          if (selectedUserMember) await apiClient.removeServerMember(Number(selectedServerId), selectedUser.id);
         } else if (!selectedUserMember) {
           await apiClient.addServerMember(Number(selectedServerId), selectedUser.id, addMemberPerms);
         } else if (!samePermissionSet(selectedUserMember.permissions, addMemberPerms)) {
-          await apiClient.updateServerMember(
-            Number(selectedServerId),
-            selectedUser.id,
-            addMemberPerms
-          );
+          await apiClient.updateServerMember(Number(selectedServerId), selectedUser.id, addMemberPerms);
         }
       }
 
@@ -486,16 +506,18 @@ export function UserAdministration({
             globalKnown={globalKnown}
             setGlobalKnown={setGlobalKnown}
             selectedServerId={selectedServerId}
-            setSelectedServerId={setSelectedServerId}
+            setSelectedServerId={id => { requestId.current++; setMembersLoading(true); setMembers([]); setAddMemberKnown([]); setSelectedServerId(id); }}
             servers={servers}
             selectedAccessUser={selectedAccessUser}
             addMemberPerms={addMemberPerms}
             addMemberKnown={addMemberKnown}
             setAddMemberKnown={setAddMemberKnown}
             applyAddPreset={applyAddPreset}
-            membersError={membersError}
+            membersError={inventoryError || membersError}
             onSaveChanges={handleSaveEdit}
             saveLoading={saveEditLoading}
+            accessLoading={membersLoading || inventoryLoading}
+            accessError={Boolean(membersError || inventoryError)}
             saveError={editError}
           />
 

@@ -101,11 +101,11 @@ router.put('/', requireServerPermission(PERMISSIONS.fs.write), async (req: Authe
         let historyWarning: string | undefined;
         const version = await atomicFileWrite(resolved.absPath, content, typeof body.version === 'string' ? body.version : '', async previous => {
             try { record = await prepareFileHistory(historyDirectory, { root: resolved.root, path: resolved.apiPath }, req.user?.username || 'Unknown operator', previous, content); }
-            catch { historyWarning = 'File saved without a history snapshot (512 KiB text limit, history quota or storage unavailable).'; }
-        });
+            catch { historyWarning = 'File saved. History snapshot unavailable.'; }
+        }, body.overwrite === true);
         if (record) {
             try { await commitFileHistory(historyDirectory, record); }
-            catch { historyWarning = 'File saved, but completion could not be recorded in file history. The prior snapshot may be available as an unconfirmed save.'; }
+            catch { historyWarning = 'File saved. History could not confirm this save.'; }
         }
         return res.json({ ok: true, version, ...(historyWarning ? { historyWarning } : {}) });
     } catch (error) {

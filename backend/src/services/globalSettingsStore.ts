@@ -6,8 +6,8 @@ import { assertPortPolicy, configuredPortPolicy, isUnicastIPv4 } from '../utils/
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
 export type LoginTheme = 'light' | 'dark' | 'system';
 export const DEFAULT_APPEARANCE = {
-    showFollowUs: true, showTrustpilot: true, showNews: true,
-    siteName: 'Game Panel PRO', siteSubtitle: 'Server management', logo: '',
+    showFollowUs: false, showTrustpilot: false, showNews: false,
+    siteName: 'Game Panel PRO', siteSubtitle: 'Server management', logo: '', favicon: '',
     loginDescription: 'Sign in to manage your game servers',
     loginTheme: 'light' as LoginTheme,
     showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Developed by Skoczi',
@@ -29,7 +29,7 @@ function text(value: unknown, max: number): string {
     return value.trim();
 }
 
-function logo(value: unknown): string {
+function logo(value: unknown, favicon = false): string {
     const source = text(value, 350000);
     if (!source) return '';
     if (source.startsWith('https://') && source.length <= 2048) {
@@ -37,6 +37,11 @@ function logo(value: unknown): string {
             const url = new URL(source);
             if (!url.username && !url.password) return url.href;
         } catch { /* Continue to the validation error below. */ }
+    }
+    if (favicon && /^data:image\/(?:x-icon|vnd.microsoft.icon);base64,/.test(source)) {
+        const encoded = source.split(',')[1];
+        const bytes = Buffer.from(encoded, 'base64');
+        if (bytes.length >= 22 && bytes.length <= 256 * 1024 && bytes.subarray(0, 4).equals(Buffer.from([0, 0, 1, 0])) && bytes.readUInt16LE(4) > 0 && bytes.toString('base64') === encoded) return source;
     }
     const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(source);
     if (match) {
@@ -46,7 +51,7 @@ function logo(value: unknown): string {
             : data.subarray(0, 4).toString() === 'RIFF' && data.subarray(8, 12).toString() === 'WEBP';
         if (valid && data.length <= 256 * 1024 && data.toString('base64') === match[2]) return source;
     }
-    invalid('Logo must be an HTTPS image URL or a PNG, JPEG or WebP upload up to 256 KiB');
+    invalid(`${favicon ? 'Favicon' : 'Logo'} must be an HTTPS image URL or a PNG, JPEG, WebP${favicon ? ' or ICO' : ''} upload up to 256 KiB`);
 }
 
 export function validateGlobalSettings(input: unknown): GlobalSettings {
@@ -68,7 +73,7 @@ export function validateGlobalSettings(input: unknown): GlobalSettings {
     if (!siteName) invalid('Site name cannot be empty');
     const result = { appearance: { showFollowUs: appearance.showFollowUs, showTrustpilot: appearance.showTrustpilot,
         showNews: appearance.showNews, showLoginFooter: appearance.showLoginFooter, siteName,
-        siteSubtitle: text(appearance.siteSubtitle, 120), logo: logo(appearance.logo),
+        siteSubtitle: text(appearance.siteSubtitle, 120), logo: logo(appearance.logo), favicon: logo(appearance.favicon ?? '', true),
         loginDescription: text(appearance.loginDescription, 240), loginFooter: text(appearance.loginFooter, 240),
         loginTheme: appearance.loginTheme as LoginTheme,
     }, network: { restrictPorts: network.restrictPorts, allocations } };

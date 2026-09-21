@@ -101,11 +101,12 @@ for (const theme of ['light', 'dark']) {
     await page.route('**/backups/protection', route => route.fulfill({ json: protection }));
     await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
     await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), theme === 'dark');
+    await page.getByText('Storage & backup details', { exact: true }).click();
     const card = page.getByRole('region', { name: 'Data protection', exact: true });
     await expect(card).toContainText('before-update.tar.gz');
-    await expect(card).toContainText('not a restore test');
+    await expect(card).toContainText('Structure checked');
     await expect(card).toContainText('No enabled backup schedule.');
-    await expect(card).toContainText('No restore attempt');
+    await expect(card).toContainText('No restore recorded');
     await expect(card).toContainText('3 MiB');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
@@ -118,10 +119,11 @@ test('protection scan fails explicitly and refresh does not mutate backups', asy
     return route.fulfill(ready ? { json: { ...protection, latestBackup: null, gameAllocatedBytes: null, schedules: null, lastRestore: { status: 'failed', startedAt: '2026-09-21T12:00:00Z', completedAt: null } } } : { status: 503, json: { error: 'Storage scan unavailable' } });
   });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  await page.getByText('Storage & backup details', { exact: true }).click();
   const card = page.getByRole('region', { name: 'Data protection', exact: true });
   await expect(card.getByRole('alert')).toContainText('Storage scan unavailable');
-  ready = true; await card.getByRole('button', { name: 'Refresh protection summary' }).click();
-  await expect(card).toContainText('No matching backup record');
+  ready = true; await card.getByRole('button', { name: 'Refresh storage' }).click();
+  await expect(card).toContainText('No verified backup recorded');
   await expect(card).toContainText('No data');
   await expect(card).toContainText('Schedule status unavailable.');
   await expect(card).toContainText('failed');
@@ -137,7 +139,7 @@ test('cleanup previews first, requires typed confirmation and rejects a stale pl
     return route.fulfill({ json: plan });
   });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
-  await page.getByText('Clean up older backups and recovery', { exact: true }).click();
+  await page.getByText('Clean up backups', { exact: true }).click();
   await page.getByRole('button', { name: 'Preview cleanup' }).click();
   await expect(page.getByRole('region', { name: 'Cleanup preview' })).toContainText('old.tar.gz');
   expect(writes).toBe(0);
@@ -157,23 +159,23 @@ test('changing cleanup rules invalidates the displayed preview', async ({ page }
   await page.route('**/backups/compatibility', route => route.fulfill({ json: { native: true, layoutReady: true, legacy: [], recoveryCount: 0, capabilities: { nativeRetention: 1 } } }));
   await page.route('**/backups/retention**', route => route.fulfill({ json: { fingerprint: 'a'.repeat(64), policy: { keepArchives: 5, keepRecovery: 2 }, remove: [], keep: [] } }));
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
-  await page.getByText('Clean up older backups and recovery', { exact: true }).click();
+  await page.getByText('Clean up backups', { exact: true }).click();
   await page.getByRole('button', { name: 'Preview cleanup' }).click();
   await expect(page.getByRole('region', { name: 'Cleanup preview' })).toBeVisible();
-  await page.getByLabel('Keep newest archives', { exact: true }).fill('0');
+  await page.getByLabel('Backups to keep', { exact: true }).fill('0');
   await expect(page.getByRole('region', { name: 'Cleanup preview' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Preview cleanup' })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('historical content stages locally and saving still rejects a newer server version', async ({ page }) => {
+test('historical content stages locally and overwrites only on explicit Save', async ({ page }) => {
   let remote = 'hostname current'; let version = '"v1"'; let writes = 0; let attempts = 0;
   const entry = { id: 'entry-1', actor: 'historian', state: 'committed', createdAt: '2026-09-21T10:00:00Z', beforeVersion: '"old"', afterVersion: '"later"', before: 'hostname historical', after: 'hostname later' };
   await page.route('**/file/history?**', route => route.fulfill({ json: new URL(route.request().url()).searchParams.has('entry') ? { entry } : { entries: [entry] } }));
   await page.route('**/file?**', route => {
     if (route.request().method() === 'PUT') {
       attempts++; const body = route.request().postDataJSON();
-      if (body.version !== version) return route.fulfill({ status: 409, json: { error: 'File changed since it was opened' } });
+      if (!body.overwrite && body.version !== version) return route.fulfill({ status: 409, json: { error: 'File changed since it was opened' } });
       writes++; remote = body.content; version = '"v3"'; return route.fulfill({ json: { ok: true, version } });
     }
     return route.fulfill({ headers: { etag: version }, body: remote });
@@ -189,10 +191,6 @@ test('historical content stages locally and saving still rejects a newer server 
   await expect(page.locator('.monaco-editor:visible')).toContainText('hostname historical');
   expect(attempts).toBe(0);
   remote = 'hostname external'; version = '"v2"';
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText('Compare: current server file')).toBeVisible();
-  expect(writes).toBe(0); expect(remote).toBe('hostname external');
-  await page.getByRole('button', { name: 'Keep my edits for merging' }).click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect.poll(() => writes).toBe(1); expect(remote).toBe('hostname historical');
 });
@@ -216,3 +214,35 @@ for (const theme of ['light', 'dark']) {
     await expect(page.locator('.monaco-editor:visible')).toContainText('hostname unsaved');
   });
 }
+
+for (const theme of ['light', 'dark']) test(`backup fields and empty history have usable spacing in ${theme}`, async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.route('**/backups/compatibility', route => route.fulfill({ json: { native: true, layoutReady: true, legacy: [], recoveryCount: 0, capabilities: { backupJobs: 1, nativeRestoreRecovery: 1 } } }));
+  await page.route('**/backups/jobs', route => route.fulfill({ json: { jobs: [] } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
+  await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), theme === 'dark');
+  await page.getByRole('button', { name: 'Create backup now' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Create backup' });
+  const input = dialog.getByLabel('Backup name (optional)');
+  const label = dialog.locator('label').filter({ hasText: 'Backup name (optional)' });
+  await expect(input).toBeVisible();
+  await expect.poll(async () => (await input.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(36);
+  const box = (await input.boundingBox())!;
+  const labelBox = (await label.boundingBox())!;
+  expect(box.y).toBeGreaterThan(labelBox.y + labelBox.height);
+  expect(box.height).toBeGreaterThanOrEqual(36);
+  expect(await input.evaluate(element => getComputedStyle(element).borderTopStyle)).toBe('solid');
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await dialog.screenshot({ path: `test-results/backup-form-${theme}.png` });
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.route('**/file/history?**', route => route.fulfill({ json: { entries: [] } }));
+  await page.getByRole('link', { name: 'File Editor', exact: true }).click();
+  await page.getByText('server.cfg', { exact: true }).dblclick();
+  await page.getByRole('button', { name: 'File history', exact: true }).click();
+  const history = page.getByRole('dialog');
+  await expect(history.getByText('No saved versions yet.')).toBeVisible();
+  const heading = await history.getByRole('heading').boundingBox();
+  const modalBox = (await history.boundingBox())!;
+  expect(heading!.x - modalBox.x).toBeGreaterThanOrEqual(16);
+  expect(heading!.y - modalBox.y).toBeGreaterThanOrEqual(16);
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await history.screenshot({ path: `test-results/file-history-empty-${theme}.png` });
+});

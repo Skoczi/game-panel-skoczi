@@ -677,7 +677,7 @@ export function GameServersDesktopTable({
                       }`}
                     >
                       <Terminal className="w-4 h-4" />
-                      Log/Console
+                      Console
                     </AppButton>
                   </div>
                 </td>

@@ -38,32 +38,38 @@ export async function validateNativeArchive(filename: string) {
   await pipeline(createReadStream(filename), createGunzip(), extract);
   if (entries.get('serverfiles')?.type !== 'directory')
     throw new Error('Backup is missing serverfiles');
-  function resolve(name: string, visited = new Set<string>()): string {
-    const normal = path.posix.normalize(name);
-    if (normal !== 'serverfiles' && !normal.startsWith('serverfiles/'))
-      throw new Error('Backup link escapes serverfiles');
-    const parts = normal.split('/');
-    for (let i = 1; i <= parts.length; i++) {
-      const key = parts.slice(0, i).join('/');
-      const entry = entries.get(key);
-      if (!entry) throw new Error('Backup contains a broken link or missing directory');
-      if (entry.type === 'link' || entry.type === 'symlink') {
-        if (visited.has(key) || visited.size > 40) throw new Error('Backup contains cyclic links');
-        const seen = new Set(visited);
-        seen.add(key);
-        const target =
-          entry.type === 'link'
-            ? entry.target!
-            : path.posix.join(path.posix.dirname(key), entry.target!);
-        return resolve(path.posix.join(target, ...parts.slice(i)), seen);
+  // Resolve components in filesystem order: normalizing first would hide escapes
+  // through a symlink followed by "..". Missing internal soft-link targets are valid.
+  function resolve(name: string): string {
+    const pending = name.split('/');
+    const resolved: string[] = [];
+    let followed = 0;
+    while (pending.length) {
+      const part = pending.shift()!;
+      if (!part || part === '.') continue;
+      if (part === '..') {
+        if (resolved.length <= 1) throw new Error('Backup link escapes serverfiles');
+        resolved.pop(); continue;
       }
-      if (i < parts.length && entry.type !== 'directory')
+      resolved.push(part);
+      if (resolved[0] !== 'serverfiles') throw new Error('Backup link escapes serverfiles');
+      const key = resolved.join('/');
+      const entry = entries.get(key);
+      if (entry?.type === 'symlink' || entry?.type === 'link') {
+        if (++followed > 40) throw new Error('Backup contains cyclic links');
+        if (entry.type === 'link') resolved.length = 0;
+        else resolved.pop();
+        pending.unshift(...entry.target!.split('/'));
+      } else if (entry && pending.length && entry.type !== 'directory') {
         throw new Error('Backup path crosses a non-directory');
+      }
     }
-    return normal;
+    return resolved.join('/');
   }
   for (const [name, entry] of entries) {
     if (entry.type === 'symlink' || entry.type === 'link') resolve(name);
+    if (entry.type === 'link' && entries.get(entry.target!)?.type !== 'file')
+      throw new Error('Backup contains an invalid hard link target');
     // Restore never writes children through an archived link.
     for (
       let parent = path.posix.dirname(name);

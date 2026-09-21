@@ -37,8 +37,6 @@ import {
 } from './api/runtime';
 
 export type {
-  CatalogNewsItem,
-  CatalogResourceItem,
   ReleaseConfigFileDefinition,
 } from './api/types';
 export { PUBLIC_CONNECTION_HOST } from './api/runtime';
@@ -434,23 +432,6 @@ class ApiClient {
     return res.data;
   }
 
-  async getNews(limit?: number) {
-    const response = await axios.get(`${CATALOG_BASE_URL}/news`, {
-      params: { limit: limit ?? 20 },
-    });
-    return response.data as { news: import('./api/types').CatalogNewsItem[] };
-  }
-
-  async getResources(params?: { category?: string; gameKey?: string; limit?: number }) {
-    const response = await axios.get(`${CATALOG_BASE_URL}/resources`, {
-      params: {
-        category: params?.category,
-        gameKey: params?.gameKey,
-        limit: params?.limit ?? 200,
-      },
-    });
-    return response.data as { resources: import('./api/types').CatalogResourceItem[] };
-  }
 
   async startServer(id: number) {
     const response = await this.client.post(`/api/servers/${id}/start`);
@@ -889,12 +870,12 @@ class ApiClient {
     return response.data.entry;
   }
 
-  async updateServerFile(serverId: number, path: string, content: string, root?: string, version?: string) {
+  async updateServerFile(serverId: number, path: string, content: string, root?: string, version?: string, overwrite = false) {
     const expected = version ?? this.fileVersions.get(this.fileKey(serverId, path, root));
-    if (!expected) throw new Error('This runtime did not return a file version. Update the agent and reopen the file before saving.');
+    if (!overwrite && !expected) throw new Error('This runtime did not return a file version. Update the agent and reopen the file before saving.');
     const response = await this.client.put(
       `/api/servers/${serverId}/file`,
-      { content, version: expected },
+      { content, version: expected, ...(overwrite ? { overwrite: true } : {}) },
       { params: { path, ...(root ? { root } : {}) } }
     );
     this.fileVersions.set(this.fileKey(serverId, path, root), response.data.version);

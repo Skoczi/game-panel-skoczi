@@ -1,6 +1,6 @@
 import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
-import { Network, Pencil, Plus, Save, Settings2, Trash2 } from 'lucide-react';
+import { Network, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { apiClient } from '../utils/api';
 import {
   DEFAULT_APPEARANCE,
@@ -84,10 +84,10 @@ export function GlobalSettings({
     setDirty(true);
     setNotice('');
   }
-  async function uploadLogo(file?: File) {
+  async function uploadLogo(file?: File, target: 'logo' | 'favicon' = 'logo') {
     if (!file || !settings) return;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 256 * 1024) {
-      setError('Choose a PNG, JPEG or WebP image up to 256 KiB.');
+    if (!['image/png', 'image/jpeg', 'image/webp', ...(target === 'favicon' ? ['image/x-icon', 'image/vnd.microsoft.icon'] : [])].includes(file.type) || file.size > 256 * 1024) {
+      setError(`Choose a PNG, JPEG, WebP${target === 'favicon' ? ' or ICO' : ''} image up to 256 KiB.`);
       return;
     }
     setBusy(true);
@@ -99,7 +99,7 @@ export function GlobalSettings({
         reader.readAsDataURL(file);
       });
       setSettings((current) =>
-        current ? { ...current, appearance: { ...current.appearance, logo } } : current
+        current ? { ...current, appearance: { ...current.appearance, [target]: logo } } : current
       );
       setDirty(true);
       setNotice('');
@@ -202,14 +202,10 @@ export function GlobalSettings({
     <div className="space-y-6 text-gray-900 dark:text-gray-100">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="gp-page-title">
             {nodeId ? `${nodeName || 'Node'} · Allocations` : 'Panel Settings'}
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {nodeId
-              ? 'IP and port policy for this node only. Each address belongs to one node.'
-              : 'Panel appearance and login page. Manage IP addresses in Nodes → Node settings.'}
-          </p>
+
         </div>
         <div className="flex items-center gap-2">
           {dirty && (
@@ -269,63 +265,6 @@ export function GlobalSettings({
         <fieldset disabled={busy} className="min-w-0 space-y-6">
           {!nodeId && (
             <>
-              <section className={card}>
-                <h2 className="flex items-center gap-2 text-lg font-semibold">
-                  <Settings2 size={20} />
-                  Appearance
-                </h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Visibility for all users. Disabling announcements also stops their browser
-                  requests. Legal notices remain available.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-6">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={settings.appearance.showFollowUs}
-                      onChange={(event) =>
-                        update({
-                          ...settings,
-                          appearance: {
-                            ...settings.appearance,
-                            showFollowUs: event.target.checked,
-                          },
-                        })
-                      }
-                    />
-                    Show Follow Us
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={settings.appearance.showTrustpilot}
-                      onChange={(event) =>
-                        update({
-                          ...settings,
-                          appearance: {
-                            ...settings.appearance,
-                            showTrustpilot: event.target.checked,
-                          },
-                        })
-                      }
-                    />
-                    Show Trustpilot
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={settings.appearance.showNews}
-                      onChange={(event) =>
-                        update({
-                          ...settings,
-                          appearance: { ...settings.appearance, showNews: event.target.checked },
-                        })
-                      }
-                    />
-                    Show announcements
-                  </label>
-                </div>
-              </section>
               <section className={card}>
                 <h2 className="text-lg font-semibold">Branding &amp; login page</h2>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -397,6 +336,16 @@ export function GlobalSettings({
                       />
                       Show login footer
                     </label>
+                    <div className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                      <label className="block text-sm">Favicon HTTPS URL
+                        <input type="url" className={`${field} mt-1`} maxLength={2048} placeholder="https://example.com/icon.png" value={settings.appearance.favicon?.startsWith('data:') ? '' : settings.appearance.favicon || ''} onChange={event => update({ ...settings, appearance: { ...settings.appearance, favicon: event.target.value } })} />
+                      </label>
+                      <label className="block text-sm">Upload favicon
+                        <input type="file" accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon,.ico" className="mt-2 block w-full text-sm" onChange={event => { void uploadLogo(event.target.files?.[0], 'favicon'); event.target.value = ''; }} />
+                      </label>
+                      <p className="text-xs text-gray-500">PNG, ICO, JPEG or WebP · up to 256 KiB</p>
+                      {settings.appearance.favicon && <div className="flex items-center gap-3"><img src={settings.appearance.favicon} alt="Favicon preview" className="h-8 w-8 object-contain" /><button type="button" className={button} onClick={() => update({ ...settings, appearance: { ...settings.appearance, favicon: '' } })}>Reset favicon</button></div>}
+                    </div>
                     <label className="block text-sm">
                       Logo HTTPS URL
                       <input

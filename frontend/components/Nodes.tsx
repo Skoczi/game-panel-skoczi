@@ -1,10 +1,11 @@
+import { useNodeScope } from '../contexts/NodeScopeContext';
 import { RuntimeCapabilities } from './RuntimeCapabilities';
 import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useState } from 'react';
-import { Server, Plus, RefreshCw, Shield, ExternalLink, Network } from 'lucide-react';
+import { Server, Plus, RefreshCw, ExternalLink, Network } from 'lucide-react';
 import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
 import { LocalNodeProfile, LocalRuntimeInfo } from './LocalNodeProfile';
-import { ACTIVE_NODE, openFleet, selectNode } from '../utils/nodeContext';
+import { ACTIVE_NODE, openFleet } from '../utils/nodeContext';
 import { GlobalSettings } from './GlobalSettings';
 import {
   AppModal,
@@ -28,6 +29,8 @@ const colors = {
   pending: 'bg-blue-100 text-blue-800',
 };
 export function Nodes() {
+  const { selectScope } = useNodeScope();
+  const openNodeServers = (id: string) => { selectScope(id); openFleet(); };
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
   const [localNode, setLocalNode] = useState<LocalNode>();
   const [profileDirty, setProfileDirty] = useState(false);
@@ -112,7 +115,7 @@ export function Nodes() {
             className={button}
             disabled={!local && (!node || !node.enabled || node.status === 'pending')}
             onClick={async () => {
-              if (await leaveAllocations()) selectNode(selected.id);
+              if (await leaveAllocations()) openNodeServers(selected.id);
             }}
           >
             Open servers
@@ -195,13 +198,7 @@ export function Nodes() {
     <div className="space-y-6 text-slate-900 dark:text-slate-100">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400">
-            Infrastructure
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold">Nodes</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            One control panel. Separate runtimes, files and IP allocations.
-          </p>
+          <h1 className="gp-page-title">Nodes</h1>
         </div>
         <div className="flex gap-2">
           <button className={button} onClick={() => void refresh()} disabled={busy}>
@@ -225,14 +222,6 @@ export function Nodes() {
           {error}
         </div>
       )}
-      <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
-        <Shield className="shrink-0" size={20} />
-        <p>
-          Node administration grants control over the host Docker runtime. Remote access is
-          restricted to administrators. Users open their assigned servers from Game Servers;
-          location and routing are handled by the panel.
-        </p>
-      </div>
       {showCreate && (
         <form
           className={`${card} grid gap-4 md:grid-cols-3`}
@@ -352,8 +341,8 @@ export function Nodes() {
           <div className="mb-4">
             <LocalRuntimeInfo node={localNode} unavailable={runtimeUnavailable} />
           </div>
-          <button className={button} disabled={busy} onClick={() => selectNode('local')}>
-            Open local servers
+          <button className={button} disabled={busy} onClick={() => openNodeServers('local')}>
+            Open servers
           </button>
           <button
             className={`${button} ml-2`}
@@ -394,7 +383,7 @@ export function Nodes() {
               <button
                 className={button}
                 disabled={busy || node.status === 'disabled' || node.status === 'pending'}
-                onClick={() => selectNode(node.id)}
+                onClick={() => openNodeServers(node.id)}
               >
                 Open servers
               </button>

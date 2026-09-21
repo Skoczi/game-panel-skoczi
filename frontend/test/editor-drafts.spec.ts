@@ -50,7 +50,7 @@ for (const changed of [false, true]) test(`editor recovers a local draft after r
   await page.getByText('server.cfg', { exact: true }).dblclick();
   await page.locator('.monaco-editor:visible').click();
   await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.type('hostname local draft');
-  await expect(page.getByText(/Local draft saved on this browser/)).toBeVisible();
+  await expect(page.getByText(/Draft saved locally/)).toBeVisible();
   await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('gp_editor_draft_v1:')).map(key => JSON.parse(localStorage.getItem(key)!).content))).toEqual(['hostname local draft']);
   if (changed) { version = '"v2"'; content = 'hostname remote'; }
   page.on('dialog', dialog => dialog.accept());
@@ -58,11 +58,6 @@ for (const changed of [false, true]) test(`editor recovers a local draft after r
   await page.getByText('server.cfg', { exact: true }).dblclick();
   await expect(page.locator('.monaco-editor:visible')).toContainText('hostname local draft');
   expect(writes).toBe(0);
-  if (changed) {
-    await expect(page.getByText('Compare: current server file')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
-    await page.getByRole('button', { name: 'Keep my edits for merging' }).click();
-  }
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect.poll(() => writes).toBe(1);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();

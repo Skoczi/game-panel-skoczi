@@ -84,7 +84,6 @@ export function BackupTab({
   inputBorder: _inputBorder,
   textPrimary,
   textSecondary,
-  serverName,
   handleBackupNow,
   canCreateBackups,
   backupNowLoading,
@@ -173,7 +172,7 @@ export function BackupTab({
     <div className="h-full overflow-y-auto p-4 sm:p-5">
       <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        <AppSectionHeader title="Backups" description={<>Manage and download backups for {serverName}</>} actions={<>
+        <AppSectionHeader title="Backups" actions={<>
           {!backupsNotSupported && !hideManualBackup && (
             <AppButton
               tone="primary"
@@ -189,23 +188,16 @@ export function BackupTab({
           )}
         </>} />
         {createReason && !hideManualBackup && <p id={`backup-create-reason-${serverId}`} className={`text-sm ${textSecondary}`}>{createReason}</p>}
-        {native && restoreReason && <p id={`backup-restore-reason-${serverId}`} className={`text-sm ${textSecondary}`}>Restore: {restoreReason}</p>}
+        {native && restoreReason && <p id={`backup-restore-reason-${serverId}`} className="sr-only">Restore: {restoreReason}</p>}
 
         {native && !nativeReady && <p role="status" className="text-sm text-amber-500">{!compatibility ? (compatibilityError ? 'Runtime compatibility could not be checked. Check the node connection and agent version before creating or restoring backups.' : 'Checking runtime compatibility…') : !compatibility.layoutReady ? 'Native backup actions require the serverfiles layout.' : 'Update this node’s agent to enable persistent backup jobs and safe restore recovery.'}</p>}
         {native && (!nativeReady || Boolean(jobsError)) && <AppButton onClick={() => setCompatibilityCheck(value => value + 1)}>Recheck runtime</AppButton>}
-        {native && <p className={`rounded-xl border ${borderColor} p-4 text-sm ${textSecondary}`}>Native backups are stored in backups/ next to serverfiles/ and contain only serverfiles/. Live backups may contain files from different moments; stop the game first for a consistent copy. Restore requires a stopped server and retains previous files. Download archives for off-node storage; automatic retention is not enabled.</p>}
         {native && compatibility && !compatibility.layoutReady && <p role="alert" className="text-sm text-amber-500">This server uses a legacy data layout. Move to the serverfiles layout with a reviewed migration before creating or restoring Native backups. Existing files have not been moved.</p>}
-        {native && compatibility && compatibility.legacy.length > 0 && <section className={`rounded-xl border ${borderColor} p-4 text-sm space-y-2`} aria-label="Legacy backups">
-          <h4 className="font-semibold">Legacy archives</h4><p>These archives use the previous mount format. Download them for manual recovery; they are not compatible with serverfiles restore.</p>
+        {native && compatibility && compatibility.legacy.length > 0 && <details className={`rounded-xl border ${borderColor} p-4 text-sm space-y-2`} aria-label="Legacy backups">
+          <summary className="cursor-pointer font-medium">Legacy archives ({compatibility.legacy.length})</summary><p className={textSecondary}>Download only — this format cannot be restored here.</p>
           {compatibility.legacy.map(item => <div key={item.name} className="flex items-center justify-between gap-2"><span className="truncate">{item.name}</span><AppButton disabled={!canDownloadBackups} onClick={() => { void apiClient.downloadLegacyBackup(serverId,item.name).catch(() => setJobsError('Legacy archive download failed.')); }}>Download</AppButton></div>)}
-        </section>}
-        {native && compatibility && compatibility.recoveryCount > 0 && <p className={`text-sm ${textSecondary}`}>{compatibility.recoveryCount} recovery directories retained in backups/. They are excluded from ordinary file operations.</p>}
+        </details>}
         {native && jobsError && <p role="alert" className="text-sm text-amber-500">{jobsError}</p>}
-        {native && jobs.length > 0 && <div className={`rounded-xl border ${borderColor} p-4`}>
-          <OperationList label="Backup operations" secondaryClass={textSecondary} operations={jobs.slice(0, 5).map(job => ({
-            ...job, name: job.kind === 'restore' ? 'Restore' : 'Backup',
-          }))} />
-        </div>}
         {backupsNotSupported && (
           <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
             <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -298,16 +290,11 @@ export function BackupTab({
           </div>
         )}
 
-        {native && canDeleteBackups && compatibility?.capabilities?.nativeRetention === 1 && <NativeRetentionPanel key={serverId} serverId={serverId} onChanged={() => { void loadBackups(); }} />}
-
-        {native && <NativeProtectionCard serverId={serverId} supported={compatibility?.capabilities?.nativeProtection === 1} checking={!compatibility && !compatibilityError} />}
-
         {!backupsNotSupported && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5 space-y-3 sm:space-y-4`}>
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
               <div>
                 <h4 className={`text-lg font-semibold ${textPrimary} mb-1`}>Available Backups</h4>
-                <p className={`text-sm ${textSecondary}`}>{isLinuxGSMGame || !canRestoreBackups ? 'Download or delete your server backups' : 'Download, restore or delete your server backups'}</p>
               </div>
               <AppButton
                 onClick={() => loadBackups()}
@@ -431,6 +418,15 @@ export function BackupTab({
             </div>
           </div>
         )}
+        {native && jobs.length > 0 && <div className={`rounded-xl border ${borderColor} p-4`}>
+          <OperationList label="Backup operations" secondaryClass={textSecondary} operations={jobs.slice(0, 5).map(job => ({
+            ...job, name: job.kind === 'restore' ? 'Restore' : 'Backup',
+          }))} />
+        </div>}
+        {native && canDeleteBackups && compatibility?.capabilities?.nativeRetention === 1 && <NativeRetentionPanel key={serverId} serverId={serverId} onChanged={() => { void loadBackups(); }} />}
+
+        {native && <NativeProtectionCard serverId={serverId} supported={compatibility?.capabilities?.nativeProtection === 1} checking={!compatibility && !compatibilityError} />}
+
       </div>
     </div>
   );

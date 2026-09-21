@@ -31,6 +31,7 @@ test('native backups archive only serverfiles without following symlinks, online
         await fs.writeFile(path.join(root, 'data', 'serverfiles', 'server.cfg'), 'hostname test');
         await fs.writeFile(path.join(root, 'config', 'settings.ini'), 'test=1');
         await fs.symlink('server.cfg', path.join(root, 'data', 'serverfiles', 'inside'));
+        await fs.symlink('libSDL2-2.0.so.0', path.join(root, 'data', 'serverfiles', 'libSDL2.so'));
         const server = { id: 1, provider_metadata_json: '{}', docker_container_id: 'test' };
         assert.match((await module.createNativeBackup(server, false, 'Przed aktualizacją')).stdout, /Przed-aktualizacją/);
         for (const name of ['../escape', '/absolute', 'bad\\name', 'bad\nname', 'a'.repeat(65), '界'.repeat(64)]) assert.throws(() => module.normalizeBackupName(name));
@@ -44,6 +45,7 @@ test('native backups archive only serverfiles without following symlinks, online
         const archive = path.join(directory, names[0]);
         assert.equal((await fs.stat(archive)).mode & 0o777, 0o600);
         const { stdout } = await promisify(execFile)('tar', ['-tzf', archive]);
+        assert(stdout.includes('serverfiles/libSDL2.so')); assert(!stdout.includes('serverfiles/libSDL2-2.0.so.0'));
         assert(stdout.includes('serverfiles/server.cfg')); assert(!stdout.includes('config/settings.ini')); assert(!stdout.includes('backups/'));
         assert(!stdout.includes('outside/passwd')); assert(!stdout.includes('.native-backups'));
         await fs.symlink('/etc', path.join(root, 'data', 'serverfiles', 'outside'));

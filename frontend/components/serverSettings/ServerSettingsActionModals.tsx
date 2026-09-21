@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { AppButton, AppInput, AppModal, AppModalContent, AppModalHeader, AppModalTitle, AppModalBody } from '../../src/ui/components';
+import { AppButton, AppInput, AppFormField, AppModal, AppModalContent, AppModalHeader, AppModalTitle, AppModalBody } from '../../src/ui/components';
 
 interface DeleteEntryTarget {
   name: string;
@@ -220,12 +220,12 @@ export function ServerSettingsActionModals({
           <AppModalHeader><AppModalTitle>Create backup</AppModalTitle></AppModalHeader>
           <AppModalBody>
             <p className={`text-sm ${textSecondary} my-4`}>
-              {nativeBackup ? 'The backup contains only serverfiles and does not change the server power state. If the game is running, files may come from different moments.' : hotBackupOnly ? 'The server will keep running while the backup is created.' : stopOnBackup ? 'The server will stop before the backup is created.' : 'The backup may run while the server is active.'}
+              {nativeBackup ? 'Backs up serverfiles. Files may change while the game is running.' : hotBackupOnly ? 'The server will keep running while the backup is created.' : stopOnBackup ? 'The server will stop before the backup is created.' : 'The backup may run while the server is active.'}
             </p>
             {nativeBackup && <div className="space-y-2 my-4">
-              <label htmlFor="native-backup-name" className={`text-sm ${textPrimary}`}>Backup name (optional)</label>
-              <AppInput id="native-backup-name" value={backupName} onChange={event => setBackupName(event.target.value)} maxLength={71} placeholder="Before update" autoComplete="off" />
-              <p className={`text-xs ${textSecondary}`}>Leave empty for an automatic name. Date and a unique identifier are always added.</p>
+              <AppFormField label="Backup name (optional)" helper="Leave empty for an automatic name.">
+              <AppInput className="gp-backup-input" aria-label="Backup name (optional)" value={backupName} onChange={event => setBackupName(event.target.value)} maxLength={71} placeholder="Before update" autoComplete="off" />
+              </AppFormField>
               {!nameValid && <p role="alert" className="text-xs text-red-500">Use up to 64 letters, numbers, spaces, dots, hyphens or underscores. Start with a letter or number.</p>}
             </div>}
             <div className="mt-5 flex justify-end gap-2">

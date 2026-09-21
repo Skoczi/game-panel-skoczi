@@ -42,6 +42,11 @@ export const ACTIVE_NODE = (() => {
 })();
 export function selectNode(id: string, preserveServerPage = false) {
   if (!valid.test(id)) throw new Error('Invalid node');
+  if (!preserveServerPage) {
+    window.dispatchEvent(new CustomEvent('gp:node-scope', { detail: id }));
+    openFleet();
+    return;
+  }
   // An explicit Open servers action must also leave the Nodes tab for the current runtime.
   // Per-tab identity. A full reload closes sockets and discards every server-ID cache.
   sessionStorage.setItem(KEY, id);

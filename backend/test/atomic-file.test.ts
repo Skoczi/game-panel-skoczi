@@ -22,3 +22,22 @@ test('conditional atomic writes reject stale content, preserve modes and clean t
   assert.equal(writes.filter(r => r.status === 'fulfilled').length, 1);
  } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
+
+test('explicit overwrite saves stale editor content atomically and snapshots current disk contents', async () => {
+ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gp-overwrite-'));
+ try {
+  const filename = path.join(root, 'server.cfg');
+  await fs.writeFile(filename, 'game changed this', { mode: 0o640 });
+  let previous = '';
+  await atomicFileWrite(filename, 'editor contents', fileVersion('old contents'), async bytes => { previous = bytes.toString(); }, true);
+  assert.equal(previous, 'game changed this');
+  assert.equal(await fs.readFile(filename, 'utf8'), 'editor contents');
+  assert.equal((await fs.stat(filename)).mode & 0o777, 0o640);
+  await atomicFileWrite(filename, 'without version', '', undefined, true);
+  assert.equal(await fs.readFile(filename, 'utf8'), 'without version');
+  await fs.symlink(filename, path.join(root, 'link'));
+  await assert.rejects(atomicFileWrite(path.join(root, 'link'), 'bad', '', undefined, true), /regular file/);
+  assert.equal(await fs.readFile(filename, 'utf8'), 'without version');
+  assert.deepEqual((await fs.readdir(root)).sort(), ['link', 'server.cfg']);
+ } finally { await fs.rm(root, { recursive: true, force: true }); }
+});

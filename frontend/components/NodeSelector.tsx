@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Check, ChevronDown, Server, Radio } from 'lucide-react';
+import { Check, ChevronDown, Server } from 'lucide-react';
 import { useNodeScope } from '../contexts/NodeScopeContext';
 
 export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | Promise<void> }) {
@@ -13,7 +13,7 @@ export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | P
     {
       id: 'all',
       name: 'All nodes',
-      detail: 'Servers and host metrics across all locations',
+      detail: '',
       status: 'all',
     },
     ...(scope !== 'all' && !nodes.some((node) => node.id === scope)
@@ -56,8 +56,8 @@ export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | P
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
     >
-      <div className="gp-node-eyebrow" id={`${listId}-label`}>
-        <Radio size={12} aria-hidden="true" /> Node scope
+      <div className="sr-only" id={`${listId}-label`}>
+        Node scope
       </div>
       <button
         ref={trigger}
@@ -123,28 +123,22 @@ export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | P
           <span id={`${listId}-value`} className="gp-node-name">
             {selected.name}
           </span>
-          <span className="gp-node-caption">
-            <i data-status={error ? 'offline' : selected.status} />
-            {loading
-              ? 'Loading nodes…'
-              : error
-                ? 'Status unavailable'
-                : statusLabel(selected.status)}
-          </span>
+        </span>
+        <span className="gp-node-caption" title={loading ? 'Loading nodes…' : error ? 'Status unavailable' : statusLabel(selected.status)}>
+          <i data-status={error ? 'offline' : selected.status} />
+          <span className="sr-only">{statusLabel(selected.status)}</span>
         </span>
         <ChevronDown size={16} className="gp-node-chevron" aria-hidden="true" />
       </button>
       {open && (
         <div className="gp-node-popover">
-          <div className="gp-node-menu-heading">
-            Nodes <span>{nodes.length}</span>
-          </div>
           <div id={listId} role="listbox" aria-label="Node scopes" className="gp-node-options">
             {options.map((node, index) => (
               <div
                 key={node.id}
                 id={`${listId}-${index}`}
                 role="option"
+                aria-label={`${node.name}${node.detail ? ` · ${node.detail}` : ''} · ${statusLabel(node.status)}`}
                 aria-selected={node.id === scope}
                 className="gp-node-option"
                 data-highlighted={index === activeIndex}
@@ -152,17 +146,12 @@ export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | P
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => choose(node.id)}
               >
+                <span className="gp-node-caption" title={statusLabel(node.status)}>
+                  <i data-status={node.status} /><span className="sr-only">{statusLabel(node.status)}</span>
+                </span>
                 <span className="gp-node-copy">
                   <span className="gp-node-name">{node.name}</span>
-                  <span className="gp-node-location" title={node.detail}>
-                    {node.detail}
-                  </span>
-                  <span className="gp-node-caption">
-                    <i data-status={node.status} />
-                    <span>
-                      {node.status === 'pending' ? 'Not paired' : statusLabel(node.status)}
-                    </span>
-                  </span>
+                  {node.detail && <span className="gp-node-location" title={node.detail}>{node.detail}</span>}
                 </span>
                 {node.id === scope && (
                   <Check className="gp-node-check" size={16} aria-hidden="true" />
@@ -170,9 +159,7 @@ export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | P
               </div>
             ))}
           </div>
-          <div className="gp-node-menu-note">
-            Filters servers and host metrics. Panel settings are global.
-          </div>
+
         </div>
       )}
       {error && (

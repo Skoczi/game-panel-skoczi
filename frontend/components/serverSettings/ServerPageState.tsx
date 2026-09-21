@@ -13,14 +13,14 @@ export function ServerPageState({
   const loading = state === 'loading';
   const Icon = state === 'wrong-node' ? Waypoints : state === 'error' ? Unplug : Server;
   const title = loading
-    ? 'Opening your server'
+    ? 'Loading server…'
     : state === 'error'
       ? 'Unable to connect'
       : state === 'wrong-node'
         ? 'Different execution node'
         : 'Server unavailable';
   const description = loading
-    ? 'Connecting to the node and preparing your workspace.'
+    ? 'Connecting to the node.'
     : state === 'error'
       ? 'The node has not returned the server list. Try again in a moment.'
       : state === 'wrong-node'
@@ -37,7 +37,6 @@ export function ServerPageState({
           <Icon size={26} />
         </div>
         <div>
-          <div className="gp-server-eyebrow">SERVER WORKSPACE</div>
           <h1>{title}</h1>
           <p>{description}</p>
         </div>

@@ -28,23 +28,23 @@ export function FileHistoryModal({ serverId, doc, canRestore, onClose, onRestore
       .catch(cause => { if (active) setError(apiErrorMessage(cause, 'Unable to read snapshot.')); });
     return () => { active = false; };
   }, [selected, serverId, doc.path, doc.root]);
-  return <AppModal open onOpenChange={open => { if (!open) onClose(); }}><AppModalContent className="w-[calc(100vw-2rem)] max-w-5xl max-h-[90vh] overflow-y-auto"><AppModalBody>
-    <AppModalHeader><AppModalTitle>File history · {doc.name}</AppModalTitle></AppModalHeader>
+  return <AppModal open onOpenChange={open => { if (!open) onClose(); }}><AppModalContent className="w-[calc(100vw-2rem)] max-w-5xl max-h-[90vh] overflow-y-auto p-5">
+    <AppModalHeader><AppModalTitle>File history · {doc.name}</AppModalTitle></AppModalHeader><AppModalBody className="pt-4">
     <div className="space-y-3 text-sm">
-      <p className="text-gray-500 dark:text-gray-400">Editor saves only. Up to 10 snapshots per file, 100 per server, retained for 30 days. Text snapshots up to 512 KiB; 64 MiB per server. This history is not a backup.</p>
+      <p className="text-gray-500 dark:text-gray-400">Previous versions from editor saves · 30 days.</p>
       <AppButton disabled={loading} onClick={() => setRevision(value => value + 1)}>Refresh file history</AppButton>
       {loading && <p role="status">Loading history…</p>}
       {error && <p role="alert" className="text-red-500">{error}</p>}
-      {!loading && !error && entries.length === 0 && <p>No recorded editor saves for this file.</p>}
-      {!loading && <div className="flex flex-wrap gap-2">{entries.map(entry => <AppButton key={entry.id} aria-pressed={selected === entry.id} onClick={() => setSelected(entry.id)}>
+      {!loading && !error && entries.length === 0 && <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 px-5 py-8 text-center"><p className="font-medium">No saved versions yet.</p><p className="mt-1 text-slate-500 dark:text-slate-400">Save a file to start its history.</p></div>}
+      {!loading && <div className="flex flex-col gap-2">{entries.map(entry => <AppButton className="justify-start text-left" key={entry.id} aria-pressed={selected === entry.id} onClick={() => setSelected(entry.id)}>
         {new Date(entry.createdAt).toLocaleString()} · {entry.actor} · {entry.state === 'committed' ? 'Saved' : 'Save not confirmed'}
       </AppButton>)}</div>}
       {detail && <>
         <p>Before this save → {detail.state === 'committed' ? 'after this save' : 'proposed text (save not confirmed)'}</p>
         <Suspense fallback={<p>Loading comparison…</p>}><Diff before={detail.before} after={detail.after} filename={doc.name} /></Suspense>
-        <p>The previous version will be loaded into your editor. Saving still checks for newer server changes.</p>
+        <p>Load a previous version, then save to apply it.</p>
         <AppButton tone="primary" disabled={!canRestore} onClick={() => onRestore(detail.before)}>Use previous version in editor</AppButton>
-        {!canRestore && <p>Write permission and a resolved, idle editor are required.</p>}
+        {!canRestore && <p>Saving is unavailable in this editor.</p>}
       </>}
     </div>
   </AppModalBody></AppModalContent></AppModal>;

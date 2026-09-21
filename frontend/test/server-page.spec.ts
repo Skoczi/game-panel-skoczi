@@ -185,7 +185,7 @@ test('workspace and dock fill the viewport with matching bottom edges across tab
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await page.getByRole('button', { name: 'Open side console' }).click();
-  for (const name of ['Files', 'Game Config', 'Backups', 'Schedules', 'Network', 'Startup & Settings', 'Terminal', 'Activity']) {
+  for (const name of ['File Editor', 'Game Config', 'Backups', 'Schedules', 'Network', 'Startup & Settings', 'Terminal', 'Activity']) {
     await page.locator('.gp-server-tabs').getByRole('link', { name, exact: true }).click();
     const main = page.locator('.gp-server-workspace-main > section');
     await expect(main).toBeVisible();
@@ -301,8 +301,8 @@ test('Manage opens a real server page; tabs, refresh and browser back retain con
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/test/server-page.fixture.html');
-  await page.getByRole('button', { name: 'Manage', exact: true }).click();
+  await page.route('**/api/fleet', route => route.fulfill({ json: { servers: [] } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
   await expect(page).toHaveURL(/servers\/7\/console$/);
   await expect(page.getByRole('heading', { name: 'CS16 Test', exact: true })).toBeVisible();
   await expect(page.getByText('Server ready for players')).toBeVisible();
@@ -317,14 +317,15 @@ test('Manage opens a real server page; tabs, refresh and browser back retain con
   await page.goBack();
   await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to servers' }).click();
-  await expect(page.getByRole('button', { name: 'Manage', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Game Servers', exact: true })).toBeVisible();
+  await expect(page.getByText('Node administration', { exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 test('console and power are permission gated including direct URLs', async ({ page }) => {
   await page.goto('/test/server-page.fixture.html?restricted#/nodes/local/servers/7/console');
   await expect(page.getByText("You don't have permission to read the console.")).toBeVisible();
   await expect(page.getByRole('button', { name: 'Restart', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Files', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'File Editor', exact: true })).toHaveCount(0);
   await page.goto('/test/server-page.fixture.html?restricted#/nodes/local/servers/7/filemanager');
   await expect(page.getByText('No access to this section.')).toBeVisible();
   expect(await page.evaluate(() => (window as any).actions || [])).toEqual([]);
@@ -344,7 +345,7 @@ test('power confirmation and console page responsive layout', async ({ page }) =
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('heading', { name: 'CS16 Test', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('link', { name: 'Files', exact: true }).click();
+  await page.getByRole('link', { name: 'File Editor', exact: true }).click();
   await expect(page.getByText('server.cfg', { exact: true })).toBeVisible();
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-page-mobile-files.png', fullPage: true });
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
@@ -363,7 +364,7 @@ test('loading uses a responsive skeleton without flashing an unavailable error',
   page,
 }) => {
   await page.goto('/test/server-page.fixture.html?snapshot=loading#/nodes/local/servers/7/console');
-  await expect(page.getByRole('heading', { name: 'Opening your server' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Loading server…' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Server unavailable' })).toHaveCount(0);
   await expect(page.locator('.gp-server-skeleton')).toBeVisible();
   await expect(page.locator('.gp-server-state')).toHaveAttribute('aria-busy', 'true');
@@ -395,7 +396,7 @@ for (const state of ['error', 'missing']) {
 
 test('unsaved files are protected when leaving by tabs and browser history', async ({ page }) => {
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
-  await page.getByRole('link', { name: 'Files', exact: true }).click();
+  await page.getByRole('link', { name: 'File Editor', exact: true }).click();
   await page.getByText('server.cfg', { exact: true }).dblclick();
   const editor = page.locator('.monaco-editor');
   await expect(editor).toBeVisible();
@@ -434,7 +435,7 @@ test('editor tabs keep drafts, save the selected path and confirm closing dirty 
     return route.fulfill({ headers: { etag: '"fixture-version"' }, json: { content: 'hostname test', version: '"fixture-version"' } });
   });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
-  await page.getByRole('link', { name: 'Files', exact: true }).click();
+  await page.getByRole('link', { name: 'File Editor', exact: true }).click();
   await page.getByText('server.cfg', { exact: true }).dblclick();
   const visibleEditor = page.locator('.monaco-editor:visible');
   await visibleEditor.click();
@@ -569,7 +570,7 @@ test('opening either console starts at latest logs and commands opt out of crede
   const output = page.locator('.gp-console-terminal:visible');
   const remaining = () => output.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight);
   await expect.poll(remaining).toBeLessThan(2);
-  await page.getByRole('link', { name: 'Files', exact: true }).click();
+  await page.getByRole('link', { name: 'File Editor', exact: true }).click();
   await page.getByRole('button', { name: 'Open side console' }).click();
   await expect.poll(remaining).toBeLessThan(2);
   const command = page.getByRole('textbox', { name: 'Server console command' });
@@ -587,15 +588,13 @@ test('opening either console starts at latest logs and commands opt out of crede
   await expect.poll(remaining).toBeLessThan(2);
 });
 
-test('editor keeps draft on conflict and saves only after acknowledging the current version', async ({ page }) => {
-  let reads = 0; const writes: any[] = [];
+test('editor saves directly and preserves edits after a failed write', async ({ page }) => {
+  const writes: any[] = [];
   await page.route('**/api/servers/7/file?**', route => {
-    if (route.request().method() === 'GET') {
-      reads++;
-      return route.fulfill({ headers: { etag: reads === 1 ? '"v1"' : '"v2"' }, body: reads === 1 ? 'hostname original' : 'hostname remote' });
-    }
-    writes.push(route.request().postDataJSON());
-    if (writes.length === 1) return route.fulfill({ status: 409, json: { error: 'File changed since it was opened' } });
+    if (route.request().method() === 'GET') return route.fulfill({ headers: { etag: '"v1"' }, body: 'hostname original' });
+    const body = route.request().postDataJSON(); writes.push(body);
+    if (writes.length === 1) return route.fulfill({ status: 503, json: { error: 'Storage unavailable' } });
+    if (!body.overwrite) return route.fulfill({ status: 409, json: { error: 'File changed since it was opened' } });
     return route.fulfill({ json: { ok: true, version: '"v3"' } });
   });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
@@ -603,30 +602,27 @@ test('editor keeps draft on conflict and saves only after acknowledging the curr
   const editor = page.locator('.monaco-editor:visible');
   await editor.click(); await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.type('hostname draft');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText('Compare: current server file')).toBeVisible();
+  await expect(page.locator('.gp-editor-error')).toContainText('Storage unavailable');
   await expect(editor).toContainText('hostname draft');
-  expect(writes[0].version).toBe('"v1"');
-  await page.getByText('Compare: current server file').click();
-  await expect(page.getByText('hostname remote', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Keep my edits for merging' }).click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
-  expect(writes[1]).toEqual({ content: 'hostname draft', version: '"v2"' });
+  expect(writes[1]).toEqual({ content: 'hostname draft', version: '"v1"', overwrite: true });
+  await expect(page.getByText('Compare: current server file')).toHaveCount(0);
 });
 
-test('an old agent without file versions cannot accept an unprotected editor save', async ({ page }) => {
-  let writes = 0;
+test('explicit editor overwrite does not require a cached file version', async ({ page }) => {
+  let written: any;
   await page.route('**/api/servers/7/file?**', route => {
-    if (route.request().method() !== 'GET') writes++;
-    return route.fulfill({ body: 'hostname original' });
+    if (route.request().method() === 'GET') return route.fulfill({ body: 'hostname original' });
+    written = route.request().postDataJSON(); return route.fulfill({ json: { ok: true, version: '"v2"' } });
   });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await page.getByText('server.cfg', { exact: true }).dblclick();
   await page.locator('.monaco-editor:visible').click();
   await page.keyboard.press('ControlOrMeta+a'); await page.keyboard.type('hostname draft');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText(/Update the agent and reopen the file/)).toBeVisible();
-  expect(writes).toBe(0);
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  expect(written).toEqual({ content: 'hostname draft', overwrite: true });
 });
 
 test('Native backup operations and legacy archives remain inspectable after reload', async ({ page }) => {
@@ -635,7 +631,8 @@ test('Native backup operations and legacy archives remain inspectable after relo
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/backup');
   await expect(page.getByRole('region',{name:'Backup operations'})).toContainText('running');
   await expect(page.getByRole('button',{name:'Create backup now'})).toBeDisabled();
-  await expect(page.getByRole('region',{name:'Legacy backups'})).toContainText('legacy.tar.gz');
+  await page.getByText('Legacy archives (1)', { exact: true }).click();
+  await expect(page.getByText('legacy.tar.gz', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('region',{name:'Backup operations'})).toContainText('running');
 });
@@ -716,21 +713,14 @@ for (const status of ['running', 'stopped', 'unknown']) {
   });
 }
 for (const theme of ['light', 'dark']) {
-  test(`server context stays accessible across tabs and mobile in ${theme}`, async ({ page }) => {
-    await page.addInitScript(() => { Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (value: string) => { (window as any).copiedContext = value; } } }); });
+  test(`server header is compact and power controls retain their state in ${theme}`, async ({ page }) => {
     await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
     await page.evaluate(dark => document.documentElement.classList.toggle('dark', dark), theme === 'dark');
-    const context = page.getByRole('region', { name: 'Server context', exact: true });
-    await expect(context).toContainText('Node:');
-    await expect(context).toContainText('Latest chart sample:');
-    const copy = context.getByRole('button', { name: 'Copy server identifier' });
-    await copy.focus(); await page.keyboard.press('Enter');
-    expect(await page.evaluate(() => (window as any).copiedContext)).toBe('local/7');
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
-    await expect(context).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Server context', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Start', exact: true })).toHaveAttribute('title', 'Start requires a confirmed stopped server.');
+    await page.getByRole('link', { name: 'File Editor', exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
-    await context.getByRole('button', { name: 'Copy connection address' }).click();
-    expect(await page.evaluate(() => (window as any).copiedContext)).toBe('51.75.61.237:27050');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }

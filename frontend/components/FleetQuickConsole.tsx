@@ -116,7 +116,6 @@ export function FleetQuickConsole({
         <div>
           <Terminal size={18} />
           <strong>Quick console</strong>
-          <span>{tabs.find((t) => t.id === active)?.node.name}</span>
         </div>
         <div>
           <span role="status" className={ready ? 'is-live' : ''}>

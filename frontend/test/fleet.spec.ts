@@ -339,9 +339,9 @@ test('global IDs, premium views and quick consoles stay scoped across identical 
   );
   const first = page.getByRole('row').filter({ hasText: 'Community Arena' });
   const other = page.getByRole('row').filter({ hasText: 'Survival World' });
-  await first.getByRole('button', { name: 'Log/Console', exact: true }).click();
+  await first.getByRole('button', { name: 'Console', exact: true }).click();
   await expect(page.getByText('FIRST NODE LOG', { exact: true })).toBeVisible();
-  await other.getByRole('button', { name: 'Log/Console', exact: true }).click();
+  await other.getByRole('button', { name: 'Console', exact: true }).click();
   await expect(page.getByText('SECOND NODE LOG', { exact: true })).toBeVisible();
   await expect(page.getByText('FIRST NODE LOG', { exact: true })).not.toBeVisible();
   expect(
@@ -757,4 +757,19 @@ test('fleet workspace fits mobile and dark desktop', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Community Arena' })).toBeVisible();
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-desktop-dark.png', fullPage: true });
+});
+
+test('long server names stay inside the list column and leave actions readable', async ({ page }) => {
+  const longName = 'Długa nazwa serwera Mordini @eserv.pl ' + 'x'.repeat(100);
+  await page.route('**/api/fleet', r => r.fulfill({ json: { servers: [{ ...servers[0], name: longName }] } }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/test/fleet.fixture.html');
+  await page.getByRole('button', { name: 'List view' }).click();
+  const name = page.locator('tbody td:first-child');
+  await expect(name).toContainText(longName);
+  expect(await name.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+  expect((await name.boundingBox())!.width).toBeLessThanOrEqual(300);
+  await expect(page.getByRole('button', { name: 'Console', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/fleet-long-name.png', fullPage: true });
 });

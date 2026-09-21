@@ -7,17 +7,17 @@ export const fileVersion = (content: Buffer | string) => `"${createHash('sha256'
 const writes = new Set<string>();
 const conflict = () => Object.assign(new Error('File changed since it was opened. Compare the current file before saving.'), { statusCode: 409 });
 
-export async function atomicFileWrite(filename: string, content: string, expected: string, beforeCommit?: (previous: Buffer) => Promise<void>) {
-    if (!expected) throw Object.assign(new Error('Reopen this file before saving: its version is required'), { statusCode: 428 });
+export async function atomicFileWrite(filename: string, content: string, expected: string, beforeCommit?: (previous: Buffer) => Promise<void>, overwrite = false) {
+    if (!overwrite && !expected) throw Object.assign(new Error('Reopen this file before saving: its version is required'), { statusCode: 428 });
     if (Buffer.byteLength(content, 'utf8') > MAX_INLINE_FILE_SIZE) throw Object.assign(new Error('File too large'), { statusCode: 413 });
-    if (writes.has(filename)) throw conflict();
+    if (writes.has(filename)) throw Object.assign(new Error('A save is in progress. Try again.'), { statusCode: 409 });
     writes.add(filename);
     const temporary = path.join(path.dirname(filename), `.gp-${randomUUID()}.tmp`);
     try {
         const stat = await fs.lstat(filename);
         if (!stat.isFile()) throw new Error('Expected a regular file');
         const previous = await fs.readFile(filename);
-        if (fileVersion(previous) !== expected) throw conflict();
+        if (!overwrite && fileVersion(previous) !== expected) throw conflict();
         await beforeCommit?.(previous);
         const output = await fs.open(temporary, 'wx', stat.mode & 0o777);
         try {
@@ -29,7 +29,8 @@ export async function atomicFileWrite(filename: string, content: string, expecte
         } finally { await output.close(); }
         // Recheck after staging. External game processes do not participate in our lock.
         const current = await fs.lstat(filename);
-        if (current.ino !== stat.ino || current.dev !== stat.dev || fileVersion(await fs.readFile(filename)) !== expected) throw conflict();
+        if (!current.isFile()) throw new Error('Expected a regular file');
+        if (!overwrite && (current.ino !== stat.ino || current.dev !== stat.dev || fileVersion(await fs.readFile(filename)) !== expected)) throw conflict();
         await fs.rename(temporary, filename);
         const directory = await fs.open(path.dirname(filename), 'r');
         try { await directory.sync(); } finally { await directory.close(); }

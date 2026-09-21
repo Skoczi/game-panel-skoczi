@@ -1,13 +1,9 @@
-import { confirmDialog } from '../utils/confirmDialog';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Server, Radio } from 'lucide-react';
-import { ACTIVE_NODE, selectNode } from '../utils/nodeContext';
-import { nodesRequest, type ExecutionNode, type LocalNode } from '../utils/nodesApi';
+import { useNodeScope } from '../contexts/NodeScopeContext';
 
-export function NodeSelector() {
-  const [nodes, setNodes] = useState<ExecutionNode[]>([]);
-  const [local, setLocal] = useState<LocalNode>();
-  const [error, setError] = useState(false);
+export function NodeSelector({ onSelect }: { onSelect?: (id: string) => void | Promise<void> }) {
+  const { scope, selectScope, nodes, loading, error } = useNodeScope();
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const root = useRef<HTMLDivElement>(null);
@@ -15,21 +11,21 @@ export function NodeSelector() {
   const listId = useId();
   const options = [
     {
-      id: 'local',
-      name: local?.name || 'Local',
-      detail: local?.location || 'Panel host',
-      status: 'local',
+      id: 'all',
+      name: 'All nodes',
+      detail: 'Servers and host metrics across all locations',
+      status: 'all',
     },
-    ...(ACTIVE_NODE !== 'local' && !nodes.some((node) => node.id === ACTIVE_NODE)
-      ? [{ id: ACTIVE_NODE, name: 'Selected node', detail: 'Unavailable', status: 'offline' }]
+    ...(scope !== 'all' && !nodes.some((node) => node.id === scope)
+      ? [{ id: scope, name: 'Selected node', detail: 'Unavailable', status: 'offline' }]
       : []),
     ...nodes.map((node) => ({ ...node, detail: node.location || 'Remote host' })),
   ];
-  const selected = options.find((node) => node.id === ACTIVE_NODE)!;
+  const selected = options.find((node) => node.id === scope)!;
   const activeIndex = Math.min(highlight, options.length - 1);
   const statusLabel = (status: string) =>
     ({
-      local: 'Local runtime',
+      all: 'All locations',
       online: 'Online',
       offline: 'Offline',
       pending: 'Awaiting enrollment',
@@ -38,11 +34,7 @@ export function NodeSelector() {
   const choose = async (id: string) => {
     setOpen(false);
     trigger.current?.focus();
-    if (
-      id !== ACTIVE_NODE &&
-      await confirmDialog('Switch execution node? Open consoles and unsaved forms will close.')
-    )
-      selectNode(id);
+    if (id !== scope) await (onSelect || selectScope)(id);
   };
   useEffect(() => {
     if (!open) return;
@@ -56,28 +48,6 @@ export function NodeSelector() {
     if (open)
       document.getElementById(`${listId}-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
   }, [open, activeIndex, listId]);
-  useEffect(() => {
-    let active = true;
-    const refresh = () => {
-      void nodesRequest<{ nodes: ExecutionNode[]; local?: LocalNode }>('/api/nodes')
-        .then((result) => {
-          if (active) {
-            setNodes(result.nodes);
-            setLocal(result.local);
-            setError(false);
-          }
-        })
-        .catch(() => {
-          if (active) setError(true);
-        });
-    };
-    refresh();
-    const timer = setInterval(refresh, 20000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, []);
   return (
     <div
       ref={root}
@@ -87,7 +57,7 @@ export function NodeSelector() {
       }}
     >
       <div className="gp-node-eyebrow" id={`${listId}-label`}>
-        <Radio size={12} aria-hidden="true" /> Execution node
+        <Radio size={12} aria-hidden="true" /> Node scope
       </div>
       <button
         ref={trigger}
@@ -101,7 +71,7 @@ export function NodeSelector() {
         aria-activedescendant={open ? `${listId}-${activeIndex}` : undefined}
         className="gp-node-trigger"
         onClick={async () => {
-          setHighlight(options.findIndex((node) => node.id === ACTIVE_NODE));
+          setHighlight(options.findIndex((node) => node.id === scope));
           setOpen(!open);
         }}
         onKeyDown={(event) => {
@@ -119,7 +89,7 @@ export function NodeSelector() {
                 : event.key === 'End'
                   ? options.length - 1
                   : !open
-                    ? options.findIndex((node) => node.id === ACTIVE_NODE)
+                    ? options.findIndex((node) => node.id === scope)
                     : (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) %
                       options.length
             );
@@ -155,7 +125,11 @@ export function NodeSelector() {
           </span>
           <span className="gp-node-caption">
             <i data-status={error ? 'offline' : selected.status} />
-            {error ? 'Status unavailable' : statusLabel(selected.status)}
+            {loading
+              ? 'Loading nodes…'
+              : error
+                ? 'Status unavailable'
+                : statusLabel(selected.status)}
           </span>
         </span>
         <ChevronDown size={16} className="gp-node-chevron" aria-hidden="true" />
@@ -163,15 +137,15 @@ export function NodeSelector() {
       {open && (
         <div className="gp-node-popover">
           <div className="gp-node-menu-heading">
-            Available runtimes <span>{options.length}</span>
+            Nodes <span>{nodes.length}</span>
           </div>
-          <div id={listId} role="listbox" aria-label="Execution nodes" className="gp-node-options">
+          <div id={listId} role="listbox" aria-label="Node scopes" className="gp-node-options">
             {options.map((node, index) => (
               <div
                 key={node.id}
                 id={`${listId}-${index}`}
                 role="option"
-                aria-selected={node.id === ACTIVE_NODE}
+                aria-selected={node.id === scope}
                 className="gp-node-option"
                 data-highlighted={index === activeIndex}
                 onPointerMove={() => setHighlight(index)}
@@ -190,13 +164,15 @@ export function NodeSelector() {
                     </span>
                   </span>
                 </span>
-                {node.id === ACTIVE_NODE && (
+                {node.id === scope && (
                   <Check className="gp-node-check" size={16} aria-hidden="true" />
                 )}
               </div>
             ))}
           </div>
-          <div className="gp-node-menu-note">Switching closes open consoles and forms.</div>
+          <div className="gp-node-menu-note">
+            Filters servers and host metrics. Panel settings are global.
+          </div>
         </div>
       )}
       {error && (

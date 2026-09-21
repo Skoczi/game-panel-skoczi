@@ -1,4 +1,5 @@
 import React from 'react';
+import { NodeScopeProvider } from '../contexts/NodeScopeContext';
 import { createRoot } from 'react-dom/client';
 import { FleetWorkspace } from '../components/FleetWorkspace';
 import { Sidebar } from '../components/Sidebar';
@@ -25,6 +26,7 @@ function SessionProbe() {
 createRoot(document.getElementById('root')!).render(
   <ThemeProvider>
     <BrandingProvider>
+      <NodeScopeProvider userId={2} enabled={admin}>
       <div className="hidden md:block">
         <Sidebar
           activeTab="game-servers"
@@ -54,6 +56,7 @@ createRoot(document.getElementById('root')!).render(
           />
         )}
       </main>
+    </NodeScopeProvider>
     </BrandingProvider>
   </ThemeProvider>
 );

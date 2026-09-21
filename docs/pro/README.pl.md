@@ -1,4 +1,4 @@
-# Game Panel PRO 2.0.50
+# Game Panel PRO 2.0.51
 
 Niezależny fork OVH Game Panel, rozwijany przez Skoczi. Zachowujemy oryginalne prawa autorskie OVH i licencję Apache 2.0. Projekt bazuje na OVHcloud Game Panel 1.5.0 i kontynuuje rozwój własnego forka.
 

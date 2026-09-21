@@ -23,6 +23,7 @@ import { apiClient, type PanelUpdateCheck } from '../utils/api';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 
 interface SidebarProps {
+  onNodeScopeChange?: (id: string) => void | Promise<void>;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onLogout?: () => void;
@@ -183,6 +184,7 @@ function UserMenuRow({
 }
 
 export function Sidebar({
+  onNodeScopeChange,
   activeTab,
   onTabChange,
   onLogout,
@@ -264,7 +266,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {currentUser?.isRoot && ADMIN_RUNTIME && <NodeSelector />}
+      {currentUser?.isRoot && <NodeSelector onSelect={onNodeScopeChange} />}
       <nav className="gp-sidebar-nav p-2 flex-1">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;

@@ -1,6 +1,6 @@
 # Features and compatibility
 
-| Function | Native 2.0.50 | Existing providers |
+| Function | Native 2.0.51 | Existing providers |
 | --- | --- | --- |
 | Console, power, files | Supported through the installed runtime | Existing adapter behavior |
 | Backup | `data/serverfiles` only; archive in `data/backups` | Provider-specific archive or directory |
@@ -16,3 +16,7 @@ The Native backup layout currently requires a declared `data` mount containing `
 Archives created by earlier revisions in `<serverRoot>/.native-backups` remain on disk. They contain mount directories and are not automatically relocated or treated as the new `serverfiles` format. The Backups screen lists them as legacy downloads for manual recovery. Do not delete them during update.
 
 No new game has been certified by this stage. Local tests include real filesystem faults and an isolated Linux Docker panel/agent scenario. Game-specific save behavior, Linux ownership and actual WAW1 runtime operation require acceptance testing before deployment.
+
+## Node selection
+
+Administrators have a node selector on every page. **All nodes** is the initial view; a selection is retained per user within the browser tab. It filters the server list and Host Status. All-host metrics remain separate, because percentages from different hosts are not additive. Select a host for its detailed history. Panel, account and template settings remain global. The filter does not change the explicit runtime context of an open server or installation.

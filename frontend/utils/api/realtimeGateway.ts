@@ -237,11 +237,10 @@ export class RealtimeGateway {
     });
     this.wsConnectPromise = connectPromise;
 
-    void connectPromise.finally(() => {
-      if (this.wsConnectPromise === connectPromise) {
-        this.wsConnectPromise = null;
-      }
-    });
+    const clearPending = () => {
+      if (this.wsConnectPromise === connectPromise) this.wsConnectPromise = null;
+    };
+    void connectPromise.then(clearPending, clearPending);
 
     return connectPromise;
   }

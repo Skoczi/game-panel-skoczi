@@ -7,7 +7,9 @@ import {
   useRef,
   useMemo,
 } from 'react';
-import { apiClient } from '../utils/api';
+import { RealtimeGateway } from '../utils/api/realtimeGateway';
+import { getStoredToken } from '../utils/api/runtime';
+import { AppButton } from '../src/ui/components';
 import { HostStatusView } from './hostStatus/HostStatusView';
 import { ODS_CHART_THEME } from './charts/theme';
 
@@ -50,7 +52,15 @@ const timelineTickFullFormatter = new Intl.DateTimeFormat('en-US', {
   hour12: false,
 });
 
-export function HostStatus() {
+export function HostStatus({
+  nodeId = 'local',
+  compact = false,
+}: {
+  nodeId?: string;
+  compact?: boolean;
+}) {
+  const [connection, setConnection] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [retry, setRetry] = useState(0);
   const [cpuUsage, setCpuUsage] = useState(0);
   const [ramUsage, setRamUsage] = useState(0);
   const [diskUsage, setDiskUsage] = useState(0);
@@ -62,7 +72,9 @@ export function HostStatus() {
   const [networkHistory, setNetworkHistory] = useState<NetworkPoint[]>([]);
   const [sharedZoom, setSharedZoom] = useState(100);
   const [sharedOffset, setSharedOffset] = useState(0);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<'1h' | '3h' | '6h' | '12h' | '24h'>('24h');
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'1h' | '3h' | '6h' | '12h' | '24h'>(
+    '24h'
+  );
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(0);
@@ -70,23 +82,9 @@ export function HostStatus() {
   const ramHistoryRef = useRef<UsagePoint[]>([]);
   const diskHistoryRef = useRef<UsagePoint[]>([]);
   const networkHistoryRef = useRef<NetworkPoint[]>([]);
-  const persistHistoriesTimerRef = useRef<number | null>(null);
-  const pendingPersistedHistoriesRef = useRef<{
-    cpu: UsagePoint[];
-    ram: UsagePoint[];
-    disk: UsagePoint[];
-    network: NetworkPoint[];
-  } | null>(null);
-
-  const cpuHistoryKey = 'system_history_cpu';
-  const ramHistoryKey = 'system_history_ram';
-  const diskHistoryKey = 'system_history_disk';
-  const networkHistoryKey = 'system_history_network';
-  const rawHistoryKey = 'system_history_raw';
   const historyRequestLimit = 2000;
   const metricsGapThresholdMs = 60 * 60 * 1000;
   const maxTimelineDurationMs = 24 * 60 * 60 * 1000;
-  const persistDebounceMs = 800;
 
   const bytesPerSecondToKilobytes = (bytesPerSec: number): number => {
     return bytesPerSec / 1024;
@@ -339,7 +337,11 @@ export function HostStatus() {
     return clampHistoryWindow(dedupeByTimestamp(sorted), referenceMs);
   };
 
-  const appendUsageHistory = (previous: UsagePoint[], nextPoint: UsagePoint, referenceMs: number) => {
+  const appendUsageHistory = (
+    previous: UsagePoint[],
+    nextPoint: UsagePoint,
+    referenceMs: number
+  ) => {
     const last = previous[previous.length - 1];
     if (!last) return clampHistoryWindow([nextPoint], referenceMs);
 
@@ -381,38 +383,6 @@ export function HostStatus() {
     return clampHistoryWindow([...previous, nextPoint], referenceMs);
   };
 
-  const schedulePersistHistories = (
-    nextCpuHistory: UsagePoint[],
-    nextRamHistory: UsagePoint[],
-    nextDiskHistory: UsagePoint[],
-    nextNetworkHistory: NetworkPoint[]
-  ) => {
-    pendingPersistedHistoriesRef.current = {
-      cpu: nextCpuHistory,
-      ram: nextRamHistory,
-      disk: nextDiskHistory,
-      network: nextNetworkHistory,
-    };
-
-    if (persistHistoriesTimerRef.current !== null) return;
-
-    persistHistoriesTimerRef.current = window.setTimeout(() => {
-      persistHistoriesTimerRef.current = null;
-
-      const pending = pendingPersistedHistoriesRef.current;
-      if (!pending) return;
-
-      pendingPersistedHistoriesRef.current = null;
-
-      try {
-        localStorage.setItem(cpuHistoryKey, JSON.stringify(pending.cpu));
-        localStorage.setItem(ramHistoryKey, JSON.stringify(pending.ram));
-        localStorage.setItem(diskHistoryKey, JSON.stringify(pending.disk));
-        localStorage.setItem(networkHistoryKey, JSON.stringify(pending.network));
-      } catch {}
-    }, persistDebounceMs);
-  };
-
   useEffect(() => {
     cpuHistoryRef.current = cpuHistory;
   }, [cpuHistory]);
@@ -428,120 +398,6 @@ export function HostStatus() {
   useEffect(() => {
     networkHistoryRef.current = networkHistory;
   }, [networkHistory]);
-
-  useEffect(() => {
-    return () => {
-      if (persistHistoriesTimerRef.current !== null) {
-        window.clearTimeout(persistHistoriesTimerRef.current);
-        persistHistoriesTimerRef.current = null;
-      }
-
-      const pending = pendingPersistedHistoriesRef.current;
-      if (!pending) return;
-
-      try {
-        localStorage.setItem(cpuHistoryKey, JSON.stringify(pending.cpu));
-        localStorage.setItem(ramHistoryKey, JSON.stringify(pending.ram));
-        localStorage.setItem(diskHistoryKey, JSON.stringify(pending.disk));
-        localStorage.setItem(networkHistoryKey, JSON.stringify(pending.network));
-      } catch {}
-    };
-  }, []);
-
-  useEffect(() => {
-    try {
-      const cached = localStorage.getItem('system_metrics_latest');
-      if (cached) {
-        const metrics = JSON.parse(cached);
-        const cpu = metrics.cpu ?? metrics.cpu_usage ?? metrics.cpuUsage ?? 0;
-        const memory = metrics.memory ?? metrics.memory_usage ?? metrics.memoryUsage ?? 0;
-        const disk = metrics.disk ?? metrics.disk_usage ?? metrics.diskUsage ?? 0;
-
-        const cpuValue = cpu > 100 ? cpu / 100 : cpu;
-        const memoryValue = memory > 100 ? memory / 100 : memory;
-        const diskValue = disk > 100 ? disk / 100 : disk;
-
-        setCpuUsage(Math.round(Math.min(cpuValue, 100) * 100) / 100);
-        setRamUsage(Math.round(Math.min(memoryValue, 100) * 100) / 100);
-        setDiskUsage(Math.round(Math.min(diskValue, 100) * 100) / 100);
-
-        const netInBytes = metrics.network?.in || metrics.network_in || 0;
-        const netOutBytes = metrics.network?.out || metrics.network_out || 0;
-        setNetworkIn(bytesPerSecondToKilobytes(netInBytes));
-        setNetworkOut(bytesPerSecondToKilobytes(netOutBytes));
-      }
-    } catch {}
-
-    try {
-      const cachedCpu = localStorage.getItem(cpuHistoryKey);
-      const cachedRam = localStorage.getItem(ramHistoryKey);
-      const cachedDisk = localStorage.getItem(diskHistoryKey);
-      const cachedNetwork = localStorage.getItem(networkHistoryKey);
-      const cachedRaw = localStorage.getItem(rawHistoryKey);
-      const nowMs = Date.now();
-
-      if (cachedCpu) {
-        const parsed = JSON.parse(cachedCpu);
-        if (Array.isArray(parsed)) setCpuHistory(normalizeUsageHistory(parsed, nowMs));
-      }
-      if (cachedRam) {
-        const parsed = JSON.parse(cachedRam);
-        if (Array.isArray(parsed)) setRamHistory(normalizeUsageHistory(parsed, nowMs));
-      }
-      if (cachedDisk) {
-        const parsed = JSON.parse(cachedDisk);
-        if (Array.isArray(parsed)) setDiskHistory(normalizeUsageHistory(parsed, nowMs));
-      }
-      if (cachedNetwork) {
-        const parsed = JSON.parse(cachedNetwork);
-        if (Array.isArray(parsed)) setNetworkHistory(normalizeNetworkHistory(parsed, nowMs));
-      }
-
-      if (!cachedCpu && !cachedRam && !cachedDisk && !cachedNetwork && cachedRaw) {
-        const raw = JSON.parse(cachedRaw);
-        if (Array.isArray(raw) && raw.length > 0) {
-          const sorted = [...raw].sort(
-            (a: any, b: any) => getMetricEpochMs(a) - getMetricEpochMs(b)
-          );
-
-          const nextCpu = sorted.map((m: any) => ({
-            time: formatTime(getMetricEpochMs(m)),
-            timestamp: getMetricEpochMs(m),
-            value: Math.round((m.cpu_usage || m.cpu || 0) * 100) / 100,
-          }));
-
-          const nextRam = sorted.map((m: any) => ({
-            time: formatTime(getMetricEpochMs(m)),
-            timestamp: getMetricEpochMs(m),
-            value: Math.round((m.memory_usage || m.memory || 0) * 100) / 100,
-          }));
-
-          const nextDisk = sorted.map((m: any) => {
-            const disk = m.disk_usage ?? m.disk ?? m.diskUsage ?? 0;
-            const diskValue = disk > 100 ? disk / 100 : disk;
-            return {
-              time: formatTime(getMetricEpochMs(m)),
-              timestamp: getMetricEpochMs(m),
-              value: Math.round(Math.min(diskValue, 100) * 100) / 100,
-            };
-          });
-
-          const nextNet = sorted.map((m: any) => ({
-            time: formatTime(getMetricEpochMs(m)),
-            timestamp: getMetricEpochMs(m),
-            in: bytesPerSecondToKilobytes(m.network_in || 0),
-            out: bytesPerSecondToKilobytes(m.network_out || 0),
-          }));
-
-          const referenceMs = getMetricEpochMs(sorted[sorted.length - 1]);
-          setCpuHistory(normalizeUsageHistory(nextCpu, referenceMs));
-          setRamHistory(normalizeUsageHistory(nextRam, referenceMs));
-          setDiskHistory(normalizeUsageHistory(nextDisk, referenceMs));
-          setNetworkHistory(normalizeNetworkHistory(nextNet, referenceMs));
-        }
-      }
-    } catch {}
-  }, []);
 
   const handleSystemMetrics = useCallback((metrics: SystemMetrics) => {
     const cpu = metrics.cpu ?? (metrics as any).cpu_usage ?? metrics.cpuUsage ?? 0;
@@ -609,28 +465,78 @@ export function HostStatus() {
         setNetworkHistory(nextNetworkHistory);
       }
     });
-
-    schedulePersistHistories(
-      nextCpuHistory,
-      nextRamHistory,
-      nextDiskHistory,
-      nextNetworkHistory
-    );
   }, []);
 
   useEffect(() => {
-    apiClient.subscribeSystemMetrics(historyRequestLimit);
-
-    const handleMetricsEvent = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      if (!customEvent.detail) return;
-
-      if (customEvent.detail.type === 'system-metrics') {
-        handleSystemMetrics(customEvent.detail.metrics);
+    let active = true;
+    let lastSampleAt = 0;
+    setConnection('loading');
+    const path = nodeId === 'local' ? '/api' : `/api/nodes/${encodeURIComponent(nodeId)}/ws`;
+    const gateway = new RealtimeGateway(
+      getStoredToken,
+      `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${path}`
+    );
+    const normalize = (raw: any, timestamp?: string) => {
+      if (!raw || typeof raw !== 'object') return null;
+      const metric = {
+        ...raw,
+        cpu: raw.cpu ?? raw.cpu_usage ?? raw.cpuUsage,
+        memory: raw.memory ?? raw.memory_usage ?? raw.memoryUsage,
+        disk: raw.disk ?? raw.disk_usage ?? raw.diskUsage,
+        network_in: raw.network_in ?? raw.network?.in,
+        network_out: raw.network_out ?? raw.network?.out,
+        timestamp:
+          timestamp ??
+          raw.timestamp ??
+          raw.date ??
+          raw.datetime ??
+          raw.recorded_at ??
+          raw.created_at,
+      };
+      return [metric.cpu, metric.memory, metric.disk, metric.network_in, metric.network_out].every(
+        (value) => typeof value === 'number' && Number.isFinite(value)
+      )
+        ? metric
+        : null;
+    };
+    const markFresh = (metric: SystemMetrics) => {
+      // Historical samples never masquerade as a live, healthy host.
+      if (
+        toEpochMs(metric.timestamp) !== null &&
+        Math.abs(Date.now() - getMetricEpochMs(metric)) < 60000
+      ) {
+        lastSampleAt = Date.now();
+        setConnection('ready');
       }
+    };
+    const stopStatus = gateway.onStatusChange((status) => {
+      if (active && (status === 'closed' || status === 'reconnecting')) {
+        lastSampleAt = 0;
+        setConnection('unavailable');
+      }
+    });
+    setConnection('loading');
+    const watchdog = window.setInterval(() => {
+      if (active && Date.now() - lastSampleAt > 30000) setConnection('unavailable');
+    }, 10000);
 
-      if (customEvent.detail.type === 'system-metrics-history') {
-        const history = customEvent.detail.metrics || [];
+    const handleMetricsEvent = (message: any) => {
+      if (!active) return;
+      if (message.type === 'error') {
+        setConnection('unavailable');
+        return;
+      }
+      if (message.type === 'system-metrics:update' || message.type === 'system-metrics') {
+        const metric = normalize(message.metrics || message, message.timestamp);
+        if (metric) {
+          handleSystemMetrics(metric);
+          markFresh(metric);
+        }
+      }
+      if (message.type === 'system-metrics:history') {
+        const history = Array.isArray(message.metrics)
+          ? message.metrics.map((raw: any) => normalize(raw)).filter(Boolean)
+          : [];
         if (history.length > 0) {
           const sortedHistory = [...history].sort(
             (a: any, b: any) => getMetricEpochMs(a) - getMetricEpochMs(b)
@@ -684,6 +590,7 @@ export function HostStatus() {
           });
 
           if (latest) {
+            markFresh(latest);
             const cpu = latest.cpu_usage || latest.cpu || 0;
             const memory = latest.memory_usage || latest.memory || 0;
             const disk = latest.disk_usage ?? latest.disk ?? latest.diskUsage ?? 0;
@@ -698,18 +605,22 @@ export function HostStatus() {
             setNetworkIn(bytesPerSecondToKilobytes(latest.network_in || 0));
             setNetworkOut(bytesPerSecondToKilobytes(latest.network_out || 0));
           }
-
-          schedulePersistHistories(normalizedCpu, normalizedRam, normalizedDisk, normalizedNet);
         }
       }
     };
 
-    window.addEventListener('system-metrics-update', handleMetricsEvent);
+    gateway.subscribeSystemMetrics(compact ? 1 : historyRequestLimit);
+    void gateway.connect(handleMetricsEvent).catch(() => {
+      if (active) setConnection('unavailable');
+    });
     return () => {
-      window.removeEventListener('system-metrics-update', handleMetricsEvent);
-      apiClient.unsubscribeSystemMetrics();
+      active = false;
+      window.clearInterval(watchdog);
+      stopStatus();
+      gateway.close();
+      gateway.resetState();
     };
-  }, [handleSystemMetrics]);
+  }, [handleSystemMetrics, nodeId, compact, retry]);
 
   const diskUsagePercent = Math.max(0, Math.min(100, Math.round(diskUsage * 100) / 100));
   const deferredCpuHistory = useDeferredValue(cpuHistory);
@@ -753,8 +664,22 @@ export function HostStatus() {
   const chartTooltipBg = ODS_CHART_THEME.tooltipBg;
   const chartTooltipBorder = ODS_CHART_THEME.tooltipBorder;
 
+  if (connection !== 'ready')
+    return (
+      <div role="status" className="rounded-lg border border-gray-500/20 p-5 text-sm text-gray-400">
+        {connection === 'loading'
+          ? 'Loading host metrics…'
+          : 'Host metrics unavailable. Reconnecting…'}
+        {connection === 'unavailable' && (
+          <AppButton tone="ghost" className="ml-3 px-3" onClick={() => setRetry((value) => value + 1)}>
+            Retry
+          </AppButton>
+        )}
+      </div>
+    );
   return (
     <HostStatusView
+      compact={compact}
       cpuUsage={cpuUsage}
       ramUsage={ramUsage}
       diskUsagePercent={diskUsagePercent}
@@ -796,4 +721,3 @@ export function HostStatus() {
     />
   );
 }
-

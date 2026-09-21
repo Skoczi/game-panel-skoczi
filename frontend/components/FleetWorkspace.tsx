@@ -24,6 +24,7 @@ import {
   fleetGame,
   type FleetLayout,
 } from '../utils/fleetLayout';
+import { useNodeScope } from '../contexts/NodeScopeContext';
 import { nodesRequest } from '../utils/nodesApi';
 import { openServer } from '../utils/nodeContext';
 import {
@@ -70,7 +71,7 @@ type FleetServer = {
   status: string;
   available: boolean;
   observedAt: number;
-  node: { name: string; location: string };
+  node: { id?: string; name: string; location: string };
 };
 type Member = { userId: number; username: string; permissions: string[] };
 type User = { id: number; username: string; isRoot: boolean; isEnabled: boolean };
@@ -87,6 +88,7 @@ export function FleetWorkspace({
   userId: number;
   gameNames?: Record<string, string>;
 }) {
+  const { scope } = useNodeScope();
   const [layout, setLayout] = useState(() => readFleetLayout(userId));
   const [storageError, setStorageError] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -286,6 +288,7 @@ export function FleetWorkspace({
   );
   const filtered = ordered.filter(
     (s) =>
+      (!administrator || scope === 'all' || s.node.id === scope) &&
       (!layout.type || game(s).key === layout.type) &&
       (!layout.status || s.status === layout.status) &&
       `${s.displayId || ''} ${s.name} ${s.node.name} ${s.node.location} ${game(s).label}`
@@ -313,7 +316,7 @@ export function FleetWorkspace({
           <h1>Game Servers</h1>
           <span className="fleet-node-count">
             {filtered.length}/{servers.length} servers ·{' '}
-            {new Set(servers.map((s) => s.node.location)).size} locations
+            {new Set(filtered.map((s) => s.node.location)).size} locations
           </span>
         </div>
         <div className="gp-fleet-actions">

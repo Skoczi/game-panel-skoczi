@@ -49,6 +49,7 @@ interface NetworkSpeed {
 }
 
 interface HostStatusViewProps {
+  compact?: boolean;
   cpuUsage: number;
   ramUsage: number;
   diskUsagePercent: number;
@@ -90,6 +91,7 @@ interface HostStatusViewProps {
 }
 
 export const HostStatusView = memo(function HostStatusView({
+  compact = false,
   cpuUsage,
   ramUsage,
   diskUsagePercent,
@@ -243,6 +245,7 @@ export const HostStatusView = memo(function HostStatusView({
         </AppCard>
       </div>
 
+      {!compact && <>
       <div className="gp-host-range flex items-center gap-2">
         {(['1h', '3h', '6h', '12h', '24h'] as const).map((range) => (
           <button
@@ -627,6 +630,7 @@ export const HostStatusView = memo(function HostStatusView({
           </ChartZoomArea>
         </AppCard>
       </div>
+      </>}
     </div>
   );
 });

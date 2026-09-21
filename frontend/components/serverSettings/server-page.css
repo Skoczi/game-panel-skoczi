@@ -678,3 +678,10 @@
 .gp-server-state-message h1 { font-size: 18px; line-height: 26px; margin: 0 0 4px; }
 .gp-server-state-message p { font-size: 14px; }
 .gp-server-state-icon { width: 40px; height: 40px; border-radius: 10px; }
+
+/* Fill the overview row down to the last server statistic. */
+@media (min-width: 1101px) {
+  .gp-server-overview > .gp-server-console { align-self: stretch; display: flex; flex-direction: column; }
+  .gp-server-console > .gp-console-panel:not([data-fullscreen='true']) { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .gp-server-console > .gp-console-panel:not([data-fullscreen='true']) > div:nth-child(2) { flex-grow: 1; }
+}

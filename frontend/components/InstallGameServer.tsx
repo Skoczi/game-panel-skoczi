@@ -1,3 +1,4 @@
+import { AppOptionSelect } from '../src/ui/components/AppOptionSelect';
 import { InstallTargetContext } from '../contexts/InstallTargetContext';
 // Modified by Skoczi: explicit host IPv4 selection for every port binding.
 import { HostIpSelect } from './HostIpSelect';
@@ -297,11 +298,11 @@ function HealthcheckEditor({ initial, onChange }: { initial: Record<string, unkn
         <div className="space-y-3 pt-1">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Type</label>
-            <select value={state.type} onChange={e => update({ type: e.target.value as HCType })} className={fieldCls}>
+            <AppOptionSelect controlLabel="Type" value={state.type} onChange={selectedValue => update({ type: selectedValue as HCType })} className={fieldCls}>
               <option value="tcp_connect">TCP Connect</option>
               <option value="process">Process</option>
               <option value="command">Command</option>
-            </select>
+            </AppOptionSelect>
           </div>
           {state.type === 'tcp_connect' && (
             <div>

@@ -1,6 +1,7 @@
+import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, Download, ExternalLink, Loader2, Package, X,
+  AlertTriangle, ArrowLeft, CheckCircle2, Download, ExternalLink, Loader2, Package, X,
 } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
@@ -209,14 +210,13 @@ export function MinecraftAddonDetail({
                       <p className="text-xs text-amber-600 dark:text-amber-300">No build for this loader and Minecraft version.</p>
                     ) : (
                       <div className="relative">
-                        <select className={selectCls} value={selectedVersionId || latestStable?.versionId || ''} onChange={(e) => setSelectedVersionId(e.target.value)} disabled={!canWrite}>
+                        <AppOptionSelect className={selectCls} value={selectedVersionId || latestStable?.versionId || ''} onChange={(selectedValue) => setSelectedVersionId(selectedValue)} disabled={!canWrite}>
                           {versions.map((v) => (
                             <option key={v.versionId} value={v.versionId}>
                               {v.versionNumber}{v.versionType !== 'release' ? ` — ${v.versionType}` : ''} · {summarizeGameVersions(v.gameVersions)}{v.versionId === latestStable?.versionId ? ' (Latest release)' : ''}
                             </option>
                           ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        </AppOptionSelect>
                       </div>
                     )}
                   </div>

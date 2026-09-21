@@ -1,5 +1,6 @@
+import { AppOptionSelect } from '../src/ui/components/AppOptionSelect';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import {
   fetchBedrockVersions,
   fetchFabricInstallers,
@@ -328,15 +329,14 @@ export function MinecraftVersionPicker({
       <div>
         <label className={labelCls}>Java Version</label>
         <div className="relative">
-          <select className={selectCls} value={javaMajor ?? ''} disabled={!canEdit}
-            onChange={(e) => setJavaMajor(Number(e.target.value))}>
+          <AppOptionSelect className={selectCls} value={javaMajor ?? ''} disabled={!canEdit}
+            onChange={(selectedValue) => setJavaMajor(Number(selectedValue))}>
             {javaImages.map((v) => (
               <option key={v.major} value={v.major}>
                 Java {v.major}{v.major === recommendedMajor ? ' — Recommended' : ''}
               </option>
             ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          </AppOptionSelect>
         </div>
       </div>
     );
@@ -358,15 +358,14 @@ export function MinecraftVersionPicker({
           )}
           {status === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={mcVersion} disabled={!canEdit}
-                onChange={(e) => setMcVersion(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={mcVersion} disabled={!canEdit}
+                onChange={(selectedValue) => setMcVersion(selectedValue)}>
                 {visibleVersions.map((v, i) => (
                   <option key={v.version} value={v.version}>
                     {v.version}{i === 0 ? ' (Latest)' : ''}{v.type === 'snapshot' ? ' [snapshot]' : ''}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
         </div>
@@ -395,13 +394,12 @@ export function MinecraftVersionPicker({
           )}
           {status === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={mcVersion} disabled={!canEdit}
-                onChange={(e) => setMcVersion(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={mcVersion} disabled={!canEdit}
+                onChange={(selectedValue) => setMcVersion(selectedValue)}>
                 {paperMcVersions.map((v, i) => (
                   <option key={v.version} value={v.version}>{v.version}{i === 0 ? ' (Latest)' : ''}</option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
         </div>
@@ -415,15 +413,14 @@ export function MinecraftVersionPicker({
           )}
           {buildsStatus === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={paperBuild} disabled={!canEdit}
-                onChange={(e) => setPaperBuild(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={paperBuild} disabled={!canEdit}
+                onChange={(selectedValue) => setPaperBuild(selectedValue)}>
                 {paperBuilds.map((b, i) => (
                   <option key={b.build} value={String(b.build)}>
                     #{b.build}{i === 0 ? ' — Latest' : ''}{b.channel !== 'STABLE' ? ` (${b.channel.toLowerCase()})` : ''}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
         </div>
@@ -448,13 +445,12 @@ export function MinecraftVersionPicker({
           )}
           {status === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={mcVersion} disabled={!canEdit}
-                onChange={(e) => setMcVersion(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={mcVersion} disabled={!canEdit}
+                onChange={(selectedValue) => setMcVersion(selectedValue)}>
                 {forgeMcVersions.map((v, i) => (
                   <option key={v.version} value={v.version}>{v.version}{i === 0 ? ' (Latest)' : ''}</option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
         </div>
@@ -468,16 +464,15 @@ export function MinecraftVersionPicker({
           )}
           {buildsStatus === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={forgeBuild} disabled={!canEdit}
-                onChange={(e) => setForgeBuild(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={forgeBuild} disabled={!canEdit}
+                onChange={(selectedValue) => setForgeBuild(selectedValue)}>
                 {forgeBuilds.map((b) => (
                   <option key={b.build} value={b.build}>
                     {b.build}
                     {b.channel === 'recommended' ? ' — Recommended' : b.channel === 'latest' ? ' — Latest' : ''}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
         </div>
@@ -504,13 +499,12 @@ export function MinecraftVersionPicker({
           )}
           {status === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={mcVersion} disabled={!canEdit}
-                onChange={(e) => setMcVersion(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={mcVersion} disabled={!canEdit}
+                onChange={(selectedValue) => setMcVersion(selectedValue)}>
                 {visibleMc.map((v, i) => (
                   <option key={v.version} value={v.version}>{v.version}{i === 0 ? ' (Latest)' : ''}</option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
         </div>
@@ -520,25 +514,23 @@ export function MinecraftVersionPicker({
             <div>
               <label className={labelCls}>Loader Version</label>
               <div className="relative">
-                <select className={selectCls} value={fabricLoader} disabled={!canEdit}
-                  onChange={(e) => setFabricLoader(e.target.value)}>
+                <AppOptionSelect className={selectCls} value={fabricLoader} disabled={!canEdit}
+                  onChange={(selectedValue) => setFabricLoader(selectedValue)}>
                   {fabricLoaders.map((l, i) => (
                     <option key={l.version} value={l.version}>{l.version}{i === 0 ? ' (Latest)' : ''}</option>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                </AppOptionSelect>
               </div>
             </div>
             <div>
               <label className={labelCls}>Installer Version</label>
               <div className="relative">
-                <select className={selectCls} value={fabricInstaller} disabled={!canEdit}
-                  onChange={(e) => setFabricInstaller(e.target.value)}>
+                <AppOptionSelect className={selectCls} value={fabricInstaller} disabled={!canEdit}
+                  onChange={(selectedValue) => setFabricInstaller(selectedValue)}>
                   {fabricInstallers.map((i, idx) => (
                     <option key={i.version} value={i.version}>{i.version}{idx === 0 ? ' (Latest)' : ''}</option>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                </AppOptionSelect>
               </div>
             </div>
           </div>
@@ -568,15 +560,14 @@ export function MinecraftVersionPicker({
           )}
           {status === 'loaded' && (
             <div className="relative">
-              <select className={selectCls} value={neoforgeVersion} disabled={!canEdit}
-                onChange={(e) => setNeoforgeVersion(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={neoforgeVersion} disabled={!canEdit}
+                onChange={(selectedValue) => setNeoforgeVersion(selectedValue)}>
                 {visibleVersions.map((v, i) => (
                   <option key={v.version} value={v.version}>
                     {v.version}{i === 0 ? ' (Latest)' : ''}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
           {selectedMeta && (

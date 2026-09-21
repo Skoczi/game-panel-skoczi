@@ -187,7 +187,9 @@ export function ServerManagementPage({
     if (!panel) return;
     const observer = new ResizeObserver(() => {
       if (panel.dataset.fullscreen === 'true') return;
-      setTallConsole(panel.getBoundingClientRect().height > 660);
+      const body = panel.children[1] as HTMLElement | undefined;
+      const requestedHeight = Number.parseFloat(body?.style.height || '0');
+      setTallConsole(requestedHeight ? requestedHeight + 54 > 660 : false);
     });
     observer.observe(panel);
     return () => observer.disconnect();

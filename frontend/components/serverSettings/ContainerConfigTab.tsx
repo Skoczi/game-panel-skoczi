@@ -1,3 +1,4 @@
+import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { DeleteServerSection } from './DeleteServerSection';
 // Modified by Skoczi: retain and edit host IPv4 allocations without widening bindings.
 import './container-settings.css';
@@ -457,7 +458,7 @@ export function ContainerConfigTab({
                 )}
               </div>
             ))}
-            {nativeSnapshot && startupText && <div className="gp-settings-variable"><label htmlFor="custom-startup-params">Custom params</label><input id="custom-startup-params" className={inputClass} placeholder="e.g. -tickrate 128 +sv_lan 0" value={customParams} disabled={saving || !canEdit} onChange={e => setCustomParams(e.target.value)} /><small className="text-xs text-slate-400">Appended to the startup command.</small>{startupError && !editingStartup && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
+            {nativeSnapshot && startupText && <div className="gp-settings-variable"><label htmlFor="custom-startup-params">Custom params</label><input id="custom-startup-params" className={inputClass} placeholder="e.g. -tickrate 128 +sv_lan 0" value={customParams} disabled={saving || !canEdit} onChange={e => setCustomParams(e.target.value)} />{startupError && !editingStartup && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
             {canEdit && !nativeSnapshot && (
               <AppButton
                 tone="ghost"
@@ -472,6 +473,7 @@ export function ContainerConfigTab({
         </div>
         )}
 
+        <div className="gp-settings-infrastructure">
         <div className="gp-settings-card">
           <div className="gp-settings-section-head"><h4>Ports</h4><AppButton tone="ghost" onClick={() => setPortRefresh(n => n + 1)} aria-label="Refresh available ports"><RefreshCw size={16} /></AppButton></div>
 
@@ -618,6 +620,8 @@ export function ContainerConfigTab({
 </div>
         </div>
 
+        </div>
+
         <details className="gp-settings-advanced"><summary>Advanced settings <span>Healthcheck &amp; maintenance</span></summary><div className="gp-settings-advanced-body">
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Healthcheck</h4>
           <div className="space-y-4">
@@ -627,32 +631,32 @@ export function ContainerConfigTab({
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Mode</label>
-              <select
+              <AppOptionSelect controlLabel="Mode"
                 className={`${inputClass}`}
                 value={healthcheck.mode}
-                onChange={e => setHc({ mode: e.target.value as HealthcheckMode })}
+                onChange={selectedValue => setHc({ mode: selectedValue as HealthcheckMode })}
                 disabled={saving || !canEdit}
               >
                 <option value="image_default">Image default</option>
                 <option value="disabled">Disabled</option>
                 <option value="override">Override</option>
-              </select>
+              </AppOptionSelect>
             </div>
 
             {healthcheck.mode === 'override' && (
               <div className="space-y-4">
                 <div>
                   <label className={`block text-sm ${textSecondary} mb-1`}>Type</label>
-                  <select
+                  <AppOptionSelect controlLabel="Type"
                     className={`${inputClass}`}
                     value={healthcheck.overrideType}
-                    onChange={e => setHc({ overrideType: e.target.value as HealthcheckOverrideType })}
+                    onChange={selectedValue => setHc({ overrideType: selectedValue as HealthcheckOverrideType })}
                     disabled={saving || !canEdit}
                   >
                     <option value="tcp_connect">TCP connect</option>
                     <option value="process">Process</option>
                     <option value="command">Command</option>
-                  </select>
+                  </AppOptionSelect>
                 </div>
 
                 {healthcheck.overrideType === 'tcp_connect' && (

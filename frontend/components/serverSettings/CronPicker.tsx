@@ -1,3 +1,4 @@
+import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { useState } from 'react';
 
 type FreqType = 'minutes' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
@@ -215,30 +216,30 @@ export function CronPicker({ value, onChange, borderColor, textPrimary, textSeco
         {state.freqType === 'minutes' && (
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`text-sm ${textPrimary}`}>Every</span>
-            <select
+            <AppOptionSelect
               value={state.everyMinutes}
-              onChange={(e) => update({ everyMinutes: parseInt(e.target.value) })}
+              onChange={(selectedValue) => update({ everyMinutes: parseInt(selectedValue) })}
               className={selectCls}
             >
               {MINUTE_OPTIONS.map((n) => (
                 <option key={n} value={n}>{n} minute{n !== 1 ? 's' : ''}</option>
               ))}
-            </select>
+            </AppOptionSelect>
           </div>
         )}
 
         {state.freqType === 'hourly' && (
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`text-sm ${textPrimary}`}>Every</span>
-            <select
+            <AppOptionSelect
               value={state.everyHours}
-              onChange={(e) => update({ everyHours: parseInt(e.target.value) })}
+              onChange={(selectedValue) => update({ everyHours: parseInt(selectedValue) })}
               className={selectCls}
             >
               {HOUR_OPTIONS.map((n) => (
                 <option key={n} value={n}>{n} hour{n !== 1 ? 's' : ''}</option>
               ))}
-            </select>
+            </AppOptionSelect>
           </div>
         )}
 
@@ -300,15 +301,15 @@ export function CronPicker({ value, onChange, borderColor, textPrimary, textSeco
         {state.freqType === 'monthly' && (
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`text-sm ${textPrimary}`}>Day</span>
-            <select
+            <AppOptionSelect
               value={state.monthDay}
-              onChange={(e) => update({ monthDay: parseInt(e.target.value) })}
+              onChange={(selectedValue) => update({ monthDay: parseInt(selectedValue) })}
               className={selectCls}
             >
               {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
                 <option key={d} value={d}>{d}</option>
               ))}
-            </select>
+            </AppOptionSelect>
             <span className={`text-sm ${textPrimary}`}>of each month at</span>
             <input
               type="time"

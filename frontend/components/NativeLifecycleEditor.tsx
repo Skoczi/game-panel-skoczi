@@ -1,3 +1,4 @@
+import { AppOptionSelect } from '../src/ui/components/AppOptionSelect';
 import type { GameTemplate } from '../utils/gameTemplates';
 
 const field = 'mt-1 w-full rounded-xl border border-slate-300 bg-transparent px-3 py-2.5 dark:border-slate-600';
@@ -67,7 +68,7 @@ export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; 
       <p className="text-sm text-slate-500">Expose exact configuration files in Server Settings. Paths are relative to the selected data mount, not the host filesystem.</p>
       {(draft.configFiles ?? []).map((file, index) => <div key={index} className="grid gap-2 md:grid-cols-4">
         <input aria-label={`Configuration label ${index + 1}`} className={field} value={file.label} placeholder="Label" onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, label: e.target.value } : f) })} />
-        <select aria-label={`Configuration root ${index + 1}`} className={field} value={file.root} onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, root: e.target.value } : f) })}>{draft.mounts.map(m => <option key={m.key} value={m.key}>{m.containerPath}</option>)}</select>
+        <AppOptionSelect aria-label={`Configuration root ${index + 1}`} className={field} value={file.root} onChange={selectedValue => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, root: selectedValue } : f) })}>{draft.mounts.map(m => <option key={m.key} value={m.key}>{m.containerPath}</option>)}</AppOptionSelect>
         <input aria-label={`Configuration path ${index + 1}`} className={field} value={file.path} placeholder="/serverfiles/game/server.cfg" onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, path: e.target.value } : f) })} />
         <button className={button} onClick={() => change({ configFiles: draft.configFiles!.filter((_, i) => i !== index) })}>Remove file</button>
       </div>)}

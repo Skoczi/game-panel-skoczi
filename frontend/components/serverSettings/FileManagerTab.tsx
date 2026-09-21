@@ -1,3 +1,4 @@
+import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { FileOperations } from './FileOperations';
 import {
   Check,
@@ -340,16 +341,16 @@ export function FileManagerTab({
         className={`h-[52px] px-3 border-b ${borderColor} ${contentBg} flex items-center gap-1 flex-shrink-0`}
       >
         {availableRoots.length > 1 && (
-          <select
+          <AppOptionSelect
             value={currentRoot}
             aria-label="Data directory"
-            onChange={(e) => setCurrentRoot(e.target.value)}
+            onChange={(selectedValue) => setCurrentRoot(selectedValue)}
             className="h-[30px] flex-shrink-0 rounded border border-gray-700 bg-gray-800 px-2 text-xs text-gray-300 outline-none cursor-pointer hover:border-gray-500"
           >
             {availableRoots.map((r) => (
               <option key={r.key} value={r.key}>{r.containerPath}</option>
             ))}
-          </select>
+          </AppOptionSelect>
         )}
 
         <div className="gp-path-breadcrumb hide-scrollbar flex flex-1 items-center gap-0.5 min-w-0 overflow-x-auto whitespace-nowrap px-2 h-[30px] rounded border border-gray-700 bg-gray-800/50">

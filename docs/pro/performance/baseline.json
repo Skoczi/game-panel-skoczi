@@ -1,0 +1,318 @@
+{
+  "label": "baseline",
+  "createdAt": "2026-09-21T06:13:06.696Z",
+  "profile": {
+    "viewport": {
+      "width": 1365,
+      "height": 900
+    },
+    "cpuSlowdown": 4,
+    "latencyMs": 80,
+    "downloadBytesPerSecond": 500000,
+    "uploadBytesPerSecond": 125000,
+    "apiMockDelayMs": 20,
+    "compression": "none (matches repository nginx.conf)",
+    "cache": "disabled; fresh context per scenario",
+    "console": "5000 initial lines; 1000 new lines/second for 3 seconds, capped at 5000"
+  },
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M3 Pro",
+    "browser": "140.0.7339.186",
+    "node": "v26.5.0"
+  },
+  "limitations": [
+    "Synthetic local measurements, not field Core Web Vitals or WAW timings.",
+    "Login uses the actual production bundle; server/editor/console use a production-built AppShell fixture with mocked API.",
+    "No screenshots or traces containing screenshots; external hosts blocked."
+  ],
+  "samples": [
+    {
+      "run": 1,
+      "scenario": "production-login",
+      "readyMs": 5690.800000011921,
+      "fcpMs": 5628,
+      "lcpMs": null,
+      "cls": 0,
+      "blockingMs": 83,
+      "resources": [
+        {
+          "name": "/assets/index-CddfbxQy.js",
+          "bytes": 1323478,
+          "durationMs": 5318.0999999940395
+        },
+        {
+          "name": "/assets/ods-C0YdzcVt.js",
+          "bytes": 321170,
+          "durationMs": 3166.100000023842
+        },
+        {
+          "name": "/assets/charts-DuibMyJa.js",
+          "bytes": 392715,
+          "durationMs": 3451.5999999940395
+        },
+        {
+          "name": "/assets/dndkit-BMJYISxG.js",
+          "bytes": 45388,
+          "durationMs": 654.1999999880791
+        },
+        {
+          "name": "/assets/index-BjwLE6Do.css",
+          "bytes": 232393,
+          "durationMs": 2526.9000000059605
+        },
+        {
+          "name": "/assets/ods-Dy22TTAk.css",
+          "bytes": 287831,
+          "durationMs": 2970.300000011921
+        }
+      ]
+    },
+    {
+      "run": 1,
+      "scenario": "production-server-fixture",
+      "readyMs": 6006.5999999940395,
+      "fcpMs": 5672,
+      "lcpMs": 5672,
+      "cls": 0,
+      "blockingMs": 360,
+      "resources": [
+        {
+          "name": "/fixture/assets/server-page.fixture-CS2PUevt.js",
+          "bytes": 1291446,
+          "durationMs": 5240.9000000059605
+        },
+        {
+          "name": "/fixture/assets/ods-DD5P9R6H.js",
+          "bytes": 321178,
+          "durationMs": 3152.300000011921
+        },
+        {
+          "name": "/fixture/assets/dndkit-G67EdqRe.js",
+          "bytes": 45388,
+          "durationMs": 643.6999999880791
+        },
+        {
+          "name": "/fixture/assets/charts-ChyACc47.js",
+          "bytes": 392715,
+          "durationMs": 3439.5
+        },
+        {
+          "name": "/fixture/assets/ods-6NPP-5gV.css",
+          "bytes": 287871,
+          "durationMs": 2952.5
+        },
+        {
+          "name": "/fixture/assets/server-page-C6StqU5R.css",
+          "bytes": 230988,
+          "durationMs": 2497.0999999940395
+        }
+      ]
+    },
+    {
+      "run": 1,
+      "scenario": "first-editor",
+      "durationMs": 12129.59999999404
+    },
+    {
+      "run": 1,
+      "scenario": "console-stream",
+      "interactionMs": 608.5999999940395,
+      "durationMs": 4658.9000000059605,
+      "blockingMs": 312,
+      "domElements": 15864
+    },
+    {
+      "run": 2,
+      "scenario": "production-login",
+      "readyMs": 5580.5,
+      "fcpMs": 5556,
+      "lcpMs": null,
+      "cls": 0,
+      "blockingMs": 42,
+      "resources": [
+        {
+          "name": "/assets/index-CddfbxQy.js",
+          "bytes": 1323478,
+          "durationMs": 5307.4000000059605
+        },
+        {
+          "name": "/assets/ods-C0YdzcVt.js",
+          "bytes": 321170,
+          "durationMs": 3157.5
+        },
+        {
+          "name": "/assets/charts-DuibMyJa.js",
+          "bytes": 392715,
+          "durationMs": 3443.0999999940395
+        },
+        {
+          "name": "/assets/dndkit-BMJYISxG.js",
+          "bytes": 45388,
+          "durationMs": 644
+        },
+        {
+          "name": "/assets/ods-Dy22TTAk.css",
+          "bytes": 287831,
+          "durationMs": 2956.0999999940395
+        },
+        {
+          "name": "/assets/index-BjwLE6Do.css",
+          "bytes": 232393,
+          "durationMs": 2515.0999999940395
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "scenario": "production-server-fixture",
+      "readyMs": 5957.600000023842,
+      "fcpMs": 5636,
+      "lcpMs": 5636,
+      "cls": 0.00463537851037851,
+      "blockingMs": 319,
+      "resources": [
+        {
+          "name": "/fixture/assets/server-page.fixture-CS2PUevt.js",
+          "bytes": 1291446,
+          "durationMs": 5239.299999982119
+        },
+        {
+          "name": "/fixture/assets/ods-DD5P9R6H.js",
+          "bytes": 321178,
+          "durationMs": 3151.5
+        },
+        {
+          "name": "/fixture/assets/dndkit-G67EdqRe.js",
+          "bytes": 45388,
+          "durationMs": 639.1999999880791
+        },
+        {
+          "name": "/fixture/assets/charts-ChyACc47.js",
+          "bytes": 392715,
+          "durationMs": 3436.199999988079
+        },
+        {
+          "name": "/fixture/assets/server-page-C6StqU5R.css",
+          "bytes": 230988,
+          "durationMs": 2496.800000011921
+        },
+        {
+          "name": "/fixture/assets/ods-6NPP-5gV.css",
+          "bytes": 287871,
+          "durationMs": 2952.800000011921
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "scenario": "first-editor",
+      "durationMs": 12131.59999999404
+    },
+    {
+      "run": 2,
+      "scenario": "console-stream",
+      "interactionMs": 650.1999999880791,
+      "durationMs": 4841.800000011921,
+      "blockingMs": 518,
+      "domElements": 15864
+    },
+    {
+      "run": 3,
+      "scenario": "production-login",
+      "readyMs": 5589.199999988079,
+      "fcpMs": 5564,
+      "lcpMs": null,
+      "cls": 0,
+      "blockingMs": 42,
+      "resources": [
+        {
+          "name": "/assets/ods-C0YdzcVt.js",
+          "bytes": 321170,
+          "durationMs": 3161.0999999940395
+        },
+        {
+          "name": "/assets/index-CddfbxQy.js",
+          "bytes": 1323478,
+          "durationMs": 5312.700000017881
+        },
+        {
+          "name": "/assets/charts-DuibMyJa.js",
+          "bytes": 392715,
+          "durationMs": 3449.2000000178814
+        },
+        {
+          "name": "/assets/dndkit-BMJYISxG.js",
+          "bytes": 45388,
+          "durationMs": 643.8000000119209
+        },
+        {
+          "name": "/assets/ods-Dy22TTAk.css",
+          "bytes": 287831,
+          "durationMs": 2962.800000011921
+        },
+        {
+          "name": "/assets/index-BjwLE6Do.css",
+          "bytes": 232393,
+          "durationMs": 2518.5999999940395
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "scenario": "production-server-fixture",
+      "readyMs": 5969,
+      "fcpMs": 5644,
+      "lcpMs": 5644,
+      "cls": 0.00463537851037851,
+      "blockingMs": 328,
+      "resources": [
+        {
+          "name": "/fixture/assets/server-page.fixture-CS2PUevt.js",
+          "bytes": 1291446,
+          "durationMs": 5241.699999988079
+        },
+        {
+          "name": "/fixture/assets/ods-DD5P9R6H.js",
+          "bytes": 321178,
+          "durationMs": 3152.2999999821186
+        },
+        {
+          "name": "/fixture/assets/charts-ChyACc47.js",
+          "bytes": 392715,
+          "durationMs": 3436.800000011921
+        },
+        {
+          "name": "/fixture/assets/dndkit-G67EdqRe.js",
+          "bytes": 45388,
+          "durationMs": 641.2999999821186
+        },
+        {
+          "name": "/fixture/assets/ods-6NPP-5gV.css",
+          "bytes": 287871,
+          "durationMs": 2956.5999999940395
+        },
+        {
+          "name": "/fixture/assets/server-page-C6StqU5R.css",
+          "bytes": 230988,
+          "durationMs": 2500
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "scenario": "first-editor",
+      "durationMs": 12121.09999999404
+    },
+    {
+      "run": 3,
+      "scenario": "console-stream",
+      "interactionMs": 599.9000000059605,
+      "durationMs": 5231.4000000059605,
+      "blockingMs": 321,
+      "domElements": 15864
+    }
+  ],
+  "errors": []
+}

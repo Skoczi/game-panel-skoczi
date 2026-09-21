@@ -1,11 +1,11 @@
-OVH Game Panel by Skoczi
+Game Panel PRO
 
-Based on OVHcloud Game Panel, https://github.com/ovh/game-panel
+Based on OVHcloud Game Panel 1.5.0, https://github.com/ovh/game-panel
 Copyright OVH 2026.
 
-Modifications by Skoczi, 2026.
+Copyright 2026 Skoczi — modifications and continued development.
 Independent community fork, not an official OVHcloud release.
-Changes: CHANGELOG-SKOCZI.md and docs/skoczi/CHANGES.md.
+Changes: CHANGELOG.md. Earlier changes: CHANGELOG-SKOCZI.md.
 
 Distributed under Apache License, Version 2.0.
 See LICENSE and LICENSE-2.0.txt. No trademark rights or endorsement implied.

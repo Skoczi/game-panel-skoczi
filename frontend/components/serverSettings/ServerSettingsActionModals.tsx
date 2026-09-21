@@ -1,5 +1,6 @@
-import { AlertTriangle, X } from 'lucide-react';
-import { AppButton, AppInput } from '../../src/ui/components';
+import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
+import { AppButton, AppInput, AppModal, AppModalContent, AppModalHeader, AppModalTitle, AppModalBody } from '../../src/ui/components';
 
 interface DeleteEntryTarget {
   name: string;
@@ -33,8 +34,9 @@ interface ServerSettingsActionModalsProps {
   backupNowLoading: boolean;
   stopOnBackup: boolean;
   hotBackupOnly?: boolean;
+  nativeBackup?: boolean;
   closeBackupWarningModal: () => void;
-  executeBackupNow: () => Promise<void>;
+  executeBackupNow: (name?: string) => Promise<void>;
 }
 
 import { useBodyScrollLock } from '../../src/ui/utils/useBodyScrollLock';
@@ -66,10 +68,15 @@ export function ServerSettingsActionModals({
   backupNowLoading,
   stopOnBackup,
   hotBackupOnly = false,
+  nativeBackup = false,
   closeBackupWarningModal,
   executeBackupNow,
 }: ServerSettingsActionModalsProps) {
-  useBodyScrollLock(showCreateEntryModal || showDeleteEntryModal || showBackupNowWarningModal);
+  useBodyScrollLock(showCreateEntryModal || showDeleteEntryModal);
+  const [backupName, setBackupName] = useState('');
+  useEffect(() => { if (showBackupNowWarningModal) setBackupName(''); }, [showBackupNowWarningModal]);
+  const cleanName = backupName.trim().normalize('NFC').replace(/\.tar\.gz$/i, '');
+  const nameValid = !cleanName || (/^[\p{L}\p{N}][\p{L}\p{N} _.-]{0,63}$/u.test(cleanName) && new TextEncoder().encode(cleanName).length <= 128);
   const handleCreateClose = () => {
     if (createEntryLoading) return;
     closeCreateEntryModal();
@@ -208,73 +215,27 @@ export function ServerSettingsActionModals({
         </div>
       )}
 
-      {showBackupNowWarningModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
-          <div
-            className={`${modalBg} border ${borderColor} rounded-lg shadow-xl max-w-md w-full p-6`}
-          >
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <h3 className={`text-lg font-semibold ${textPrimary}`}>Backup confirmation</h3>
-              <AppButton
-                type="button"
-                onClick={closeBackupWarningModal}
-                className={`p-2 rounded ${hoverBg} transition-colors ${textSecondary} hover:text-red-400`}
-              >
-                <X className="w-5 h-5" />
-              </AppButton>
+      <AppModal open={showBackupNowWarningModal} onOpenChange={open => { if (!open && !backupNowLoading) closeBackupWarningModal(); }}>
+        <AppModalContent aria-label="Create backup" className="max-w-md p-5" dismissible={!backupNowLoading}>
+          <AppModalHeader><AppModalTitle>Create backup</AppModalTitle></AppModalHeader>
+          <AppModalBody>
+            <p className={`text-sm ${textSecondary} my-4`}>
+              {nativeBackup ? 'The backup contains only serverfiles and does not change the server power state. If the game is running, files may come from different moments.' : hotBackupOnly ? 'The server will keep running while the backup is created.' : stopOnBackup ? 'The server will stop before the backup is created.' : 'The backup may run while the server is active.'}
+            </p>
+            {nativeBackup && <div className="space-y-2 my-4">
+              <label htmlFor="native-backup-name" className={`text-sm ${textPrimary}`}>Backup name (optional)</label>
+              <AppInput id="native-backup-name" value={backupName} onChange={event => setBackupName(event.target.value)} maxLength={71} placeholder="Before update" autoComplete="off" />
+              <p className={`text-xs ${textSecondary}`}>Leave empty for an automatic name. Date and a unique identifier are always added.</p>
+              {!nameValid && <p role="alert" className="text-xs text-red-500">Use up to 64 letters, numbers, spaces, dots, hyphens or underscores. Start with a letter or number.</p>}
+            </div>}
+            <div className="mt-5 flex justify-end gap-2">
+              <AppButton tone="neutral" onClick={closeBackupWarningModal} disabled={backupNowLoading}>Cancel</AppButton>
+              <AppButton tone="primary" disabled={backupNowLoading || (nativeBackup && !nameValid)} onClick={async () => { closeBackupWarningModal(); await executeBackupNow(nativeBackup ? cleanName : undefined); }}>Create backup</AppButton>
             </div>
+          </AppModalBody>
+        </AppModalContent>
+      </AppModal>
 
-            <div className="flex items-start gap-3 mb-4">
-              <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
-              <p className={`text-sm ${textSecondary}`}>
-                {hotBackupOnly ? (
-                  <>
-                    A backup will be created while the server is running. Do you want to continue?
-                  </>
-                ) : stopOnBackup ? (
-                  <>
-                    The server is not fully stopped and{' '}
-                    <span className={`font-medium ${textPrimary}`}>Stop server before backup</span>{' '}
-                    is enabled. Starting this backup will stop the server first. Do you want to
-                    continue?
-                  </>
-                ) : (
-                  <>
-                    The server is not fully stopped and{' '}
-                    <span className={`font-medium ${textPrimary}`}>Stop server before backup</span>{' '}
-                    is disabled. Backup will run while the server is still active, which may produce
-                    inconsistent data. Do you want to continue?
-                  </>
-                )}
-              </p>
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-2">
-              <AppButton
-                type="button"
-                tone="neutral"
-                onClick={closeBackupWarningModal}
-                className="rounded px-4 py-2 text-sm disabled:opacity-60"
-                disabled={backupNowLoading}
-              >
-                Cancel
-              </AppButton>
-              <AppButton
-                type="button"
-                tone="primary"
-                onClick={async () => {
-                  closeBackupWarningModal();
-                  await executeBackupNow();
-                }}
-                className="rounded px-4 py-2 text-sm font-medium disabled:opacity-60"
-                disabled={backupNowLoading}
-              >
-                {backupNowLoading ? 'Creating backup...' : 'Continue backup'}
-              </AppButton>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -6,6 +6,7 @@ import { docker } from './client.js';
 import { buildServerNetworkAlias } from './networks.js';
 import { getConfig } from '../../config.js';
 import { randomUUID } from 'node:crypto';
+import { containerHostname } from './hostname.js';
 import { logInfo } from '../logger.js';
 import type { NormalizedPorts } from '../ports.js';
 import type { ServerMountPath } from '../storage.js';
@@ -26,6 +27,7 @@ interface ContainerInfo {
 export type ContainerHealthStatus = Extract<HealthStatus, 'healthy' | 'unhealthy' | 'starting'>;
 
 export interface ContainerRuntimeState {
+    startedAt?: string | null;
     containerStatus: ContainerStatus;
     healthStatus: HealthStatus;
 }
@@ -42,6 +44,7 @@ export type ContainerRuntimeSpec = {
     resourceLimits?: NormalizedResourceLimits;
     restartPolicy?: 'no' | 'unless-stopped';
     start?: boolean;
+    native?: { command: string[]; user: string; workdir: string; stopSignal: string; stopTimeoutSeconds: number };
 };
 
 export type OneShotContainerSpec = {
@@ -207,7 +210,8 @@ export async function createContainer(
     const container = await docker.createContainer({
         Image: spec.image,
         name: safeName,
-        Hostname: safeName,
+        Hostname: containerHostname(safeName),
+        ...(spec.native ? { Entrypoint: [], Cmd: spec.native.command, User: spec.native.user, WorkingDir: spec.native.workdir, StopSignal: spec.native.stopSignal, StopTimeout: spec.native.stopTimeoutSeconds, OpenStdin: true, StdinOnce: false } : {}),
         Env: [
             `GAMEPANEL_PROVIDER=${spec.provider}`,
             ...(spec.catalogId ? [`GAMEPANEL_CATALOG_ID=${spec.catalogId}`] : []),
@@ -232,6 +236,7 @@ export async function createContainer(
             PortBindings: portBindings,
             RestartPolicy: { Name: spec.restartPolicy ?? 'unless-stopped' },
             Binds: buildBinds(spec.mounts),
+            ...(spec.native ? { CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges:true'], PidsLimit: 512 } : {}),
             ...resourceLimitsToDockerHostConfig(spec.resourceLimits ?? null),
         },
     });
@@ -414,8 +419,11 @@ export async function listPublishedHostPorts(params?: {
             let info: any;
             try {
                 info = await docker.getContainer(containerSummary.Id).inspect();
-            } catch {
-                return;
+            } catch (error) {
+                // A container may have been deleted since listing. Other inspection
+                // failures must not turn occupied ports into apparently free ports.
+                if ((error as { statusCode?: number }).statusCode === 404) return;
+                throw error;
             }
 
             const labels = (info?.Config?.Labels ?? {}) as Record<string, string>;
@@ -459,6 +467,7 @@ export async function checkContainerStatus(containerId: string): Promise<string>
 export async function inspectContainerRuntime(containerId: string): Promise<ContainerRuntimeState> {
     const info = await docker.getContainer(containerId).inspect();
     return {
+        startedAt: info.State.Running && Date.parse(info.State.StartedAt) > 0 ? info.State.StartedAt : null,
         containerStatus: normalizeContainerStatus(info?.State?.Status),
         healthStatus: normalizeHealthStatus(info?.State?.Health?.Status),
     };

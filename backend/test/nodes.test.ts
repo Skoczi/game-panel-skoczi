@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { NodeStore } from '../src/nodes/store.js';
+import { FleetStore } from '../src/fleet/store.js';
 import { OperationJournal } from '../src/agent/journal.js';
 import {
     nodeOrigin,
@@ -18,6 +19,7 @@ import { ownsContainer, runtimeLabels } from '../src/utils/docker/ownership.js';
 
 function database() {
     const native = new DatabaseSync(':memory:');
+    native.exec('CREATE TABLE users(id INTEGER PRIMARY KEY)');
     const db = {
         exec: async (sql: string) => native.exec(sql),
         run: async (sql: string, ...args: any[]) =>
@@ -29,6 +31,72 @@ function database() {
     } as any;
     return { native, db };
 }
+test('unenrolled nodes can be deleted directly; Local, confirmation and tracked servers are protected', async () => {
+    const { native, db } = database();
+    try {
+        const store = new NodeStore(db, secret());
+        const fleet = new FleetStore(db);
+        await store.initialize(); await fleet.initialize();
+        const created = await store.create({ name: 'Test node', origin: 'https://node.example.com' }, 'Admin');
+        const verify = async () => { throw new Error('An unenrolled node needs no network request'); };
+        await assert.rejects(store.remove('local', 'Local', 'Admin', verify), /built in/);
+        await assert.rejects(store.remove(created.node.id, 'Wrong', 'Admin', verify), /exact node name/);
+        await fleet.observe(created.node.id, [{ id: 1, runtimeKey: 'a'.repeat(32), name: 'Game', provider: 'docker', status: 'stopped' }]);
+        await fleet.observe(created.node.id, []);
+        await assert.rejects(store.remove(created.node.id, 'Test node', 'Admin', verify), /tracked servers/);
+        assert.equal((await fleet.list())[0].missing, 1);
+        // Remove only this test fixture's tracking row to exercise a genuinely empty node.
+        await db.run('DELETE FROM fleet_servers');
+        await store.remove(created.node.id, 'Test node', 'Admin', verify);
+        assert.equal(await store.get(created.node.id), undefined);
+        await assert.rejects(store.enroll(created.node.id, created.enrollmentToken));
+        assert.equal((await db.get("SELECT COUNT(*) AS n FROM node_audit WHERE action='deleted'")).n, 1);
+        await assert.rejects(store.remove(created.node.id, 'Test node', 'Admin', verify), /not found/);
+        // A late fleet response must not resurrect server records for a deleted node.
+        await fleet.observe(created.node.id, [{ id: 1, runtimeKey: 'b'.repeat(32), name: 'Late', provider: 'docker', status: 'stopped' }], true);
+        assert.deepEqual(await fleet.list(), []);
+    } finally { native.close(); }
+});
+
+test('enrolled node deletion requires disable, fresh empty inventory, and unchanged state', async () => {
+    const { native, db } = database();
+    try {
+        const store = new NodeStore(db, secret());
+        await store.initialize(); await new FleetStore(db).initialize();
+        const { node, enrollmentToken } = await store.create({ name: 'Paired', origin: 'https://paired.example.com' }, 'Admin');
+        await store.enroll(node.id, enrollmentToken);
+        await assert.rejects(store.remove(node.id, node.name, 'Admin', async () => {}), /Disable/);
+        await store.setEnabled(node.id, false, 'Admin');
+        await assert.rejects(store.remove(node.id, node.name, 'Admin', async () => { throw new Error('Inventory unavailable'); }), /Inventory unavailable/);
+        assert.ok(await store.get(node.id));
+        await assert.rejects(store.remove(node.id, node.name, 'Admin', async () => {
+            await store.setEnabled(node.id, true, 'Other admin');
+        }), /state changed/);
+        await store.setEnabled(node.id, false, 'Admin');
+        await assert.rejects(store.remove(node.id, node.name, 'Admin', async () => {
+            await new FleetStore(db).observe(node.id, [{ id: 2, runtimeKey: 'c'.repeat(32), name: 'Concurrent', provider: 'docker', status: 'running' }]);
+        }), /state changed/);
+        await db.run('DELETE FROM fleet_servers');
+        let checked = false;
+        await store.remove(node.id, node.name, 'Admin', async row => { checked = true; assert.equal(row.enabled, 0); });
+        assert.equal(checked, true);
+        assert.equal(await store.get(node.id), undefined);
+    } finally { native.close(); }
+});
+
+test('re-enrollment does not erase paired history or bypass deletion checks', async () => {
+    const { native, db } = database();
+    try {
+        const store = new NodeStore(db, secret());
+        await store.initialize(); await new FleetStore(db).initialize();
+        const { node, enrollmentToken } = await store.create({ name: 'Paired', origin: 'https://paired.example.com' }, 'Admin');
+        await store.enroll(node.id, enrollmentToken);
+        await store.renewEnrollment(node.id, 'Admin');
+        await store.setEnabled(node.id, false, 'Admin');
+        await assert.rejects(store.remove(node.id, node.name, 'Admin', async () => {}), /Reconnect/);
+        assert.ok(await store.get(node.id));
+    } finally { native.close(); }
+});
 test('agent request signatures bind node, method and exact path; expire and reject replay', () => {
     const key = secret(),
         id = randomUUID();

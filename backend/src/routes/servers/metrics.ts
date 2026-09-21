@@ -4,12 +4,21 @@ import { buildServerVisibility } from '../../middleware/auth.js';
 import { serverMetricsRepository, serverRepository } from '../../database/index.js';
 import { METRICS_HISTORY_RAW_LIMIT, buildMetricsHistory } from '../../utils/metrics.js';
 import { parseLimit } from '../../utils/number.js';
-import { getServerMetricsSamples } from '../../utils/serverMetricsCache.js';
+import { getServerMetricsSamples, getServerResourceSnapshot } from '../../utils/serverMetricsCache.js';
 import { sendRouteError } from '../../utils/routeErrors.js';
 import { parseServerId } from './shared.js';
 
 export function createServerMetricsRoutes(): Router {
     const router = Router();
+    router.get('/:id/resources', async (req: AuthenticatedRequest, res: Response, next) => {
+        try {
+            const id = parseServerId(req.params.id);
+            const canSee = await buildServerVisibility(req.user);
+            if (!id || !canSee(id)) { res.status(404).json({ error: 'Server not found' }); return; }
+            res.setHeader('Cache-Control', 'no-store');
+            res.json(getServerResourceSnapshot(id));
+        } catch (error) { next(error); }
+    });
 
     // GET /api/servers/metrics
     router.get('/metrics', async (req: AuthenticatedRequest, res: Response, next) => {

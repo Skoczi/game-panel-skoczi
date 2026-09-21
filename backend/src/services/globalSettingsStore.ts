@@ -1,13 +1,16 @@
 // Skoczi: persisted, revision-checked panel settings. No host network mutations.
+import { enterPortAllocationMutation } from './portAllocationLock.js';
 import type { Database } from 'sqlite';
 import { assertPortPolicy, configuredPortPolicy, isUnicastIPv4 } from '../utils/portPolicy.js';
 
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
+export type LoginTheme = 'light' | 'dark' | 'system';
 export const DEFAULT_APPEARANCE = {
     showFollowUs: true, showTrustpilot: true, showNews: true,
-    siteName: 'Game Panel', siteSubtitle: 'Skoczi Edition', logo: '',
+    siteName: 'Game Panel PRO', siteSubtitle: 'Server management', logo: '',
     loginDescription: 'Sign in to manage your game servers',
-    showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Skoczi Edition',
+    loginTheme: 'light' as LoginTheme,
+    showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Developed by Skoczi',
 };
 export type GlobalSettings = {
     appearance: typeof DEFAULT_APPEARANCE;
@@ -61,11 +64,13 @@ export function validateGlobalSettings(input: unknown): GlobalSettings {
         return { ip, alias: text(row.alias, 80), tcp: text(row.tcp, 1024), udp: text(row.udp, 1024) };
     });
     const siteName = text(appearance.siteName, 80);
+    if (!['light', 'dark', 'system'].includes(appearance.loginTheme as string)) invalid('Invalid login theme');
     if (!siteName) invalid('Site name cannot be empty');
     const result = { appearance: { showFollowUs: appearance.showFollowUs, showTrustpilot: appearance.showTrustpilot,
         showNews: appearance.showNews, showLoginFooter: appearance.showLoginFooter, siteName,
         siteSubtitle: text(appearance.siteSubtitle, 120), logo: logo(appearance.logo),
         loginDescription: text(appearance.loginDescription, 240), loginFooter: text(appearance.loginFooter, 240),
+        loginTheme: appearance.loginTheme as LoginTheme,
     }, network: { restrictPorts: network.restrictPorts, allocations } };
     try { allocationPolicy(result.network); } catch (error) { invalid(error instanceof Error ? error.message : 'Invalid port ranges'); }
     return result;
@@ -127,23 +132,26 @@ export class GlobalSettingsStore {
     }
 
     async save(input: unknown, revision: unknown): Promise<SettingsSnapshot> {
-        if (!Number.isSafeInteger(revision) || revision !== this.snapshot().revision) invalid('Settings changed. Reload before saving.', 409);
-        const next = validateGlobalSettings(input);
-        if (JSON.stringify(next.network) !== JSON.stringify(this.current!.network)) {
-            const policy = allocationPolicy(next.network);
-            const ips = new Set(next.network.allocations.map((entry) => entry.ip));
-            for (const used of await this.assignments()) {
-                try {
-                    if (used.ip && !ips.has(used.ip)) throw new Error('IP removed');
-                    assertPortPolicy({ tcp: [], udp: [], [used.protocol]: [{ hostIp: used.ip, host: used.port }] }, policy);
-                } catch { invalid(`Allocation in use by ${used.serverName}: ${used.ip || 'Docker default'}:${used.port}/${used.protocol}. Change the server binding first.`, 409); }
+        const release = enterPortAllocationMutation();
+        try {
+            if (!Number.isSafeInteger(revision) || revision !== this.snapshot().revision) invalid('Settings changed. Reload before saving.', 409);
+            const next = validateGlobalSettings(input);
+            if (JSON.stringify(next.network) !== JSON.stringify(this.current!.network)) {
+                const policy = allocationPolicy(next.network);
+                const ips = new Set(next.network.allocations.map((entry) => entry.ip));
+                for (const used of await this.assignments()) {
+                    try {
+                        if (used.ip && !ips.has(used.ip)) throw new Error('IP removed');
+                        assertPortPolicy({ tcp: [], udp: [], [used.protocol]: [{ hostIp: used.ip, host: used.port }] }, policy);
+                    } catch { invalid(`Allocation in use by ${used.serverName}: ${used.ip || 'Docker default'}:${used.port}/${used.protocol}. Change the server binding first.`, 409); }
+                }
             }
-        }
-        const updated = await this.db.run('UPDATE panel_settings SET settings_json=?, revision=revision+1 WHERE id=1 AND revision=?', JSON.stringify(next), revision);
-        if (updated.changes !== 1) invalid('Settings changed. Reload before saving.', 409);
-        // No await between updating the snapshot and applying policy.
-        this.current = { ...next, revision: Number(revision) + 1 };
-        this.apply(next);
-        return this.snapshot();
+            const updated = await this.db.run('UPDATE panel_settings SET settings_json=?, revision=revision+1 WHERE id=1 AND revision=?', JSON.stringify(next), revision);
+            if (updated.changes !== 1) invalid('Settings changed. Reload before saving.', 409);
+            // No await between updating the snapshot and applying policy.
+            this.current = { ...next, revision: Number(revision) + 1 };
+            this.apply(next);
+            return this.snapshot();
+        } finally { release(); }
     }
 }

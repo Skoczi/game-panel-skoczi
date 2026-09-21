@@ -1,3 +1,4 @@
+import { FileOperations } from './FileOperations';
 import {
   Check,
   ChevronRight,
@@ -13,6 +14,8 @@ import {
   FolderPlus,
   Home,
   Loader2,
+  LayoutGrid,
+  List,
   RefreshCw,
   Save,
   Trash2,
@@ -21,10 +24,14 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { DragEvent, MouseEvent } from 'react';
-import { lazy, Suspense, useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { AppButton, AppInput } from '../../src/ui/components';
+import { AppButton, AppInput, AppModal, AppModalContent, AppModalBody, AppModalHeader, AppModalTitle, AppModalDescription, AppModalFooter, AppToggle } from '../../src/ui/components';
+import './archive-options.css';
+import './file-views.css';
 import { useCoarsePointer } from '../../src/ui/utils/useCoarsePointer';
+import { EditorSessionView } from './EditorSessionView';
+import type { EditorSession } from './useEditorSession';
 
 const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.CodeEditor })));
 
@@ -43,7 +50,7 @@ function isExtractableArchive(name: string): boolean {
 
 export interface ExtractStatus {
   name: string;
-  status: 'running' | 'done' | 'failed';
+  status: 'running' | 'done' | 'failed' | 'unknown';
   completedFiles: number;
   error?: string;
 }
@@ -55,6 +62,7 @@ export interface UploadQueueItem {
   error?: string;
   done: boolean;
 }
+export interface UploadOptions { extractZip: boolean; deleteArchive: boolean; overwrite: boolean }
 
 interface FileRoot {
   key: string;
@@ -62,6 +70,9 @@ interface FileRoot {
 }
 
 interface FileManagerTabProps {
+  serverId?: number;
+  editorSession?: EditorSession;
+  embeddedEditor?: boolean;
   borderColor: string;
   contentBg: string;
   hoverBg: string;
@@ -110,14 +121,17 @@ interface FileManagerTabProps {
   handleDownloadFile: () => void;
   handleCopyContent: () => void;
   copyContentSuccess: boolean;
-  onUploadFiles?: (files: File[]) => void;
+  onUploadFiles?: (files: File[], options?: UploadOptions) => void;
   uploadQueue?: UploadQueueItem[];
   onRetryFailedUploads?: () => void;
-  onExtractFile?: (fileName: string) => void;
+  onExtractFile?: (fileName: string, options?: UploadOptions) => void;
   extractStatus?: ExtractStatus | null;
 }
 
 export function FileManagerTab({
+  serverId,
+  editorSession,
+  embeddedEditor = false,
   borderColor,
   contentBg,
   hoverBg,
@@ -182,8 +196,22 @@ export function FileManagerTab({
     [canWriteFiles, onUploadFiles]
   );
 
+  const folderInput = useRef<HTMLInputElement | null>(null);
+  const [fileView, setFileView] = useState<'list' | 'grid'>(() => {
+    try { return localStorage.getItem('gp-file-view') === 'grid' ? 'grid' : 'list'; } catch { return 'list'; }
+  });
+  const [pendingUpload, setPendingUpload] = useState<File[]>([]);
+  const [pendingExtract, setPendingExtract] = useState<string | null>(null);
+  const [uploadOptions, setUploadOptions] = useState<UploadOptions>({ extractZip: false, deleteArchive: false, overwrite: false });
+  const prepareUpload = (files: File[]) => {
+    if (!canWriteFiles || !files.length) return;
+    if (files.some(file => /\.zip$/i.test(file.name))) {
+      setUploadOptions({ extractZip: false, deleteArchive: false, overwrite: false });
+      setPendingUpload(files);
+    } else onDrop(files);
+  };
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    onDrop,
+    onDrop: prepareUpload,
     noClick: true,
     noKeyboard: true,
     disabled: !canWriteFiles || !onUploadFiles,
@@ -261,7 +289,52 @@ export function FileManagerTab({
 
   return (
     <div className="h-full flex flex-col" {...getRootProps()}>
+      {editorSession && <EditorSessionView session={editorSession} embedded={embeddedEditor} />}
       <input {...getInputProps()} />
+      <input type="file" multiple hidden aria-label="Upload folder" ref={element => {
+        folderInput.current = element;
+        element?.setAttribute('webkitdirectory', '');
+      }} onChange={event => {
+        prepareUpload(Array.from(event.target.files ?? []));
+        event.target.value = '';
+      }} />
+      <AppModal open={pendingUpload.length > 0 || pendingExtract !== null} onOpenChange={open => { if (!open) { setPendingUpload([]); setPendingExtract(null); } }}>
+        <AppModalContent className="gp-archive-options">
+          <AppModalHeader>
+            <span className="gp-archive-options-icon"><FileArchive size={18} aria-hidden="true" /></span>
+            <div>
+              <AppModalTitle>{pendingExtract ? 'Extract archive' : 'Upload options'}</AppModalTitle>
+              <AppModalDescription>{pendingExtract ?? `${pendingUpload.length} ${pendingUpload.length === 1 ? 'file' : 'files'} selected · Choose how to handle ZIP archives`}</AppModalDescription>
+            </div>
+          </AppModalHeader>
+          <AppModalBody>
+              {!pendingExtract && <div className="gp-archive-option-row">
+                <div><strong>Automatic extraction</strong><p>Unpack ZIP files into their upload directory.</p></div>
+                <AppToggle size="compact" ariaLabel="Extract ZIP after upload" checked={uploadOptions.extractZip} onChange={checked => setUploadOptions(o => ({ ...o, extractZip: checked }))} />
+              </div>}
+              {uploadOptions.extractZip && <>
+                <fieldset className="gp-archive-retention">
+                  <legend>After extraction</legend>
+                  <label><input type="radio" name="archive-retention" aria-label="Keep ZIP archive" checked={!uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: false }))} /><span><strong>Keep archive</strong><small>Leave the original file on the server.</small></span></label>
+                  <label><input type="radio" name="archive-retention" aria-label="Delete ZIP only after successful extraction" checked={uploadOptions.deleteArchive} onChange={() => setUploadOptions(o => ({ ...o, deleteArchive: true }))} /><span><strong>Delete after success</strong><small>Remove the archive only when extraction finishes.</small></span></label>
+                </fieldset>
+                <div className="gp-archive-option-row">
+                  <div><strong>Overwrite existing files</strong><p>Replace files with matching names.</p></div>
+                  <AppToggle size="compact" ariaLabel="Allow extraction to overwrite existing files" checked={uploadOptions.overwrite} onChange={checked => setUploadOptions(o => ({ ...o, overwrite: checked }))} />
+                </div>
+                <p className="gp-archive-options-note">If extraction fails, the archive is kept. Existing files are preserved unless overwrite is enabled.</p>
+              </>}
+          </AppModalBody>
+              <AppModalFooter>
+                <AppButton onClick={() => { setPendingUpload([]); setPendingExtract(null); }}>Cancel</AppButton>
+                <AppButton tone="primary" onClick={() => {
+                  if (pendingExtract) onExtractFile?.(pendingExtract, uploadOptions);
+                  else onUploadFiles?.(pendingUpload, uploadOptions);
+                  setPendingUpload([]); setPendingExtract(null);
+                }}>{pendingExtract ? 'Extract' : 'Upload'}</AppButton>
+              </AppModalFooter>
+        </AppModalContent>
+      </AppModal>
 
       <div
         className={`h-[52px] px-3 border-b ${borderColor} ${contentBg} flex items-center gap-1 flex-shrink-0`}
@@ -269,6 +342,7 @@ export function FileManagerTab({
         {availableRoots.length > 1 && (
           <select
             value={currentRoot}
+            aria-label="Data directory"
             onChange={(e) => setCurrentRoot(e.target.value)}
             className="h-[30px] flex-shrink-0 rounded border border-gray-700 bg-gray-800 px-2 text-xs text-gray-300 outline-none cursor-pointer hover:border-gray-500"
           >
@@ -321,6 +395,19 @@ export function FileManagerTab({
         <div className="ml-1 flex items-center gap-0.5 flex-shrink-0">
           <AppButton
             tone="ghost"
+            aria-label={fileView === 'list' ? 'Switch to tile view' : 'Switch to list view'}
+            title={fileView === 'list' ? 'Switch to tile view' : 'Switch to list view'}
+            className="h-7 w-7 min-w-0 !min-h-0 rounded p-0 text-gray-400"
+            onClick={() => {
+              const next = fileView === 'list' ? 'grid' : 'list';
+              setFileView(next);
+              try { localStorage.setItem('gp-file-view', next); } catch { /* Storage may be disabled. */ }
+            }}
+          >
+            {fileView === 'list' ? <LayoutGrid className="w-3 h-3" /> : <List className="w-3 h-3" />}
+          </AppButton>
+          <AppButton
+            tone="ghost"
             onClick={() => loadFiles(currentPath)}
             className="h-7 w-7 min-w-0 !min-h-0 rounded p-0 transition-colors hover:bg-gray-700 text-gray-400 hover:text-white"
             title="Refresh"
@@ -359,6 +446,11 @@ export function FileManagerTab({
           >
             <FilePlus className="w-3 h-3" />
           </AppButton>
+          {onUploadFiles && (
+            <AppButton tone="ghost" title="Upload folder" aria-label="Upload folder" disabled={!canWriteFiles} onClick={() => folderInput.current?.click()} className="h-7 w-7 min-w-0 !min-h-0 rounded p-0 text-gray-400">
+              <Folder className="w-3 h-3" />
+            </AppButton>
+          )}
           {onUploadFiles && (
             <AppButton
               tone="ghost"
@@ -417,10 +509,13 @@ export function FileManagerTab({
           </div>
         )}
 
-        <div className="space-y-0.5">
+        <div className={fileView === 'grid' ? 'gp-file-grid' : 'space-y-0.5'} data-file-view={fileView}>
           {filesLoading && <div className={`text-sm px-2 py-1 ${textSecondary}`}>Loading files...</div>}
-          {filesError && <div className="text-sm px-2 py-1 text-red-400">{filesError}</div>}
+          {filesError && <div role="alert" className="text-sm px-2 py-1 text-red-400">{filesError}</div>}
 
+          {!filesLoading && !filesError && !files.some(file => file.name !== '..' && (showHidden || !file.name.startsWith('.'))) && <p role="status" className={`col-span-full px-2 py-3 text-sm ${textSecondary}`}>
+            {files.some(file => file.name !== '..') ? 'Only hidden files are here. Use Show hidden files to see them.' : 'This folder is empty.'}
+          </p>}
           {!filesLoading &&
             files
               .filter((file) => showHidden || file.name === '..' || !file.name.startsWith('.'))
@@ -433,7 +528,7 @@ export function FileManagerTab({
                 return (
                   <div
                     key={index}
-                    className={`w-full flex h-9 items-center gap-2 px-2 rounded-md cursor-pointer select-none transition-colors ${
+                    className={`gp-file-parent w-full flex h-9 items-center gap-2 px-2 rounded-md cursor-pointer select-none transition-colors ${
                       isDropTarget ? 'bg-[#0050D7]/20 border border-[var(--color-cyan-400)]' : hoverBg
                     }`}
                     onClick={() => handleFileDoubleClick(file)}
@@ -456,7 +551,9 @@ export function FileManagerTab({
                 <div
                   key={index}
                   draggable={isDraggable}
-                  className={`group w-full flex h-9 items-center gap-1.5 px-2 rounded-md select-none transition-colors ${
+                  data-file-name={file.name}
+                  title={file.name}
+                  className={`gp-file-entry group w-full flex h-9 items-center gap-1.5 px-2 rounded-md select-none transition-colors ${
                     isDropTarget
                       ? 'bg-[#0050D7]/20 border border-[var(--color-cyan-400)] ring-1 ring-[var(--color-cyan-400)]'
                       : isSelected
@@ -473,7 +570,7 @@ export function FileManagerTab({
                 >
                   {renamingFile === file.name ? (
                     <div
-                      className="flex flex-1 items-center gap-2"
+                      className="gp-file-rename flex flex-1 items-center gap-2"
                       onClick={(e) => e.stopPropagation()}
                       onDoubleClick={(e) => e.stopPropagation()}
                     >
@@ -509,7 +606,12 @@ export function FileManagerTab({
                   ) : (
                     <>
                       <div
-                        className={`w-3.5 h-3.5 flex-shrink-0 flex items-center justify-center rounded border cursor-pointer transition-colors ${
+                        role="checkbox"
+                        aria-label={`Select ${file.name}`}
+                        aria-checked={isSelected}
+                        tabIndex={0}
+                        onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleFileClick(file); } }}
+                        className={`gp-file-selection w-3.5 h-3.5 flex-shrink-0 flex items-center justify-center rounded border cursor-pointer transition-colors ${
                           isSelected
                             ? 'bg-[#0050D7] border-[var(--color-cyan-400)]'
                             : 'border-gray-600 hover:border-gray-400'
@@ -527,7 +629,7 @@ export function FileManagerTab({
                         <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       )}
 
-                      <span className={`flex-1 min-w-0 truncate text-[14px] leading-tight ${textPrimary}`}>
+                      <span className={`gp-file-name flex-1 min-w-0 truncate text-[14px] leading-tight ${textPrimary}`}>
                         {file.name}
                       </span>
 
@@ -543,14 +645,14 @@ export function FileManagerTab({
                       )}
 
                       <div
-                        className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        className="gp-file-actions flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={(e) => e.stopPropagation()}
                       >
                         {file.type === 'file' && isExtractableArchive(file.name) && onExtractFile && (
                           <AppButton
                             tone="ghost"
-                            onClick={(e) => { e.stopPropagation(); onExtractFile(file.name); }}
+                            onClick={(e) => { e.stopPropagation(); setUploadOptions({ extractZip: true, deleteArchive: false, overwrite: false }); setPendingExtract(file.name); }}
                             disabled={!canWriteFiles || isExtracting}
                             className={`h-7 w-6 min-w-0 !min-h-0 rounded-md border-none bg-transparent p-0 transition-colors ${
                               canWriteFiles && !isExtracting
@@ -623,9 +725,12 @@ export function FileManagerTab({
         )}
       </div>
 
+      {serverId && <FileOperations key={serverId} serverId={serverId} />}
       {extractStatus && (
         <div className={`border-t ${borderColor} px-3 py-1.5 flex-shrink-0`}>
-          {extractStatus.status === 'failed' ? (
+          {extractStatus.status === 'unknown' ? (
+            <p role="status" className="text-xs text-amber-500">Result unknown for {extractStatus.name}. {extractStatus.error}</p>
+          ) : extractStatus.status === 'failed' ? (
             <div className="flex items-start gap-2 text-xs text-red-400">
               <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>Failed to extract {extractStatus.name}: {extractStatus.error}</span>
@@ -688,13 +793,13 @@ export function FileManagerTab({
         );
       })()}
 
-      {selectedFile && (
+      {!editorSession && selectedFile && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4"
+          className={embeddedEditor ? 'absolute inset-0 z-10 flex' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4'}
           onKeyDown={(e) => e.stopPropagation()}
         >
           <div
-            className={`flex h-full md:h-[calc(100vh-2rem)] w-full max-w-7xl flex-col rounded-none md:rounded-xl border ${borderColor} ${contentBg} shadow-2xl overflow-hidden`}
+            className={`flex h-full w-full flex-col ${embeddedEditor ? '' : 'md:h-[calc(100vh-2rem)] max-w-7xl rounded-none md:rounded-xl border shadow-2xl'} ${borderColor} ${contentBg} overflow-hidden`}
             onKeyDown={(e) => e.stopPropagation()}
           >
             <div className={`flex flex-shrink-0 items-center justify-between border-b ${borderColor} px-4 py-3`}>
@@ -754,12 +859,13 @@ export function FileManagerTab({
                     fallback={<div className={`p-4 text-sm ${textSecondary}`}>Loading editor…</div>}
                   >
                     <CodeEditor
-                      // Remounted per file: it closes the search panel, which otherwise
-                      // survives anything but its close button, and keeps the undo history
-                      // of one file from reaching into the next.
+                      // Each file owns an independent model, find state and undo history.
                       key={`${currentRoot}:${currentPath}/${selectedFile.name}`}
                       value={fileContent}
                       onChange={handleEditorChange}
+                      onSave={() => {
+                        if (canWriteFiles && isFileDirty && !savingFile) void handleSaveFile();
+                      }}
                       filename={selectedFile.name}
                       readOnly={!canWriteFiles}
                     />

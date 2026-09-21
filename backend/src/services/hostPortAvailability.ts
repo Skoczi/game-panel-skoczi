@@ -24,6 +24,12 @@ function requestedHostPorts(ports: NormalizedPorts): HostBinding[] {
     ];
 }
 
+export async function reservedHostBindings(): Promise<HostBinding[]> {
+    const servers = await serverRepository.listAll();
+    const docker = await dockerUtils.listPublishedHostPorts();
+    return [...servers.flatMap(server => requestedHostPorts(parseStoredPorts(server))), ...docker];
+}
+
 function matchesRequestedPort(
     requested: HostBinding[],
     protocol: Protocol,

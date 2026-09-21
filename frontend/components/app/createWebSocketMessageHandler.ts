@@ -1,3 +1,4 @@
+import type { ResourceUsage } from '../../utils/resourceMetrics';
 import { startTransition } from 'react';
 import {
   extractTimestampedLogLine,
@@ -12,6 +13,7 @@ import { nextId } from '../../utils/uid';
 // Latest fleet sample per server id, kept so a tick that lands before the server list can
 // still be applied once the rows exist.
 export interface FleetMetricValues {
+  resources?: ResourceUsage;
   cpu?: number;
   memory?: number;
   disk?: number;
@@ -88,28 +90,8 @@ export function createWebSocketMessageHandler({
     };
 
     const normalizeServerMetrics = (raw: any) => {
-      const cpu = parseMetricPercent(
-        raw?.cpuUsage ??
-          raw?.cpu_usage ??
-          raw?.cpu ??
-          raw?.cpuPercent ??
-          raw?.cpu_percent ??
-          raw?.usage?.cpu
-      );
-
-      const memory = parseMetricPercent(
-        raw?.memoryUsage ??
-          raw?.memory_usage ??
-          raw?.memory ??
-          raw?.memoryPercent ??
-          raw?.memory_percent ??
-          raw?.ramUsage ??
-          raw?.ram_usage ??
-          raw?.ram ??
-          raw?.ramPercent ??
-          raw?.ram_percent ??
-          raw?.usage?.memory
-      );
+      const cpu = parseMetricPercent(raw?.resources?.cpuLimitPercent);
+      const memory = parseMetricPercent(raw?.resources?.memoryLimitPercent);
 
       const disk = parseMetricPercent(
         raw?.diskUsage ?? raw?.disk_usage ?? raw?.disk
@@ -118,7 +100,7 @@ export function createWebSocketMessageHandler({
       const networkIn = Math.max(0, Number(raw?.network?.in ?? raw?.network_in ?? 0) || 0);
       const networkOut = Math.max(0, Number(raw?.network?.out ?? raw?.network_out ?? 0) || 0);
 
-      return { cpu, memory, disk, networkIn, networkOut };
+      return { cpu, memory, disk, networkIn, networkOut, resources: raw?.resources as ResourceUsage | undefined };
     };
 
     const normalizeServerId = (msg: any): string | null => {
@@ -157,7 +139,7 @@ export function createWebSocketMessageHandler({
       fallbackTimestamp?: unknown
     ): ServerMetricHistoryPoint | null => {
       const normalized = normalizeServerMetrics(raw);
-      if (normalized.cpu === undefined && normalized.memory === undefined) return null;
+      if (normalized.cpu === undefined && normalized.memory === undefined && !normalized.resources && !raw?.network) return null;
 
       const metricTimestamp =
         raw?.timestamp ??
@@ -171,6 +153,7 @@ export function createWebSocketMessageHandler({
 
       return {
         timestamp,
+        resources: normalized.resources,
         cpuUsage: clampPercent(normalized.cpu ?? 0),
         memoryUsage: clampPercent(normalized.memory ?? 0),
         diskUsage: clampPercent(normalized.disk ?? 0),
@@ -324,6 +307,7 @@ export function createWebSocketMessageHandler({
           const measured = normalizeServerMetrics(entry);
           metricsByServerId.set(entryServerId, measured);
           fleetSnapshot[entryServerId] = {
+            resources: measured.resources,
             cpu: measured.cpu,
             memory: measured.memory,
             disk: measured.disk,
@@ -354,6 +338,7 @@ export function createWebSocketMessageHandler({
               const nextNetworkOut = measured?.networkOut;
 
               if (
+                JSON.stringify(measured?.resources) === JSON.stringify(server.resources) &&
                 nextCpuUsage === server.cpuUsage &&
                 nextMemoryUsage === server.memoryUsage &&
                 nextDiskUsage === server.diskUsage &&
@@ -366,6 +351,7 @@ export function createWebSocketMessageHandler({
               changed = true;
               return {
                 ...server,
+                resources: measured?.resources,
                 cpuUsage: nextCpuUsage,
                 memoryUsage: nextMemoryUsage,
                 diskUsage: nextDiskUsage,
@@ -483,6 +469,9 @@ export function createWebSocketMessageHandler({
           );
           if (nextEntry) {
             addServerHistoryEntries(targetServerId, [nextEntry]);
+            if (String(message.action.message || '').startsWith('Native ')) {
+              addCLIMessage('info', message.action.message, resolveServerName(targetServerId), 'install');
+            }
           }
         }
         break;
@@ -502,6 +491,7 @@ export function createWebSocketMessageHandler({
               return measured
                 ? {
                     ...normalizedServer,
+                    resources: measured.resources,
                     cpuUsage: measured.cpu,
                     memoryUsage: measured.memory,
                     diskUsage: measured.disk,

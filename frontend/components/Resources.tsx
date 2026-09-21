@@ -109,19 +109,19 @@ export function Resources() {
 
   return (
     <AppCard
-      className={`mx-auto w-full max-w-7xl ${cardBg} overflow-hidden rounded-2xl border ${cardBorder} shadow-2xl`}
+      className={`mx-auto w-full max-w-7xl ${cardBg} overflow-hidden rounded-2xl border ${cardBorder} shadow-sm`}
     >
-      <div className={`p-8 pb-6 border-b border-gray-800`}>
+      <div className={`p-5 pb-4 border-b border-gray-800`}>
         <h1 className={`text-2xl md:text-3xl font-bold mb-3 ${textPrimary}`}>
           Resources & Tutorials
         </h1>
-        <p className={`text-lg ${textTertiary}`}>
+        <p className={`text-sm ${textTertiary}`}>
           Learn how to manage your game servers effectively
         </p>
       </div>
 
-      <div className="p-8 pb-6">
-        <div className="grid md:grid-cols-2 gap-6">
+      <div className="p-5 pb-4">
+        <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className={`${textPrimary} text-sm font-medium block mb-2`}>
               Search Resources
@@ -162,7 +162,7 @@ export function Resources() {
       </div>
 
       {isLoading && (
-        <div className="px-8 pb-8">
+        <div className="px-5 pb-5">
           <div className="bg-[#1a2332] rounded-xl p-12 text-center">
             <p className={`${textTertiary} text-base`}>Loading resources...</p>
           </div>
@@ -170,7 +170,7 @@ export function Resources() {
       )}
 
       {!isLoading && loadError && (
-        <div className="px-8 pb-8">
+        <div className="px-5 pb-5">
           <div className="bg-[#1a2332] rounded-xl p-12 text-center">
             <h3 className={`text-xl font-semibold mb-3 ${textPrimary}`}>
               Unable to load resources
@@ -182,14 +182,14 @@ export function Resources() {
 
       {!isLoading && !loadError && (
         <>
-          <div className="px-8 pb-8 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="px-5 pb-5 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedResources.map((resource) => (
               <a
                 key={resource.id}
                 href={resource.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`${cardBg} flex h-full flex-col rounded-xl p-6 border ${cardBorder} hover:border-gray-700 transition-all duration-300 group hover:shadow-xl hover:-translate-y-1`}
+                className={`${cardBg} flex h-full flex-col rounded-xl p-5 border ${cardBorder} hover:border-gray-700 transition-all duration-300 group hover:shadow-xl hover:-translate-y-1`}
               >
                 <div className="flex items-start justify-between mb-5">
                   <div
@@ -231,7 +231,7 @@ export function Resources() {
           </div>
 
           {hasMoreResources && (
-            <div className="px-8 pb-8 text-center">
+            <div className="px-5 pb-5 text-center">
               <AppButton
                 onClick={() => setShowAll(!showAll)}
                 tone="primary"
@@ -245,7 +245,7 @@ export function Resources() {
           )}
 
           {filteredResources.length === 0 && (
-            <div className="px-8 pb-8">
+            <div className="px-5 pb-5">
               <div className="bg-[#1a2332] rounded-xl p-16 text-center">
                 <div className="bg-gray-800 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                   <BookOpen className={`w-10 h-10 ${textTertiary}`} />

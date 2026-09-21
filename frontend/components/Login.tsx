@@ -3,6 +3,7 @@ import { Eye, EyeOff, Lock, User, AlertCircle } from 'lucide-react';
 import { apiClient } from '../utils/api';
 import { useBranding } from '../contexts/BrandingContext';
 import { PanelBrand } from './PanelBrand';
+import './login-theme.css';
 
 interface LoginProps {
   onLogin: () => void;
@@ -60,8 +61,8 @@ export function Login({ onLogin }: LoginProps) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-8"
-      style={{ background: 'linear-gradient(135deg, #000e9c 0%, #002dbe 100%)' }}
+      className="gp-login-theme min-h-screen flex items-center justify-center px-4 py-8"
+      data-login-theme={appearance.loginTheme || 'light'}
     >
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
@@ -75,23 +76,24 @@ export function Login({ onLogin }: LoginProps) {
           className="overflow-hidden rounded-2xl shadow-2xl"
           style={{ border: '1px solid rgba(255,255,255,0.08)' }}
         >
-          <div className="bg-white px-8 py-8">
+          <div className="px-8 py-8" style={{ background: 'var(--login-card)' }}>
             <form onSubmit={handleCredentialsSubmit} className="space-y-5">
               {showError && (
                 <div
+                  role="alert"
                   className="flex items-start gap-3 rounded-lg p-3"
-                  style={{ background: '#fff5f5', border: '1px solid #fecaca' }}
+                  style={{ background: 'var(--login-error-bg)', border: '1px solid var(--login-error-border)' }}
                 >
                   <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" style={{ color: '#ef4444' }} />
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: '#991b1b' }}>{errorTitle}</p>
-                    <p className="mt-0.5 text-sm" style={{ color: '#b91c1c' }}>{errorMessage}</p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--login-error-title)' }}>{errorTitle}</p>
+                    <p className="mt-0.5 text-sm" style={{ color: 'var(--login-error-text)' }}>{errorMessage}</p>
                   </div>
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <label htmlFor="username" className="block text-sm font-medium" style={{ color: '#1e293b' }}>
+                <label htmlFor="username" className="block text-sm font-medium" style={{ color: 'var(--login-label)' }}>
                   Username
                 </label>
                 <div className="relative">
@@ -107,18 +109,18 @@ export function Login({ onLogin }: LoginProps) {
                     autoComplete="username"
                     className="w-full rounded-lg py-2.5 pl-9 pr-4 text-sm transition-all focus:outline-none"
                     style={{
-                      background: showError ? '#fff5f5' : '#f8fafc',
-                      border: `1px solid ${showError ? '#fca5a5' : '#cbd5e1'}`,
-                      color: '#0f172a',
+                      background: showError ? 'var(--login-error-bg)' : 'var(--login-field)',
+                      border: `1px solid ${showError ? 'var(--login-error-border)' : 'var(--login-border)'}`,
+                      color: 'var(--login-text)',
                     }}
                     onFocus={(e) => {
-                      e.currentTarget.style.borderColor = showError ? '#f87171' : '#0050d7';
+                      e.currentTarget.style.borderColor = showError ? '#f87171' : 'var(--login-focus)';
                       e.currentTarget.style.boxShadow = showError
                         ? '0 0 0 3px rgba(239,68,68,0.12)'
                         : '0 0 0 3px rgba(0,80,215,0.12)';
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.borderColor = showError ? '#fca5a5' : '#cbd5e1';
+                      e.currentTarget.style.borderColor = showError ? 'var(--login-error-border)' : 'var(--login-border)';
                       e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
@@ -126,7 +128,7 @@ export function Login({ onLogin }: LoginProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="password" className="block text-sm font-medium" style={{ color: '#1e293b' }}>
+                <label htmlFor="password" className="block text-sm font-medium" style={{ color: 'var(--login-label)' }}>
                   Password
                 </label>
                 <div className="relative">
@@ -142,27 +144,28 @@ export function Login({ onLogin }: LoginProps) {
                     autoComplete="current-password"
                     className="w-full rounded-lg py-2.5 pl-9 pr-10 text-sm transition-all focus:outline-none"
                     style={{
-                      background: showError ? '#fff5f5' : '#f8fafc',
-                      border: `1px solid ${showError ? '#fca5a5' : '#cbd5e1'}`,
-                      color: '#0f172a',
+                      background: showError ? 'var(--login-error-bg)' : 'var(--login-field)',
+                      border: `1px solid ${showError ? 'var(--login-error-border)' : 'var(--login-border)'}`,
+                      color: 'var(--login-text)',
                     }}
                     onFocus={(e) => {
-                      e.currentTarget.style.borderColor = showError ? '#f87171' : '#0050d7';
+                      e.currentTarget.style.borderColor = showError ? '#f87171' : 'var(--login-focus)';
                       e.currentTarget.style.boxShadow = showError
                         ? '0 0 0 3px rgba(239,68,68,0.12)'
                         : '0 0 0 3px rgba(0,80,215,0.12)';
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.borderColor = showError ? '#fca5a5' : '#cbd5e1';
+                      e.currentTarget.style.borderColor = showError ? 'var(--login-error-border)' : 'var(--login-border)';
                       e.currentTarget.style.boxShadow = 'none';
                     }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                     className="absolute inset-y-0 right-0 flex items-center pr-3 transition-colors"
                     style={{ color: '#94a3b8', background: 'transparent', border: 'none' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#0050d7')}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--login-focus)')}
                     onMouseLeave={(e) => (e.currentTarget.style.color = '#94a3b8')}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

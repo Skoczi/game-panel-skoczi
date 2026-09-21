@@ -1,9 +1,12 @@
 // Modified by Skoczi: retain and edit host IPv4 allocations without widening bindings.
 import { HostIpSelect } from '../HostIpSelect';
+import { WorkspaceModalOverlay } from './WorkspaceModalOverlay';
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Save, AlertTriangle, Loader2, RefreshCw, X } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
+import { NativeRuntimeCard } from './NativeRuntimeCard';
+import type { GameTemplate } from '../../utils/gameTemplates';
 
 type PortEntry = { host: string; container: string; label: string; hostIp?: string };
 type EnvEntry = { key: string; value: string };
@@ -37,6 +40,7 @@ interface ContainerConfigTabProps {
   textSecondary: string;
   hoverBg: string;
   canEdit: boolean;
+  isRoot?: boolean;
   canManageEnv: boolean;
   pickerManagedKeys?: string[];
   onSaved?: () => void;
@@ -158,6 +162,7 @@ export function ContainerConfigTab({
   textPrimary,
   textSecondary,
   canEdit,
+  isRoot = false,
   canManageEnv,
   onSaved,
 }: ContainerConfigTabProps) {
@@ -168,6 +173,7 @@ export function ContainerConfigTab({
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
   const [dockerImage, setDockerImage] = useState('');
+  const [nativeSnapshot, setNativeSnapshot] = useState<{ document: GameTemplate; version: number } | null>(null);
   const [tcpPorts, setTcpPorts] = useState<PortEntry[]>([]);
   const [udpPorts, setUdpPorts] = useState<PortEntry[]>([]);
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>([]);
@@ -195,6 +201,8 @@ export function ContainerConfigTab({
   ), [tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
 
   const applyLoaded = (raw: any) => {
+    const snapshot = raw?.providerMetadata?.template;
+    setNativeSnapshot(snapshot?.document?.schemaVersion === 2 ? snapshot : null);
     setDockerImage(raw?.dockerImage ?? '');
     const ports = portsFromRaw(raw?.ports);
     const env = envToEntries(raw?.env);
@@ -310,7 +318,7 @@ export function ContainerConfigTab({
 
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="gp-server-settings-body max-w-4xl mx-auto space-y-6">
         <div>
           <h3 className={`text-2xl font-bold ${textPrimary} mb-1`}>Container Config</h3>
           <p className={`text-sm ${textSecondary}`}>
@@ -318,6 +326,7 @@ export function ContainerConfigTab({
           </p>
         </div>
 
+        {nativeSnapshot && serverId && <NativeRuntimeCard template={nativeSnapshot.document} version={nativeSnapshot.version} serverId={serverId} status={serverStatus} isRoot={isRoot} />}
         {dockerImage && (
           <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
             <h4 className={`text-base font-semibold ${textPrimary} mb-3`}>Docker Image</h4>
@@ -335,6 +344,7 @@ export function ContainerConfigTab({
               label="TCP"
               ports={tcpPorts}
               protocol="tcp"
+              lockedStructure={!!nativeSnapshot}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               canEdit={canEdit}
@@ -346,6 +356,7 @@ export function ContainerConfigTab({
               label="UDP"
               ports={udpPorts}
               protocol="udp"
+              lockedStructure={!!nativeSnapshot}
               textPrimary={textPrimary}
               textSecondary={textSecondary}
               canEdit={canEdit}
@@ -379,7 +390,7 @@ export function ContainerConfigTab({
                   placeholder="key (e.g. data)"
                   value={mount.key}
                   onChange={e => updateMount(idx, 'key', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot}
                 />
                 <span className={`text-sm ${textSecondary} flex-shrink-0`}>→</span>
                 <input
@@ -387,9 +398,9 @@ export function ContainerConfigTab({
                   placeholder="containerPath (e.g. /data)"
                   value={mount.containerPath}
                   onChange={e => updateMount(idx, 'containerPath', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot}
                 />
-                {canEdit && (
+                {canEdit && !nativeSnapshot && (
                   <AppButton
                     tone="ghost"
                     onClick={() => removeMount(idx)}
@@ -400,7 +411,7 @@ export function ContainerConfigTab({
                 )}
               </div>
             ))}
-            {canEdit && (
+            {canEdit && !nativeSnapshot && (
               <AppButton
                 tone="ghost"
                 onClick={addMount}
@@ -415,7 +426,8 @@ export function ContainerConfigTab({
 
         {canManageEnv && (
         <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
-          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Environment Variables</h4>
+          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>{nativeSnapshot ? 'Template Variables' : 'Environment Variables'}</h4>
+          {nativeSnapshot && <p className={`text-sm ${textSecondary} mb-4`}>Variable names and internal ports are defined by the installed template. Saving values recreates the container without reinstalling game files.</p>}
           <div className={sectionClass}>
             {envEntries.length === 0 && (
               <p className={`text-sm ${textSecondary}`}>No variables configured.</p>
@@ -427,17 +439,19 @@ export function ContainerConfigTab({
                   placeholder="KEY"
                   value={entry.key}
                   onChange={e => updateEnv(idx, 'key', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot}
                 />
                 <span className={`text-sm ${textSecondary} flex-shrink-0`}>=</span>
                 <input
                   className={`${inputClass} flex-[2]`}
                   placeholder="value"
+                  aria-label={nativeSnapshot?.document.variables.find(v => v.key === entry.key)?.label || entry.key}
+                  type={nativeSnapshot?.document.variables.find(v => v.key === entry.key)?.secret ? 'password' : 'text'}
                   value={entry.value}
                   onChange={e => updateEnv(idx, 'value', e.target.value)}
-                  disabled={!canEdit}
+                  disabled={!canEdit || !!nativeSnapshot?.document.ports.some(p => p.env === entry.key)}
                 />
-                {canEdit && (
+                {canEdit && !nativeSnapshot && (
                   <AppButton
                     tone="ghost"
                     onClick={() => removeEnv(idx)}
@@ -448,7 +462,7 @@ export function ContainerConfigTab({
                 )}
               </div>
             ))}
-            {canEdit && (
+            {canEdit && !nativeSnapshot && (
               <AppButton
                 tone="ghost"
                 onClick={addEnv}
@@ -671,8 +685,8 @@ export function ContainerConfigTab({
       </div>
 
       {showRestartConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className={`${contentBg} border ${borderColor} w-full max-w-md rounded-xl shadow-2xl`}>
+        <WorkspaceModalOverlay>
+          <div role="dialog" aria-modal="true" aria-label="Restart required" className={`${contentBg} border ${borderColor} w-full max-w-md rounded-xl shadow-2xl`}>
             <div className={`flex items-center justify-between border-b ${borderColor} px-6 py-4`}>
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/15">
@@ -715,13 +729,14 @@ export function ContainerConfigTab({
               </AppButton>
             </div>
           </div>
-        </div>
+        </WorkspaceModalOverlay>
       )}
     </div>
   );
 }
 
 interface PortsSectionProps {
+  lockedStructure?: boolean;
   label: string;
   ports: PortEntry[];
   protocol: 'tcp' | 'udp';
@@ -734,6 +749,7 @@ interface PortsSectionProps {
 }
 
 function PortsSection({
+  lockedStructure = false,
   label,
   ports,
   textPrimary,
@@ -779,7 +795,7 @@ function PortsSection({
               placeholder="Container port"
               value={port.container}
               onChange={e => onUpdate(idx, 'container', e.target.value)}
-              disabled={!canEdit}
+              disabled={!canEdit || lockedStructure}
             />
             <input
               className={`${inputClass} flex-1`}
@@ -788,7 +804,7 @@ function PortsSection({
               onChange={e => onUpdate(idx, 'label', e.target.value)}
               disabled={!canEdit}
             />
-            {canEdit && (
+            {canEdit && !lockedStructure && (
               <AppButton
                 tone="ghost"
                 onClick={() => onRemove(idx)}
@@ -799,7 +815,7 @@ function PortsSection({
             )}
           </div>
         ))}
-        {canEdit && (
+        {canEdit && !lockedStructure && (
           <AppButton
             tone="ghost"
             onClick={onAdd}

@@ -1,6 +1,9 @@
+import { clearEditorDrafts } from './editorDrafts';
+import { mutationOutcomeUnknown } from './apiError';
+import type { ResourceUsage } from './resourceMetrics';
 // Modified by Skoczi: host IP allowlist API and per-port IPv4 payloads.
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { runtimeUrl, ACTIVE_SERVER } from './nodeContext';
+import { runtimeUrl, ACTIVE_SERVER, ACTIVE_NODE } from './nodeContext';
 import type { GlobalSettings, Appearance, Assignment } from '../types/globalSettings';
 import type { ReleaseConfigFileDefinition } from './api/types';
 import type {
@@ -46,6 +49,7 @@ const LONG_TIMEOUT_MS = 30 * 60 * 1000;
 
 // Percentages for cpu/memory/disk, bytes per second for the network pair.
 export interface ServerMetricSample {
+  resources?: ResourceUsage;
   cpuUsage?: number;
   memoryUsage?: number;
   diskUsage?: number;
@@ -63,6 +67,7 @@ export interface ReleaseNotes {
 }
 
 export interface PanelUpdateCheck {
+  managedUpdates?: { enabled: boolean; reason: string };
   currentVersion: string;
   latestVersion: string | null;
   updateAvailable: boolean;
@@ -70,7 +75,41 @@ export interface PanelUpdateCheck {
   newerReleases: ReleaseNotes[];
 }
 
+export interface FileHistoryEntry {
+  id: string; createdAt: string; actor: string; state: 'prepared' | 'committed';
+  beforeVersion: string; afterVersion: string; beforeBytes?: number; afterBytes?: number;
+}
+export interface FileHistoryDetail extends FileHistoryEntry { before: string; after: string }
+export interface NativeRetentionPlan {
+  fingerprint: string;
+  policy: { keepArchives: number; keepRecovery: number };
+  remove: Array<{ name: string; kind: 'archive' | 'recovery'; sizeBytes: number | null; modifiedAt: string; protectedReason: string | null }>;
+  keep: Array<{ name: string; kind: 'archive' | 'recovery'; sizeBytes: number | null; modifiedAt: string; protectedReason: string | null }>;
+}
+export interface NativeProtectionSummary {
+  measuredAt: string;
+  gameAllocatedBytes: number | null;
+  archiveBytes: number | null;
+  recoveryAllocatedBytes: number | null;
+  recoveryCount: number | null;
+  nodeFreeBytes: number | null;
+  archiveCount: number | null;
+  unverifiedCount: number | null;
+  latestBackup: { name: string; createdAt: string; validatedAt: string; mode: 'live' | 'offline'; sizeBytes: number } | null;
+  schedules: { total: number; enabled: number; nextRunAt: string | null; lastProblem: number } | null;
+  restoreHistoryAvailable: boolean;
+  lastRestore: { status: string; startedAt: string; completedAt: string | null } | null;
+  warnings: string[];
+}
+export interface BackupJob {
+  id: string; kind: 'backup' | 'restore'; status: 'running' | 'completed' | 'failed' | 'interrupted';
+  actor?: string;
+  startedAt: string; completedAt?: string; error?: string;
+  result?: { ok: boolean; exitCode: number; stdout?: string; stderr?: string };
+}
 export interface FileTransferJob {
+  createdAt?: string;
+  completedAt?: string | null;
   id: number;
   kind: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
@@ -121,6 +160,13 @@ class ApiClient {
         const status = error.response?.status;
         const requestUrl = String(error.config?.url || '').toLowerCase();
         const isAuthLoginRequest = requestUrl.includes('/api/auth/login');
+        if (mutationOutcomeUnknown(error.config?.method, requestUrl, status)) {
+          const guidance = 'Outcome unconfirmed. The request may have been accepted. Check operation history or the current server state before retrying.';
+          error.message = guidance;
+          if (error.response?.data && typeof error.response.data === 'object') {
+            (error.response.data as { error?: string }).error = guidance;
+          }
+        }
 
         if (status === 401 && !isAuthLoginRequest && !requestUrl.includes('/runtime/')) {
           this.clearAuth();
@@ -155,6 +201,7 @@ class ApiClient {
   }
 
   clearAuth() {
+    clearEditorDrafts();
     this.token = null;
     delete this.client.defaults.headers.common['Authorization'];
     localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -453,6 +500,7 @@ class ApiClient {
     const response = await this.client.get(`/api/servers/${id}`);
     const raw = response.data?.server ?? response.data;
     return raw as {
+      uptimeSeconds?: number | null;
       id: number;
       name: string;
       game: string;
@@ -462,6 +510,11 @@ class ApiClient {
       config_files?: ReleaseConfigFileDefinition[] | string[] | string | null;
       config_files_json?: string | null;
     };
+  }
+
+  async updateNativeServer(id: number) {
+    const response = await this.client.post(`/api/servers/${id}/native-update`, { confirm: true });
+    return response.data as { message: string };
   }
 
   async listBackups(serverId: number) {
@@ -477,6 +530,52 @@ class ApiClient {
     };
   }
 
+  async previewNativeRetention(serverId: number, policy: NativeRetentionPlan['policy']): Promise<NativeRetentionPlan> {
+    const response = await this.client.get(`/api/servers/${serverId}/backups/retention`, { params: policy });
+    if (!Array.isArray(response.data.remove) || !Array.isArray(response.data.keep) || typeof response.data.fingerprint !== 'string') throw new Error('Cleanup preview is unavailable');
+    return response.data;
+  }
+  async applyNativeRetention(serverId: number, plan: NativeRetentionPlan): Promise<{ removed: string[] }> {
+    const response = await this.client.post(`/api/servers/${serverId}/backups/retention`, { ...plan.policy, fingerprint: plan.fingerprint });
+    return response.data;
+  }
+
+  async nativeProtection(serverId: number): Promise<NativeProtectionSummary> {
+    const response = await this.client.get(`/api/servers/${serverId}/backups/protection`);
+    if (!response.data.measuredAt || !Array.isArray(response.data.warnings)) throw new Error('Protection summary is unavailable');
+    return response.data;
+  }
+
+  async backupCompatibility(serverId: number) {
+    const response = await this.client.get(`/api/servers/${serverId}/backups/compatibility`);
+    if (!Array.isArray(response.data.legacy)) throw new Error('Backup compatibility information is unavailable');
+    return response.data as { capabilities?: { backupJobs?: number; nativeRestoreRecovery?: number; versionedFiles?: number; absoluteResources?: number; nativeProtection?: number; nativeRetention?: number }; native: boolean; layoutReady: boolean; legacy: Array<{name:string;size:number;modifiedAt:string}>; recoveryCount:number };
+  }
+  async downloadLegacyBackup(serverId: number, name: string) {
+    const response = await this.client.get(`/api/servers/${serverId}/backups/legacy/file`, {params:{name},responseType:'blob',timeout:LONG_TIMEOUT_MS});
+    const url = URL.createObjectURL(response.data); const link=document.createElement('a'); link.href=url; link.download=name; link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  async listBackupJobs(serverId: number): Promise<BackupJob[]> {
+    const response = await this.client.get(`/api/servers/${serverId}/backups/jobs`);
+    if (!Array.isArray(response.data.jobs)) throw new Error('Agent does not support persistent backup jobs');
+    return response.data.jobs;
+  }
+
+  private async backupResult(serverId: number, data: any): Promise<{ ok: boolean; exitCode: number; stdout?: string; stderr?: string }> {
+    if (!data.job) return data;
+    const id = data.job.id;
+    for (let attempt = 0; attempt < 900; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      let job: BackupJob;
+      try { job = (await this.client.get(`/api/servers/${serverId}/backups/jobs/${encodeURIComponent(id)}`)).data.job; }
+      catch { throw new Error('Connection lost while the operation may still be running. Open Backups to check its saved status before retrying.'); }
+      if (job?.status === 'completed' && job.result) return job.result;
+      if (job?.status === 'failed' || job?.status === 'interrupted') throw new Error(job.error || 'Backup operation failed');
+    }
+    throw new Error('The operation is still pending. Open Backups to check its saved status.');
+  }
+
   async restoreBackup(serverId: number, path: string) {
     const response = await this.client.post(
       `/api/servers/${serverId}/backups/restore`,
@@ -485,7 +584,7 @@ class ApiClient {
         timeout: LONG_TIMEOUT_MS,
       }
     );
-    return response.data as { ok: boolean; exitCode: number; stdout?: string; stderr?: string };
+    return this.backupResult(serverId, response.data);
   }
 
   async sendConsoleCommand(serverId: number, command: string) {
@@ -523,7 +622,7 @@ class ApiClient {
     return response.data;
   }
 
-  async createBackup(serverId: number, options?: { includeServerArtifact?: boolean }) {
+  async createBackup(serverId: number, options?: { includeServerArtifact?: boolean; name?: string }) {
     const response = await this.client.post(
       `/api/servers/${serverId}/backups/create`,
       options ?? {},
@@ -531,7 +630,7 @@ class ApiClient {
         timeout: LONG_TIMEOUT_MS,
       }
     );
-    return response.data as { ok: boolean; exitCode: number; stdout?: string; stderr?: string };
+    return this.backupResult(serverId, response.data);
   }
 
   async getBackupSettings(serverId: number) {
@@ -747,12 +846,23 @@ class ApiClient {
     };
   }
 
+  private fileVersions = new Map<string, string>();
+  private fileKey(serverId: number, path: string, root?: string) { return JSON.stringify([ACTIVE_NODE, serverId, root, path]); }
+
   async readServerFile(serverId: number, path: string, root?: string) {
     const response = await this.client.get(`/api/servers/${serverId}/file`, {
       params: { path, ...(root ? { root } : {}) },
       responseType: 'text',
     });
+    this.fileVersions.set(this.fileKey(serverId, path, root), response.headers.etag || '');
     return response.data as string;
+  }
+
+  async readServerFileBytes(serverId: number, path: string, root?: string): Promise<ArrayBuffer> {
+    const response = await this.client.get(`/api/servers/${serverId}/file`, {
+      params: { path, ...(root ? { root } : {}) }, responseType: 'arraybuffer',
+    });
+    return response.data;
   }
 
   async getServerDownloadUrl(serverId: number, path: string, root?: string): Promise<string> {
@@ -763,12 +873,31 @@ class ApiClient {
     return `${API_BASE_URL}${res.data.path as string}`;
   }
 
-  async updateServerFile(serverId: number, path: string, content: string, root?: string) {
+  async readServerFileSnapshot(serverId: number, path: string, root?: string) {
+    const response = await this.client.get(`/api/servers/${serverId}/file`, { params: { path, ...(root ? { root } : {}) }, responseType: 'arraybuffer' });
+    return { bytes: response.data as ArrayBuffer, version: response.headers.etag as string | undefined };
+  }
+
+  async fileHistory(serverId: number, path: string, root: string): Promise<FileHistoryEntry[]> {
+    const response = await this.client.get(`/api/servers/${serverId}/file/history`, { params: { path, root } });
+    if (!Array.isArray(response.data.entries)) throw new Error('File history is unavailable on this agent');
+    return response.data.entries;
+  }
+  async fileHistoryEntry(serverId: number, path: string, root: string, entry: string): Promise<FileHistoryDetail> {
+    const response = await this.client.get(`/api/servers/${serverId}/file/history`, { params: { path, root, entry } });
+    if (typeof response.data.entry?.before !== 'string' || typeof response.data.entry?.after !== 'string') throw new Error('History snapshot is unavailable');
+    return response.data.entry;
+  }
+
+  async updateServerFile(serverId: number, path: string, content: string, root?: string, version?: string) {
+    const expected = version ?? this.fileVersions.get(this.fileKey(serverId, path, root));
+    if (!expected) throw new Error('This runtime did not return a file version. Update the agent and reopen the file before saving.');
     const response = await this.client.put(
       `/api/servers/${serverId}/file`,
-      { content },
+      { content, version: expected },
       { params: { path, ...(root ? { root } : {}) } }
     );
+    this.fileVersions.set(this.fileKey(serverId, path, root), response.data.version);
     return response.data;
   }
 
@@ -814,12 +943,19 @@ class ApiClient {
     return response.data;
   }
 
-  async extractServerArchive(serverId: number, path: string, root?: string) {
+  async extractServerArchive(serverId: number, path: string, root?: string, options?: { deleteArchive: boolean; overwrite: boolean }) {
     const response = await this.client.post(`/api/servers/${serverId}/files/extract`, {
       path,
       ...(root ? { root } : {}),
+      ...options,
     });
     return (response.data as { job: FileTransferJob }).job;
+  }
+
+  async listFileTransfers(serverId: number): Promise<FileTransferJob[]> {
+    const response = await this.client.get(`/api/servers/${serverId}/files/transfers`, { params: { limit: 20 } });
+    if (!Array.isArray(response.data.jobs)) throw new Error('Operation history unavailable');
+    return response.data.jobs;
   }
 
   async getFileTransfer(serverId: number, jobId: number) {
@@ -934,12 +1070,12 @@ class ApiClient {
     this.realtime.unsubscribeLogs(serverId);
   }
 
-  subscribeActions(serverId: number, limit?: number) {
-    this.realtime.subscribeActions(serverId, limit);
+  subscribeActions(serverId: number, limit?: number, owner?: string) {
+    this.realtime.subscribeActions(serverId, limit, owner);
   }
 
-  unsubscribeActions(serverId: number) {
-    this.realtime.unsubscribeActions(serverId);
+  unsubscribeActions(serverId: number, owner?: string) {
+    this.realtime.unsubscribeActions(serverId, owner);
   }
 
   subscribeServersMetrics() {
@@ -1010,6 +1146,10 @@ class ApiClient {
   async checkPanelUpdate(): Promise<PanelUpdateCheck> {
     const response = await this.client.get('/api/system/update/check');
     return response.data as PanelUpdateCheck;
+  }
+
+  async getPanelUpdateStatus(): Promise<{ running: boolean; job: null | { id: number; status: string; message: string | null; errorMessage: string | null; targetVersion: string } }> {
+    return (await this.client.get('/api/system/update/status')).data;
   }
 
   async startPanelUpdate(version: string): Promise<{

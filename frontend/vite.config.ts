@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -17,6 +18,16 @@ const appVersion = readVersionFromPackageJson() ?? '0.0.0-dev';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: [
+      // Monaco also vendors DOMPurify internally; overriding its npm dependency alone
+      // does not replace the older sanitizer shipped in the browser bundle.
+      {
+        find: './dompurify/dompurify.js',
+        replacement: fileURLToPath(new URL('./node_modules/dompurify/dist/purify.es.mjs', import.meta.url)),
+      },
+    ],
+  },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
@@ -29,9 +40,8 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (id.includes('@codemirror') || id.includes('@uiw') || id.includes('@lezer')) {
-            return 'codemirror';
-          }
+          // Login and feature views share these tiny helpers.
+          if (id.includes('/clsx/') || id.includes('/tailwind-merge/')) return 'ui-utils';
           if (id.includes('@xterm')) return 'xterm';
           if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) {
             return 'charts';

@@ -281,7 +281,7 @@
     box-shadow: 0 0 0 2px rgba(0, 80, 213, 0.3);
   }
 
-  .gp-app-select[data-ods='select'] [data-ods='select-content'] {
+  :is(.gp-app-select[data-ods='select'] [data-ods='select-content'], .gp-app-select-content[data-ods='select-content']) {
     background: #0f172a;
     border-color: #334155;
     border-radius: 0.75rem;
@@ -290,7 +290,7 @@
     box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
   }
 
-  .gp-app-select[data-ods='select'] [data-ods='select-content'] [role='option'] {
+  :is(.gp-app-select[data-ods='select'] [data-ods='select-content'], .gp-app-select-content[data-ods='select-content']) [role='option'] {
     color: #e6edf7;
     border-radius: 0.5rem;
     margin: 0.125rem 0;
@@ -299,17 +299,16 @@
     transition: background-color 120ms ease, box-shadow 120ms ease;
   }
 
-  .gp-app-select[data-ods='select'] [data-ods='select-content'] [role='option'][data-highlighted] {
+  :is(.gp-app-select[data-ods='select'] [data-ods='select-content'], .gp-app-select-content[data-ods='select-content']) [role='option'][data-highlighted] {
     background: #1e293b;
   }
 
-  .gp-app-select[data-ods='select'] [data-ods='select-content'] [role='option'][data-state='checked'] {
+  :is(.gp-app-select[data-ods='select'] [data-ods='select-content'], .gp-app-select-content[data-ods='select-content']) [role='option'][data-state='checked'] {
     background: color-mix(in srgb, var(--color-cyan-400) 16%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-cyan-400) 35%, transparent);
   }
 
-  .gp-app-select[data-ods='select']
-    [data-ods='select-content']
+  :is(.gp-app-select[data-ods='select'] [data-ods='select-content'], .gp-app-select-content[data-ods='select-content'])
     [role='option'][data-state='checked'][data-highlighted] {
     background: color-mix(in srgb, var(--color-cyan-400) 24%, transparent);
   }

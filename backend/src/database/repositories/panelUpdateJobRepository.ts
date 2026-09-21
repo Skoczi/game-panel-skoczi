@@ -63,6 +63,12 @@ export class PanelUpdateJobRepository extends BaseRepository {
     );
   }
 
+  async markCompleted(id: number, message: string): Promise<void> {
+    const db = await this.ensureDb();
+    const timestamp = nowIso();
+    await db.run("UPDATE panel_update_jobs SET status='completed', phase='completed', message=?, finished_at=?, updated_at=? WHERE id=?", [message, timestamp, timestamp, id]);
+  }
+
   async markFailed(id: number, errorMessage: string): Promise<void> {
     const db = await this.ensureDb();
     const timestamp = nowIso();

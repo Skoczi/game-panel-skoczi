@@ -10,7 +10,8 @@
   gap: 12px;
   align-items: flex-end;
 }
-.gp-fleet-view-controls label {
+.gp-fleet-select {
+  position: relative;
   display: flex;
   flex: 1 1 145px;
   flex-direction: column;
@@ -20,15 +21,22 @@
   font-weight: 600;
   min-width: 0;
 }
-.gp-fleet-view-controls select {
+.gp-fleet-select-label {
+  padding-left: 2px;
+}
+.gp-fleet-dropdown {
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--fleet-border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  background: var(--fleet-surface);
-  color: inherit;
-  font-size: 13px;
+}
+.gp-fleet-dropdown [data-ods='select-control'] {
+  width: 100%;
+  min-width: 0;
+}
+.gp-fleet-dropdown [data-ods='select-content'] {
+  z-index: 45;
+}
+.gp-fleet-dropdown [role='option'] {
+  overflow-wrap: anywhere;
 }
 .gp-fleet-layout-hint {
   color: var(--fleet-muted);
@@ -173,17 +181,19 @@
   background: #1249b8;
 }
 .gp-fleet-toolbar {
+  justify-content: flex-start;
   margin-bottom: 24px;
   padding: 16px 0;
   border-top: 1px solid var(--fleet-border);
   border-bottom: 1px solid var(--fleet-border);
 }
 .gp-fleet-search {
+  min-width: 200px;
   display: flex;
   align-items: center;
   gap: 10px;
   flex: 1;
-  max-width: 430px;
+  margin-right: auto;
   color: var(--fleet-muted);
 }
 .gp-fleet-search input {
@@ -212,7 +222,7 @@
   font-size: 21px;
   font-weight: 650;
   letter-spacing: -0.02em;
-  margin: 22px 0 16px;
+  margin: 18px 0 8px;
   overflow-wrap: anywhere;
 }
 .gp-fleet-status {
@@ -304,6 +314,129 @@
   display: grid;
   gap: 18px;
 }
+.gp-fleet-access-modal[data-ods='modal-content'] {
+  width: min(880px, calc(100vw - 32px));
+  max-width: 880px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px #0005;
+}
+.gp-fleet-access-modal .gp-app-modal-header {
+  padding: 24px 56px 20px 24px;
+  border-bottom: 1px solid var(--fleet-border);
+}
+.gp-fleet-access-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gp-fleet-access-heading svg {
+  color: #00a6c4;
+}
+.gp-fleet-access-modal .gp-app-modal-title {
+  font-size: 22px;
+  margin: 0;
+}
+.gp-fleet-access-modal .gp-app-modal-description {
+  margin: 8px 0 0;
+  color: var(--fleet-muted);
+  font-size: 14px;
+}
+.gp-fleet-access-modal .gp-app-modal-body {
+  padding: 24px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.gp-fleet-access-modal .gp-app-modal-footer {
+  padding: 18px 24px;
+  border-top: 1px solid var(--fleet-border);
+  flex-shrink: 0;
+  justify-content: flex-end;
+}
+.gp-fleet-access-modal .gp-fleet-members {
+  padding: 14px;
+  border: 1px solid var(--fleet-border);
+  border-radius: 12px;
+}
+.gp-fleet-access-modal .gp-fleet-members p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.gp-fleet-access-modal .gp-fleet-muted {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.gp-fleet-access-modal .gp-fleet-button {
+  background: var(--fleet-surface);
+  color: inherit;
+  border-color: var(--fleet-border);
+}
+.gp-fleet-access-modal .gp-fleet-button.gp-fleet-primary {
+  background: #1455d9;
+  border-color: #1455d9;
+  color: #fff;
+}
+.gp-fleet-access-modal button[aria-pressed='true'],
+.gp-fleet-access-modal button.is-selected {
+  border-color: #00a6c4;
+  background: #00a6c414;
+}
+.gp-fleet-access-modal .gp-fleet-permissions {
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  gap: 14px;
+  align-items: start;
+}
+.gp-fleet-access-modal .gp-fleet-permissions fieldset {
+  min-width: 0;
+  border: 1px solid var(--fleet-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.gp-fleet-access-modal .gp-fleet-permissions legend {
+  padding: 0 6px;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+}
+.gp-fleet-access-modal .gp-fleet-permissions label {
+  font-size: 13px;
+  gap: 10px;
+  min-height: 32px;
+  margin: 4px 0;
+  cursor: pointer;
+}
+.gp-fleet-access-modal input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: #00a6c4;
+}
+.dark .gp-fleet-access-modal input[type='checkbox'] {
+  color-scheme: dark;
+}
+@media (max-width: 600px) {
+  .gp-fleet-access-modal .gp-app-modal-header {
+    padding: 20px 48px 16px 18px;
+  }
+  .gp-fleet-access-modal .gp-app-modal-body {
+    padding: 18px;
+  }
+  .gp-fleet-access-modal .gp-app-modal-footer {
+    padding: 14px 18px;
+  }
+  .gp-fleet-access-modal .gp-fleet-permissions {
+    grid-template-columns: 1fr;
+  }
+}
 .gp-fleet-members {
   display: flex;
   gap: 8px;
@@ -366,4 +499,203 @@
 }
 .gp-fleet-context small {
   color: var(--fleet-muted);
+}
+.gp-fleet-server-id {
+  display: inline-block;
+  font:
+    500 12px/1.4 ui-monospace,
+    monospace;
+  color: var(--fleet-muted);
+  letter-spacing: 0.04em;
+}
+.gp-fleet-view-toggle {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--fleet-border);
+  border-radius: 12px;
+  gap: 4px;
+}
+.gp-fleet-view-toggle button {
+  padding: 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fleet-muted);
+}
+.gp-fleet-view-toggle button[aria-pressed='true'] {
+  background: #0891b21c;
+  color: #0891b2;
+}
+.gp-fleet-runtime {
+  margin: 18px 0;
+  min-width: 0;
+}
+.gp-fleet-address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-height: 24px;
+  color: var(--fleet-muted);
+}
+.gp-fleet-address code {
+  overflow-wrap: anywhere;
+  color: #0891b2;
+}
+.gp-fleet-address button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  padding: 5px;
+}
+.gp-fleet-meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 14px;
+}
+.gp-fleet-meters span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--fleet-muted);
+}
+.gp-fleet-meters strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.gp-fleet-meter {
+  height: 4px;
+  background: var(--fleet-border);
+  border-radius: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.gp-fleet-meter i {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  background: #06b6d4;
+  border-radius: 8px;
+}
+.gp-fleet-quick-actions,
+.gp-fleet-power-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gp-fleet-quick-actions {
+  margin: 16px 0;
+}
+.gp-fleet-quick-actions .gp-fleet-button {
+  font-size: 12px;
+  padding: 9px 11px;
+  text-transform: capitalize;
+}
+.gp-fleet-quick-actions .gp-fleet-power-stop {
+  color: #e34c67;
+}
+.gp-fleet-quick-actions .gp-fleet-power-restart {
+  color: #c98618;
+}
+.gp-fleet-quick-actions .gp-fleet-console-button {
+  border-color: #0891b270;
+  color: #0891b2;
+  background: #0891b20d;
+}
+.gp-fleet-quick-console {
+  margin-top: 28px;
+  min-width: 0;
+}
+.gp-fleet-console-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+}
+.gp-fleet-console-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gp-fleet-console-heading span {
+  font-size: 12px;
+  color: var(--fleet-muted);
+}
+.gp-fleet-console-heading .is-live {
+  color: #059669;
+}
+.gp-fleet-list-view .gp-fleet-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 1100px) {
+  .gp-fleet-list-view .gp-fleet-card {
+    display: grid;
+    grid-template-columns: minmax(170px, 1fr) minmax(160px, 0.9fr) minmax(230px, 1.2fr) minmax(
+        250px,
+        1.1fr
+      );
+    gap: 12px 26px;
+    align-items: center;
+    padding: 20px 28px;
+  }
+  .gp-fleet-list-view .gp-fleet-card-top {
+    grid-column: 1 / 3;
+    grid-row: 1;
+    justify-content: flex-start;
+    gap: 16px;
+  }
+  .gp-fleet-list-view .gp-fleet-card h3 {
+    grid-column: 1;
+    grid-row: 2;
+    margin: 0;
+    font-size: 16px;
+  }
+  .gp-fleet-list-view .gp-fleet-server-id {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .gp-fleet-list-view .gp-fleet-location {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    margin: 0;
+  }
+  .gp-fleet-list-view .gp-fleet-runtime {
+    grid-column: 3;
+    grid-row: 1 / 4;
+    margin: 0;
+  }
+  .gp-fleet-list-view .gp-fleet-quick-actions {
+    grid-column: 4;
+    grid-row: 1 / 3;
+    margin: 0;
+  }
+  .gp-fleet-list-view .gp-fleet-card-footer {
+    grid-column: 4;
+    grid-row: 3;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  .gp-fleet-list-view .gp-fleet-card-footer .gp-fleet-button {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .gp-fleet-list-view .gp-fleet-notice {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+}
+@media (max-width: 600px) {
+  .gp-fleet-console-heading {
+    align-items: flex-start;
+  }
+  .gp-fleet-console-heading > div {
+    flex-wrap: wrap;
+  }
 }

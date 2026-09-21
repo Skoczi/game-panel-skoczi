@@ -1,3 +1,4 @@
+import { commitExtractedTree } from './extractionTransaction.js';
 import crypto from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { promises as fs } from 'node:fs';
@@ -14,8 +15,9 @@ import type { FileTransferJobRow } from '../types/database.js';
 import { ensureIsDir, ensureIsFile, ensureResolvedPathInsideRoot, getBasenameFromApiPath, guessContentTypeByName } from '../utils/fsBrowser.js';
 import { getServerStoragePaths } from '../utils/storage.js';
 import { getRuntimeOwnership } from '../providers/runtimeConfig.js';
-import { resolveServerPath } from './fileExplorer.js';
+import { resolveServerPath, assertPublicServerPath } from './fileExplorer.js';
 import { logError } from '../utils/logger.js';
+import { acquireNativeOperation } from './nativeOperationLock.js';
 import { nowIso } from '../utils/time.js';
 
 export const SMALL_UPLOAD_LIMIT_BYTES = 64 * 1024 * 1024;
@@ -511,6 +513,7 @@ export async function resolveDownloadTarget(params: {
     await ensureResolvedPathInsideRoot(resolved.absPath, resolved.rootDir);
 
     if (st.isDirectory()) {
+        if (resolved.root !== 'native-backups') await assertPublicServerPath(params.serverId, resolved.absPath, true);
         return {
             root: resolved.root,
             path: resolved.apiPath,
@@ -746,7 +749,8 @@ function extractZipEntries(archiveAbs: string, onEntry: ExtractEntryHandler): Pr
                 reject(openErr ?? new Error('Could not open zip archive'));
                 return;
             }
-            zip.on('error', reject);
+            const fail = (error: unknown) => { zip.close(); reject(error); };
+            zip.on('error', fail);
             zip.on('end', resolve);
             zip.on('entry', (entry) => {
                 void (async () => {
@@ -768,61 +772,43 @@ function extractZipEntries(archiveAbs: string, onEntry: ExtractEntryHandler): Pr
                                 return;
                             }
                             onEntry({ name, isDir: false, isSymlink: false, stream: readStream })
-                                .then(entryResolve, entryReject);
+                                .then(entryResolve, error => { readStream.destroy(); entryReject(error); });
                         });
                     });
                     zip.readEntry();
-                })().catch(reject);
+                })().catch(fail);
             });
             zip.readEntry();
         });
     });
 }
 
-function extractTarEntries(
+async function extractTarEntries(
     archiveAbs: string,
     gzipped: boolean,
     onEntry: ExtractEntryHandler
 ): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        const extract = createTarExtract();
-
-        extract.on('entry', (header, stream, next) => {
-            void (async () => {
-                const name = header.name;
-                if (header.type === 'symlink' || header.type === 'link') {
-                    stream.resume();
-                    await onEntry({ name, isDir: false, isSymlink: true, stream: null });
-                    return;
-                }
-                if (header.type === 'directory') {
-                    stream.resume();
-                    await onEntry({ name, isDir: true, isSymlink: false, stream: null });
-                    return;
-                }
-                if (header.type !== 'file') {
-                    stream.resume();
-                    return;
-                }
-                await onEntry({ name, isDir: false, isSymlink: false, stream });
-            })().then(() => next(), (error) => {
+    const extract = createTarExtract();
+    extract.on('entry', (header, stream, next) => {
+        stream.on('error', error => extract.destroy(error));
+        void (async () => {
+            const name = header.name;
+            if (header.type === 'symlink' || header.type === 'link') {
                 stream.resume();
-                reject(error);
-            });
-        });
-        extract.on('finish', resolve);
-        extract.on('error', reject);
-
-        const source = createReadStream(archiveAbs);
-        source.on('error', reject);
-        if (gzipped) {
-            const gunzip = createGunzip();
-            gunzip.on('error', reject);
-            source.pipe(gunzip).pipe(extract);
-        } else {
-            source.pipe(extract);
-        }
+                await onEntry({ name, isDir: false, isSymlink: true, stream: null });
+            } else if (header.type === 'directory') {
+                stream.resume();
+                await onEntry({ name, isDir: true, isSymlink: false, stream: null });
+            } else if (header.type === 'file') {
+                await onEntry({ name, isDir: false, isSymlink: false, stream });
+            } else {
+                throw new Error('Archive contains unsupported special files');
+            }
+        })().then(() => next(), error => extract.destroy(error));
     });
+    const source = createReadStream(archiveAbs);
+    if (gzipped) await pipeline(source, createGunzip(), extract);
+    else await pipeline(source, extract);
 }
 
 async function runArchiveExtraction(ctx: {
@@ -836,21 +822,27 @@ async function runArchiveExtraction(ctx: {
 }): Promise<void> {
     await fileTransferJobRepository.start(ctx.jobId);
 
+    const stageParent = jobDir(ctx.serverId, ctx.jobId);
+    await fs.mkdir(stageParent, { recursive: true });
+    const staging = await fs.mkdtemp(path.join(stageParent, 'extract-'));
     const chownedDirs = new Set<string>();
     let completedFiles = 0;
     let transferredBytes = 0;
 
     const onEntry: ExtractEntryHandler = async (entry) => {
-        if (entry.isSymlink) return;
+        if (entry.isSymlink) throw new Error('Archive contains links. Extract a regular-file package or use Native restore for a backup.');
 
-        const targetAbs = resolveExtractTarget(ctx.destDir, entry.name);
+        const destination = resolveExtractTarget(ctx.destDir, entry.name);
+        if (destination === ctx.archiveAbs) throw new Error('An archive cannot overwrite itself');
+        await assertPublicServerPath(ctx.serverId, destination);
+        const targetAbs = resolveExtractTarget(staging, entry.name);
 
         if (entry.isDir) {
-            await ensureExtractDir(ctx.serverId, targetAbs, ctx.destDir, chownedDirs);
+            await ensureExtractDir(ctx.serverId, targetAbs, staging, chownedDirs);
             return;
         }
 
-        await ensureExtractDir(ctx.serverId, path.dirname(targetAbs), ctx.destDir, chownedDirs);
+        await ensureExtractDir(ctx.serverId, path.dirname(targetAbs), staging, chownedDirs);
         const written = await writeExtractedFile({
             serverId: ctx.serverId,
             stream: entry.stream as Readable,
@@ -872,6 +864,8 @@ async function runArchiveExtraction(ctx: {
             await extractTarEntries(ctx.archiveAbs, ctx.format === 'targz', onEntry);
         }
 
+        await commitExtractedTree(ctx.serverId, staging, ctx.destDir, ctx.overwrite);
+
         if (ctx.deleteArchive) {
             await fs.rm(ctx.archiveAbs, { force: true }).catch(() => undefined);
         }
@@ -883,10 +877,13 @@ async function runArchiveExtraction(ctx: {
             : (error instanceof Error ? error.message : 'Archive extraction failed');
         await fileTransferJobRepository.fail(ctx.jobId, message).catch(() => undefined);
         logError('FILE_TRANSFER:EXTRACT', error, { serverId: ctx.serverId, jobId: ctx.jobId });
-    }
+    } finally { await fs.rm(staging, { recursive: true, force: true }).catch(() => {}); }
 }
 
 export async function startArchiveExtraction(input: StartExtractionInput) {
+    const release = acquireNativeOperation(input.serverId, true);
+    let handedOff = false;
+    try {
     const archive = await resolveServerPath({
         serverId: input.serverId,
         root: input.root,
@@ -928,9 +925,12 @@ export async function startArchiveExtraction(input: StartExtractionInput) {
         format,
         overwrite: input.overwrite,
         deleteArchive: input.deleteArchive,
-    }).catch((error) => {
+    }).catch(async (error) => {
+        await fileTransferJobRepository.fail(job.id, error instanceof Error ? error.message : 'Extraction failed');
         logError('FILE_TRANSFER:EXTRACT:SPAWN', error, { serverId: input.serverId, jobId: job.id });
-    });
+    }).finally(release).catch(error => logError('FILE_TRANSFER:EXTRACT:RESULT', error, { serverId: input.serverId, jobId: job.id }));
 
+    handedOff = true;
     return serializeFileTransferJob(job);
+    } finally { if (!handedOff) release(); }
 }

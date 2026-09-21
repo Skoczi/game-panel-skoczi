@@ -1,99 +1,155 @@
 <div align="center">
 
-# Game Panel · Skoczi Edition
+# Game Panel PRO
 
-**One server workspace · Remote nodes · Per-server access · Panel branding**
+**Servers, console, files and recovery in one workspace.**
 
-[![Skoczi CI](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml/badge.svg)](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml)
-[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE-2.0.txt)
-![Stage](https://img.shields.io/badge/stage-preview-orange)
+[![Release](https://img.shields.io/github/v/release/Skoczi/game-panel-skoczi?color=0891b2)](https://github.com/Skoczi/game-panel-skoczi/releases)
+[![CI](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml/badge.svg?branch=main)](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml)
+[![License](https://img.shields.io/badge/license-Apache_2.0-64748b)](LICENSE)
 
-[Documentation](docs/skoczi/README.md) · [Po polsku 🇵🇱](docs/skoczi/README.pl.md) · [Releases](https://github.com/Skoczi/game-panel-skoczi/releases) · [Upstream](https://github.com/ovh/game-panel)
+[Features](#features) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Changelog](CHANGELOG.md) · [Polski](docs/pro/README.pl.md)
 
 </div>
 
-Game server panel built with React, Node.js, SQLite and Docker. Based on **OVHcloud Game Panel 1.5.0**, with host IPv4 selection and separate TCP/UDP port ranges for each address.
+Game Panel PRO is a self-hosted panel for managing game servers across multiple nodes. It is built for a trusted group of operators who need direct access to the console, configuration, schedules and backups.
 
-**Maintained by Skoczi. Not an official OVHcloud product, release or support channel.** Original authorship and Apache 2.0 notices are preserved. OVHcloud names and marks belong to their respective owners.
+Developed by **Skoczi**, it extends **[OVHcloud Game Panel 1.5.0](https://github.com/ovh/game-panel/tree/v1.5.0)** with a multi-node workspace, Native runtime, recovery tools and a scoped integration API. It is an independent project, not an official OVHcloud release.
 
-## What's different?
+**Current release: 2.0.50.** [Release notes](docs/pro/RELEASE-2.0.50.md) · [Compatibility](docs/pro/FEATURES.md)
 
-| Area | Upstream 1.5.0 | Skoczi preview |
-|---|---|---|
-| Execution hosts | Panel host | Local runtime + enrolled remote agents |
-| User workspace | Runtime-local server list | Assigned servers across locations, automatic routing, central access management |
-| Node operations | Local runtime | Per-node files, allocations and schedules; HTTP/WebSocket gateway; durable JSON operation journal |
-| Port allocation | Host port + container port | Optional **host IPv4** per TCP/UDP binding |
-| Same port on different IPs | Port-only conflict checks | Allowed on distinct configured addresses |
-| Multiple mappings to one container port | Last binding replaces previous binding | Every binding preserved |
-| Game connection address | Panel hostname | Selected allocation IP; legacy hostname fallback |
-| Operator control | No bind-IP allowlist | Allowed IPs and TCP/UDP ranges in Settings, enforced by the backend |
-| Global settings | No allocation editor | Root-only Settings: IPs, aliases, ranges, server assignments and sidebar visibility |
-| Branding | Fixed identity and login footer | Site name, logo, login text/footer and announcements switch, with live preview |
-| Telemetry | On by default | **Opt-in** on fresh installs |
-| Updates | Upstream one-click updater | Fork release notes; **manual reviewed updates** |
-| Validation | Build checks | Regression tests + Linux Docker publishing CI |
+## Screenshots
 
-Read the [changelog](CHANGELOG-SKOCZI.md), [change map](docs/skoczi/CHANGES.md) and [limitations](docs/skoczi/LIMITATIONS.md).
+Reserved for real panel captures. Each view has a defined slot in the [screenshot guide](docs/screenshots/README.md); no mockups are presented as working screens.
 
-### Remote nodes
+| Fleet overview | Server workspace |
+|:---:|:---:|
+| *Desktop · dark theme — screenshot to follow* | *Console and resource measurements — screenshot to follow* |
+| File editor | Backups & recovery |
+| *Tabs, comparison and conflict handling — screenshot to follow* | *Named copies, job status and restore — screenshot to follow* |
 
-Use **Nodes** to register an agent with a one-time token, then install it on a separate Linux Docker host. No existing games are moved. Each node has its own runtime data and allowed IP/port ranges. [Installation, operation and failure contract](docs/skoczi/NODES.md).
+<!-- Replace the slots above with real captures using these paths:
+![Fleet overview](docs/screenshots/fleet-dark.webp)
+![Server console](docs/screenshots/server-console.webp)
+![File conflict comparison](docs/screenshots/files-conflict.webp)
+![Native backups](docs/screenshots/native-backups.webp)
+![Mobile server workspace](docs/screenshots/server-mobile.webp)
+-->
 
-Administrators manage nodes; users open assigned servers without switching hosts. See [Server workspace and access](docs/skoczi/FLEET.md) for permissions and failure behavior. Automatic placement and migration are not implemented. The agent requires verified HTTPS and host-level Docker access.
+## Features
 
-## Start here
+### Fleet and server workspace
 
-1. Read the [installation guide](docs/skoczi/INSTALLATION.md). Use a fresh, disposable Linux VM.
-2. Install the tagged preview; the standard installer provisions Docker and Traefik on **80/443**.
-3. Open **Settings** and add IPs/port ranges for addresses already assigned to the host.
-4. Select **Host IPv4** during installation or in container configuration.
-5. Test a disposable game before moving real workloads.
+- Manage local and remote runtime nodes from a single panel, with per-server access controls.
+- Use fleet cards or a list, personal ordering, game filters and groups.
+- Keep console, files, configuration, backups, schedules, network, startup settings and activity within the selected server.
+- Read connection addresses and copy identifiers without leaving the workspace. Configure per-IP port allocations and ranges.
+- Use dark or light themes, responsive layouts, a resizable side console and shared confirmation dialogs.
 
-> The standard installer occupies ports **80/443**. Use a separate test host if those ports already serve other applications. Backend Docker socket access grants host administrative capabilities.
+### Console and resources
 
-### Additional IPs in one example
+- Send commands, recall previous commands, copy output and switch to full screen.
+- Follow incoming logs or pause scrolling to read earlier output. The rolling buffer retains up to 5000 server log entries.
+- Read CPU in vCPU, memory in bytes and usage against assigned limits. Game data size, free node storage and network rates are separate measurements.
+- Missing or stale information stays visibly unavailable rather than appearing as zero usage or a successful operation.
 
-Open **Settings → IP allocations**, add an IPv4 and its TCP/UDP ranges, enable restrictions and save. No backend restart is needed. [Settings guide](docs/skoczi/SETTINGS.md).
+### Files and configuration
 
-For first-start environment seeding, `/opt/gamepanel/deploy/.env` can contain:
+- Browse files, upload, preview, rename and use archive tools. Edit configuration in a tabbed Monaco editor.
+- Save text with a content-version check and atomic replacement. If another operator changed the file, compare versions while keeping your draft.
+- Recover bounded local editor drafts and review server-side file history with timestamps and operator information.
+- Restore a historical text version into the editor first; the usual conflict check still applies when saving.
+- Archive extraction stages changes and keeps rollback data while the operation runs.
 
-```dotenv
-# Documentation addresses only — replace with your assigned host IPs.
-GAMEPANEL_IP_PORTS='{"192.0.2.10":{"tcp":"27015-27030","udp":"27015-27030"},"192.0.2.11":{"tcp":"27015-27020","udp":"27015-27020"}}'
-TELEMETRY_ENABLED=false
+### Native backups and recovery
+
+- Create an optionally named backup while the server is running or stopped. Online copies are marked as live; game-specific save consistency is not guaranteed.
+- Store archives in `data/backups`, beside `serverfiles` and `log`. Archives contain only `serverfiles`, excluding logs, installers and older backups.
+- Download archives, inspect operation status after reload and review backup protection information.
+- Restore while the game is stopped. The runtime validates and stages the archive before replacing `serverfiles`; previous files are retained for recovery.
+- Use a free-space guard and preview manual retention before deleting copies. Incomplete recovery data is protected from cleanup.
+- Keep legacy archives available for download without silently converting their format.
+
+### Schedules and integrations
+
+- Schedule backups, restarts and custom tasks using validated five-field cron expressions, node timezone information and next-run previews.
+- Define pre/post commands and cleanup steps that can run after a task fails.
+- Create expiring API tokens scoped to selected servers and operations. Secrets are shown once; access also depends on the owner's current permissions.
+- Use API v1 to list servers, read resources and backup metadata, create Native backups and follow operation status.
+- Retry backup requests with an idempotency key. Interrupted or uncertain outcomes are reported explicitly.
+- Read the installed changelog and check releases from this GitHub repository. Standard standalone installations can update from the panel, with a snapshot and automatic rollback on failed startup.
+
+[API guide and curl examples](docs/pro/API-PROGRESS.md) · [OpenAPI contract](docs/pro/openapi-v1.json)
+
+## Runtime support
+
+| Runtime | Scope |
+|---|---|
+| **Native** | Versioned template definitions, explicit install/update recipes, resource limits and the backup/recovery workflow described above |
+| **LinuxGSM** | Existing adapter, game configuration and provider-specific operations |
+| **OVH adapter** | Existing provider behavior and supported configuration/backup operations |
+
+Capabilities differ by provider. A listed template is not a certification that every game has passed installation, live backup and recovery testing. This release adds no games or Egg importer. [Full compatibility notes](docs/pro/FEATURES.md).
+
+## Install or upgrade
+
+Install Game Panel PRO directly; no existing OVH panel is required:
+
+```sh
+git clone --branch v2.0.50 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
+cd game-panel-skoczi
+sudo bash deploy/install.sh
 ```
 
-Allocate **192.0.2.10:27015/UDP** and **192.0.2.11:27015/UDP** independently. With this configuration, host port **8080** and wildcard bindings are refused. Container ports are independent of host port ranges.
+For an existing standard OVHcloud Game Panel 1.5.0 installation, use the separate migration path:
 
-This publishes Docker ports; it does **not** provision provider IPs, MACVLANs, routing, virtual MACs, firewall rules or outbound source IPs. See the [complete IP guide](docs/skoczi/ADDITIONAL-IPS.md).
+```sh
+sudo python3 deploy/upgrade.py check --app-root /opt/gamepanel --project-name gamepanel
+sudo bash deploy/update.sh --app-root /opt/gamepanel --project-name gamepanel
+```
 
-## Development
+Run these commands from the new release checkout outside the installed panel directory. The fresh installer refuses a non-empty destination. [Requirements, migration, panel updates and rollback](docs/pro/INSTALL.md).
 
-Node.js 22 LTS and npm; Linux Docker only for the opt-in integration test.
+## Deployment
 
-```bash
+**Update the panel and runtime agents together.** An old agent cannot provide the new file protections, Native recovery or resource measurements. Preserve databases, environment, image references, game data and recovery journals before an upgrade.
+
+Native backup support requires the `data/serverfiles` layout. Existing installations using another layout need a reviewed migration. A backup on the same disk is a local recovery point; download important copies to separate storage.
+
+Start with the [deployment and rollback guide](docs/pro/DEPLOYMENT.md). Source archives are not a snapshot of an existing installation. Docker integration tests cover Linux behavior; target-host acceptance and a real game-client check remain part of deployment.
+
+## Documentation
+
+| Guide | Contents |
+|---|---|
+| [Install & upgrade](docs/pro/INSTALL.md) | Standalone installation, 1.5.0 migration and managed updates |
+| [Operations](docs/pro/OPERATIONS.md) | Backups, restore, file protection and limits |
+| [Compatibility](docs/pro/FEATURES.md) | Native layout and provider differences |
+| [API v1](docs/pro/API-PROGRESS.md) | Authentication, scopes, errors and examples |
+| [Development](docs/pro/DEVELOPMENT.md) | Local setup and test commands |
+| [Validation](docs/pro/VALIDATION-2.0.50.md) | What was tested and what still needs target-host acceptance |
+| [Performance](docs/pro/PERFORMANCE-PROGRESS.md) | Reproducible local measurements and regression budgets |
+| [Changelog](CHANGELOG.md) | Current release and development history |
+
+### Local development
+
+Use Node.js 22 or 24 LTS, npm and Git. Docker integration tests need a Linux Docker runtime.
+
+```sh
 git clone https://github.com/Skoczi/game-panel-skoczi.git
-cd game-panel-skoczi/backend
-npm ci --ignore-scripts
-npm test
-npm run build
-cd ../frontend
-npm ci --ignore-scripts
-npm run build
+cd game-panel-skoczi
+npm ci --prefix backend
+npm test --prefix backend
+npm run build --prefix backend
+npm ci --prefix frontend
+npm run build --prefix frontend
+cd frontend
+npx playwright install chromium
+npm run test:ui
 ```
 
-These build/test commands do not run the backend's native SQLite/bcrypt modules. A full runtime needs their normal installation steps; read [Development](docs/skoczi/DEVELOPMENT.md).
+See the development guide for service configuration and the isolated Linux acceptance runner. UI screenshots are opt-in with `PLAYWRIGHT_SCREENSHOTS=1`.
 
-## Scope and privacy
+## License and origin
 
-Do not commit deployment configuration, databases, keys or game data. Examples use reserved documentation addresses.
-
-Catalogue/images still depend on upstream/external services. Telemetry off does not mean offline. Backups and game consoles depend on the selected provider: not every feature supports every external image.
-
-## Contributing and attribution
-
-- [Contribution guide](CONTRIBUTING-SKOCZI.md); report fork-specific issues here, not to OVHcloud support.
-- Original project: [ovh/game-panel](https://github.com/ovh/game-panel), copyright OVH 2026.
-- Modifications: Skoczi, documented in [CHANGELOG-SKOCZI.md](CHANGELOG-SKOCZI.md).
-- [Original license notice](LICENSE) · [Full Apache 2.0 terms](LICENSE-2.0.txt) · [NOTICE](NOTICE)
+Apache License 2.0. Original OVH copyright and notices are preserved in [LICENSE](LICENSE), [LICENSE-2.0.txt](LICENSE-2.0.txt) and [NOTICE](NOTICE). Skoczi maintains the modifications and continued development. The repository URL remains `Skoczi/game-panel-skoczi` for continuity; the product name is **Game Panel PRO**.

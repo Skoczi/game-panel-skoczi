@@ -11,6 +11,7 @@ import { getLinuxGsmMetadata } from '../providers/serverMetadata.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import * as dockerUtils from '../utils/docker.js';
 import type { FsEntry } from '../utils/fsBrowser.js';
+import { nativeServerTemplate, nativeBackupDirectory, createNativeBackup } from './nativeBackups.js';
 
 const LINUXGSM_BACKUP_EXTENSIONS = ['.tar.zst'];
 
@@ -41,6 +42,7 @@ function getOvhcloudBackupSupport(server: GameServerRow): OvhcloudBackupSupport 
 }
 
 export function getSupportedBackupExtensions(server: GameServerRow): string[] {
+    if (nativeServerTemplate(server)) return ['.tar.gz'];
     if (server.provider === 'linuxgsm') {
         getLinuxGsmMetadata(server);
         return LINUXGSM_BACKUP_EXTENSIONS;
@@ -54,6 +56,10 @@ export function getSupportedBackupExtensions(server: GameServerRow): string[] {
 }
 
 export async function getBackupFileLocation(server: GameServerRow): Promise<BackupFileLocation> {
+    if (nativeServerTemplate(server)) {
+        await nativeBackupDirectory(server);
+        return { root: 'native-backups', basePath: '/', containerPrefix: '' };
+    }
     if (server.provider === 'linuxgsm') {
         getLinuxGsmMetadata(server);
         return {
@@ -119,6 +125,7 @@ export async function createServerBackup(
     server: GameServerRow & { docker_container_id: string },
     options: ServerBackupCreateOptions = {}
 ): Promise<ServerBackupCreateResult> {
+    if (nativeServerTemplate(server)) return createNativeBackup(server);
     if (server.provider === 'linuxgsm') {
         const linuxgsm = getLinuxGsmMetadata(server);
         const containerStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);

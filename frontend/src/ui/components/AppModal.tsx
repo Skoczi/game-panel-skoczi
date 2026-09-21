@@ -1,4 +1,4 @@
-import { useEffect, type ComponentProps, type ReactNode } from 'react';
+import { createContext, useContext, useId, type ComponentProps, type ReactNode } from 'react';
 import {
   Modal,
   ModalBody,
@@ -9,6 +9,9 @@ import {
   type ModalProp,
 } from '@ovhcloud/ods-react';
 import { cn } from '../utils/cn';
+import './app-modal.css';
+
+const ModalTitleId = createContext<string | undefined>(undefined);
 
 interface AppModalProps extends Omit<ModalProp, 'onOpenChange'> {
   children?: ReactNode;
@@ -21,19 +24,11 @@ export function AppModal({
   positionerStyle,
   ...props
 }: AppModalProps) {
-  useEffect(() => {
-    if (props.open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [props.open]);
-
+  const titleId = useId();
+  // ODS owns scroll locking and restores the previous styles. A second lock here
+  // made it capture "hidden" as the original value and leave pages unscrollable.
   return (
-    <Modal
+    <ModalTitleId.Provider value={titleId}><Modal
       {...props}
       backdropStyle={{
         backgroundColor: 'var(--ods-theme-backdrop-background-color, rgba(2, 6, 23, 0.78))',
@@ -49,7 +44,7 @@ export function AppModal({
       onOpenChange={(detail) => {
         onOpenChange?.(detail.open);
       }}
-    />
+    /></ModalTitleId.Provider>
   );
 }
 
@@ -63,8 +58,10 @@ export function AppModalContent({
   contentClassName,
   ...props
 }: AppModalContentProps) {
+  const titleId = useContext(ModalTitleId);
   return (
     <ModalContent
+      aria-labelledby={props['aria-label'] || props['aria-labelledby'] ? undefined : titleId}
       className={cn('gp-app-modal-content', className, contentClassName)}
       dismissible={dismissible}
       {...props}
@@ -81,7 +78,8 @@ export function AppModalHeader({ className, ...props }: ComponentProps<'div'>) {
 }
 
 export function AppModalTitle({ className, ...props }: ComponentProps<'h2'>) {
-  return <h2 className={cn('gp-app-modal-title text-lg font-semibold', className)} {...props} />;
+  const titleId = useContext(ModalTitleId);
+  return <h2 id={titleId} className={cn('gp-app-modal-title text-lg font-semibold', className)} {...props} />;
 }
 
 export function AppModalDescription({ className, ...props }: ComponentProps<'p'>) {

@@ -3,7 +3,7 @@ import { type AuthenticatedRequest, requireServerPermission } from '../middlewar
 import { listServerFileRoots, listServerFiles } from '../services/fileExplorer.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { resolveServerPath } from '../services/fileExplorer.js';
+import { resolveServerPath, assertPublicServerPath } from '../services/fileExplorer.js';
 import { ensureIsDir, ensureResolvedPathInsideRoot } from '../utils/fsBrowser.js';
 import { sendRouteError } from '../utils/routeErrors.js';
 import { PERMISSIONS } from '../permissions.js';
@@ -33,8 +33,10 @@ import {
 } from '../services/fileTransfers.js';
 import { createDownloadToken } from '../services/downloadTokens.js';
 import { serverRepository } from '../database/index.js';
+import { rejectPrivateFileRoots } from '../middleware/privateFileRoots.js';
 
 const router = Router({ mergeParams: true });
+router.use(rejectPrivateFileRoots);
 
 function getQueryRoot(value: unknown): string | undefined {
     return optionalQueryString(value as string | string[] | undefined);
@@ -401,6 +403,7 @@ router.post(
             await ensureIsDir(resolvedBase.absPath, resolvedBase.rootDir);
 
             const target = path.join(resolvedBase.absPath, name);
+            await assertPublicServerPath(serverId, target);
             await fs.mkdir(target, { recursive: false });
 
             return res.json({ ok: true });
@@ -441,6 +444,7 @@ router.post(
             await ensureIsDir(resolvedBase.absPath, resolvedBase.rootDir);
 
             const target = path.join(resolvedBase.absPath, name);
+            await assertPublicServerPath(serverId, target);
 
             const exists = await fs
                 .stat(target)

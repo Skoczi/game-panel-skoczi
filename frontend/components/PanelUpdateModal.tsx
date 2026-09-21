@@ -1,5 +1,9 @@
-import { useState } from 'react';
-import { ArrowUpCircle, CheckCircle2, RefreshCw, X, AlertTriangle } from 'lucide-react';
+import './panel-update.css';
+import localReleaseNotes from '../../docs/pro/RELEASE-2.0.50.md?raw';
+import { getAppVersion } from '../utils/appInfo';
+import { useState, useEffect } from 'react';
+import { ConfirmationModal } from './ConfirmationModal';
+import { RefreshCw } from 'lucide-react';
 import {
   AppButton,
   AppModal,
@@ -54,255 +58,81 @@ function ReleaseNotesBlock({ release, isDark, heading }: { release: ReleaseNotes
   );
 }
 
-type ModalState = 'idle' | 'starting' | 'started' | 'error';
-
 export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateModalProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   useBodyScrollLock(isOpen);
-  const [state, setState] = useState<ModalState>('idle');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const handleClose = () => {
-    setState('idle');
-    setErrorMessage(null);
-    onClose();
-  };
-
-  const handleUpdate = async () => {
-    if (!updateInfo?.latestVersion) return;
-    setState('starting');
-    setErrorMessage(null);
+  const [checked, setChecked] = useState<PanelUpdateCheck | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState('');
+  const [updateRunning, setUpdateRunning] = useState(false);
+  const [uncertainStart, setUncertainStart] = useState(false);
+  const info = checked ?? updateInfo;
+  useEffect(() => {
+    if (!isOpen) return;
+    let disposed = false;
+    const poll = async () => {
+      try {
+        const result = await apiClient.getPanelUpdateStatus();
+        if (disposed) return;
+        setUpdateRunning(result.running);
+        if (result.job) setUpdateStatus(result.job.errorMessage || result.job.message || result.job.status);
+      } catch { if (!disposed && updateRunning) setUpdateStatus('Panel reconnecting. Do not submit the update again.'); }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 5000);
+    return () => { disposed = true; clearInterval(timer); };
+  }, [isOpen, updateRunning]);
+  const startUpdate = async () => {
+    if (!info?.latestVersion || starting || uncertainStart) return;
+    setConfirmUpdate(false); setStarting(true); setError('');
     try {
-      await apiClient.startPanelUpdate(updateInfo.latestVersion);
-      setState('started');
-    } catch (err: unknown) {
-      const message =
-        (err as any)?.response?.data?.error ??
-        (err instanceof Error ? err.message : 'Failed to start update');
-      setErrorMessage(message);
-      setState('error');
-    }
+      await apiClient.startPanelUpdate(info.latestVersion);
+      setUpdateRunning(true); setUpdateStatus('Update queued. This page reconnects after the panel restarts.');
+    } catch {
+      setUncertainStart(true);
+      setError('The update request was not confirmed. Check operation status or reload before trying again.');
+    } finally { setStarting(false); }
   };
-
-  const noUpdate = updateInfo && !updateInfo.updateAvailable && updateInfo.latestVersion !== null;
-  const noLatest = updateInfo?.latestVersion === null;
-
+  const check = async () => {
+    setChecking(true); setError('');
+    try { setChecked(await apiClient.checkPanelUpdate()); }
+    catch { setError('GitHub could not be reached. Version status is unknown; the installed changelog remains available.'); }
+    finally { setChecking(false); }
+  };
+  const status = !info ? 'Version status has not been checked.'
+    : !info.latestVersion ? 'No published stable release found on GitHub. Version status is not yet available.'
+    : info.updateAvailable ? `A newer stable release is available: ${info.latestVersion}.`
+    : !info.currentRelease ? `Installed version is not a published GitHub release. Latest stable: ${info.latestVersion}.`
+    : `Your panel is up to date — ${info.currentVersion}.`;
   return (
-    <AppModal open={isOpen} closeOnInteractOutside={false} onOpenChange={(open) => !open && handleClose()}>
-      <AppModalContent
-        dismissible={false}
-        className={`z-[61] flex max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl flex-col overflow-hidden rounded-xl border shadow-xl ${
-          isDark
-            ? 'border-white/10 bg-[#0d1524]'
-            : 'border-[#e2e8f0] bg-white'
-        }`}
-      >
-        <AppModalHeader
-          className={`flex shrink-0 items-center justify-between border-b px-5 py-4 ${
-            isDark ? 'border-white/10 bg-[#101a2d]' : 'border-[#e2e8f0] bg-[#f8fafc]'
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <div className={`rounded-full p-2 ${isDark ? 'bg-[#0050D7]/20' : 'bg-blue-50'}`}>
-              <ArrowUpCircle className="h-5 w-5 text-[#157EEA]" />
-            </div>
-            <div>
-              <AppModalTitle className={`text-base font-semibold ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>
-                Panel Update
-              </AppModalTitle>
-            </div>
-          </div>
-          <AppButton
-            type="button"
-            tone="ghost"
-            onClick={handleClose}
-            className={`rounded border-none bg-transparent p-2 transition-colors ${
-              isDark
-                ? 'text-gray-400 hover:bg-gray-700 hover:text-red-400'
-                : 'text-[#94a3b8] hover:bg-[#f0f4f8] hover:text-[#dc2626]'
-            }`}
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </AppButton>
+    <>
+    <AppModal open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <AppModalContent className="gp-panel-update max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-hidden">
+        <AppModalHeader>
+          <AppModalTitle>Game Panel PRO · Version & changelog</AppModalTitle>
         </AppModalHeader>
-
-        <AppModalBody className="flex-1 overflow-y-auto px-5 py-5">
-          {state === 'started' && (
-            <div className="flex flex-col items-center gap-4 text-center">
-              <div className={`rounded-full p-3 ${isDark ? 'bg-green-500/10' : 'bg-green-50'}`}>
-                <CheckCircle2 className="h-7 w-7 text-green-400" />
-              </div>
-              <div className="space-y-2">
-                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>
-                  Update started
-                </p>
-                <p className={`text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-[#475569]'}`}>
-                  The panel may be unavailable for a few minutes.
-                  <br />
-                  Refresh this page after the service comes back.
-                </p>
-              </div>
-              <AppButton
-                type="button"
-                tone="secondary"
-                onClick={handleClose}
-                className="mt-1 w-full !text-white"
-              >
-                Close
-              </AppButton>
-            </div>
-          )}
-
-          {state === 'error' && (
-            <div className="flex flex-col gap-4">
-              <div className="flex items-start gap-3">
-                <div className={`shrink-0 rounded-full p-2 ${isDark ? 'bg-red-500/10' : 'bg-red-50'}`}>
-                  <AlertTriangle className="h-5 w-5 text-red-400" />
-                </div>
-                <div className="space-y-1">
-                  <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>
-                    Update failed to start
-                  </p>
-                  <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-[#475569]'}`}>
-                    {errorMessage}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <AppButton
-                  type="button"
-                  tone="ghost"
-                  onClick={handleClose}
-                  className="flex-1"
-                >
-                  Close
-                </AppButton>
-                <AppButton
-                  type="button"
-                  tone="secondary"
-                  onClick={() => { setState('idle'); setErrorMessage(null); }}
-                  className="flex-1 !text-white"
-                >
-                  Try again
-                </AppButton>
-              </div>
-            </div>
-          )}
-
-          {(state === 'idle' || state === 'starting') && (noUpdate || noLatest) && (
-            <div className="flex flex-col gap-4">
-              <div className={`rounded-lg border px-4 py-3 text-sm ${
-                isDark ? 'border-white/10 bg-white/5 text-slate-300' : 'border-[#e2e8f0] bg-[#f8fafc] text-[#475569]'
-              }`}>
-                {noLatest
-                  ? 'Up to date — no newer release found.'
-                  : `Your panel is up to date — v${updateInfo!.currentVersion}`}
-              </div>
-
-              {updateInfo?.currentRelease && (
-                <ReleaseNotesBlock release={updateInfo.currentRelease} isDark={isDark} heading="What's in your version" />
-              )}
-
-              <AppButton type="button" tone="secondary" onClick={handleClose} className="self-center px-6 !text-white">
-                Close
-              </AppButton>
-            </div>
-          )}
-
-          {(state === 'idle' || state === 'starting') && updateInfo?.updateAvailable && (
-            <div className="flex flex-col gap-4">
-              <div className={`rounded-lg border px-4 py-4 ${
-                isDark ? 'border-white/10 bg-white/5' : 'border-[#e2e8f0] bg-[#f8fafc]'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <p className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-[#94a3b8]'}`}>
-                      Current version
-                    </p>
-                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-[#0f172a]'}`}>
-                      v{updateInfo.currentVersion}
-                    </p>
-                  </div>
-                  <ArrowUpCircle className="h-5 w-5 text-[#157EEA]" />
-                  <div className="space-y-0.5 text-right">
-                    <p className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-[#94a3b8]'}`}>
-                      Latest version
-                    </p>
-                    <p className="text-sm font-semibold text-[#157EEA]">
-                      v{updateInfo.latestVersion}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {((updateInfo.newerReleases?.length ?? 0) > 0 || updateInfo.currentRelease) && (
-                <div className="space-y-4">
-                  {updateInfo.newerReleases?.length > 0 && (
-                    <div className="space-y-3">
-                      <p className={`text-xs font-medium uppercase tracking-wide ${isDark ? 'text-slate-500' : 'text-[#94a3b8]'}`}>
-                        What&apos;s new
-                      </p>
-                      {updateInfo.newerReleases.map((release) => (
-                        <ReleaseNotesBlock key={release.version} release={release} isDark={isDark} />
-                      ))}
-                    </div>
-                  )}
-                  {updateInfo.currentRelease && (
-                    <div className="border-t pt-3 border-white/10">
-                      <ReleaseNotesBlock release={updateInfo.currentRelease} isDark={isDark} heading="What's in your version" />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-[#64748b]'}`}>
-                The backend, frontend, and Traefik stack will restart during the update.
-                HTTP requests and WebSocket connections may be interrupted. This is expected.
-              </p>
-
-              <div className="flex gap-2">
-                <AppButton
-                  type="button"
-                  tone="ghost"
-                  onClick={handleClose}
-                  disabled={state === 'starting'}
-                  className="flex-1"
-                >
-                  Cancel
-                </AppButton>
-                <AppButton
-                  type="button"
-                  tone="primary"
-                  onClick={handleUpdate}
-                  disabled={state === 'starting'}
-                  className="flex-1 gap-2"
-                >
-                  {state === 'starting' ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Starting…
-                    </>
-                  ) : (
-                    <>
-                      <ArrowUpCircle className="h-4 w-4" />
-                      Update to v{updateInfo.latestVersion}
-                    </>
-                  )}
-                </AppButton>
-              </div>
-            </div>
-          )}
-
-          {!updateInfo && (state === 'idle' || state === 'starting') && (
-            <div className="flex flex-col gap-3 py-2">
-              <div className={`h-16 animate-pulse rounded-lg ${isDark ? 'bg-white/5' : 'bg-[#f1f5f9]'}`} />
-              <div className={`h-4 w-2/3 animate-pulse rounded ${isDark ? 'bg-white/5' : 'bg-[#f1f5f9]'}`} />
-            </div>
-          )}
+        <AppModalBody className="space-y-4 overflow-y-auto">
+          <p className="text-sm">Installed version: <strong>{getAppVersion()}</strong></p>
+          <p role="status" className="text-sm">{error || status}</p>
+          <AppButton onClick={() => void check()} disabled={checking}>
+            <RefreshCw size={16} className={checking ? 'animate-spin' : ''} />
+            {checking ? 'Checking…' : 'Check GitHub'}
+          </AppButton>
+          <p className="text-xs opacity-70">{info?.managedUpdates?.reason || 'Checking GitHub does not change this installation. Managed updates require the standalone installer.'}</p>
+          {info?.updateAvailable && info.managedUpdates?.enabled && <AppButton disabled={starting || updateRunning || uncertainStart} onClick={() => setConfirmUpdate(true)}>Update to {info.latestVersion}</AppButton>}
+          {updateStatus && <p role="status" className="text-sm">{updateStatus}</p>}
+          {getAppVersion() === '2.0.50' && <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · 2.0.50</summary><Markdown>{localReleaseNotes}</Markdown></details>}
+          {info?.newerReleases?.map(release => <ReleaseNotesBlock key={release.version} release={release} isDark={isDark} heading={release.version} />)}
+          {info?.currentRelease && getAppVersion() !== '2.0.50' && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
+          <AppButton onClick={onClose}>Close</AppButton>
         </AppModalBody>
       </AppModalContent>
     </AppModal>
+    {confirmUpdate && <ConfirmationModal isOpen title="Update Game Panel PRO?" message={`Install ${info?.latestVersion} from Skoczi/game-panel-skoczi? The panel will restart. A rollback snapshot is created first; running game containers are left alone.`} confirmText="Install update" onClose={() => setConfirmUpdate(false)} onConfirm={startUpdate} />}
+    </>
   );
 }

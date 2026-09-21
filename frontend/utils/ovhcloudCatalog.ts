@@ -18,7 +18,8 @@ export interface OvhcloudImage {
 }
 
 const REGISTRY = 'ovhcom';
-const VERSION = getAppVersion().replace(/^v/, '');
+// Fork revision tags do not exist in the upstream image registry.
+const VERSION = getAppVersion().replace(/^v/, '').split('-skoczi.')[0];
 
 function ovhImage(name: string): string {
   return `${REGISTRY}/${name}:${VERSION}`;

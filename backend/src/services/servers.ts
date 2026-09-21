@@ -1,5 +1,6 @@
 import { installProgressRepository, actionsRepository, installInteractionRepository } from '../database/index.js';
 import * as dockerUtils from '../utils/docker.js';
+import { applyLinuxGsmConfigPatches } from '../providers/linuxgsm/adapters/linuxGsmConfig.js';
 import { serverRepository } from '../database/index.js';
 import { getGameAdapter } from '../providers/linuxgsm/adapters/registry.js';
 import { bus } from '../realtime/bus.js';
@@ -7,6 +8,10 @@ import type { GameServerRow } from '../types/gameServer.js';
 import { ensureServerDataDirs, ensureServerMountDirs, removeServerDataDir } from '../utils/storage.js';
 import { logError } from '../utils/logger.js';
 import { nowIso } from '../utils/time.js';
+import { nativeTemplate, nativeEnvironment, nativeContainerOptions } from '../templates/nativeContract.js';
+import { acquireNativeOperation } from './nativeOperationLock.js';
+import { NativeCleanupError, runNativeSteps } from './nativeRuntime.js';
+import { docker } from '../utils/docker/client.js';
 import {
     beginServerTransition,
     clearServerTransition,
@@ -70,6 +75,9 @@ export async function installServerAsync(
     username?: string,
     options?: { skipTelemetry?: boolean }
 ): Promise<void> {
+    const native = nativeTemplate(spec.providerMetadata);
+    const release = native ? acquireNativeOperation(serverId) : () => {};
+    let cleanupFailed = false;
     try {
         await assertServerExistsDuringInstall(serverId);
         const containerName = dockerUtils.buildManagedContainerName(serverId, displayName);
@@ -100,19 +108,34 @@ export async function installServerAsync(
                 dataDir: storage.dataDir,
                 steamCredentials: spec.steamCredentials,
             });
+            const templatePorts = spec.providerMetadata.templateLinuxgsmConfig;
+            if (templatePorts && typeof templatePorts === 'object') {
+                await applyLinuxGsmConfigPatches({ dataDir: storage.dataDir, gameServerName }, [
+                    { fileName: 'common.cfg', values: templatePorts as Record<string, string> },
+                ]);
+            }
         }
 
         await assertServerExistsDuringInstall(serverId);
         await installProgressRepository.update(serverId, 0, 'pulling_image');
 
-        await dockerUtils.pullImageByName(spec.dockerImage);
+        let image = spec.dockerImage;
+        if (native) {
+            image = String(spec.runtimeConfig.nativeRuntimeImage || image);
+            if (!(await dockerUtils.imageExists(image))) throw new Error('Native runtime image is missing. Build or load the reviewed runtime image on this node first.');
+            image = (await docker.getImage(image).inspect()).Id;
+            // Pin the exact local image for every step, future restarts and container recreation.
+            await serverRepository.update(serverId, { docker_image_digest: image });
+        } else await dockerUtils.pullImageByName(image);
         await assertServerExistsDuringInstall(serverId);
+
         await installProgressRepository.update(serverId, 25, 'preparing_files');
 
         const resolvedMounts = await ensureServerMountDirs(serverId, spec.mounts, {
             uid: spec.runtimeIdentity.uid,
             gid: spec.runtimeIdentity.gid,
         });
+        if (native) await runNativeSteps({ serverId, image: String(spec.runtimeConfig.nativeInstallerImage || image), template: native, phase: 'install', env: nativeEnvironment(native, spec.env, spec.ports), mounts: resolvedMounts });
         await assertServerExistsDuringInstall(serverId);
 
         await installProgressRepository.update(serverId, 50, 'creating_container');
@@ -120,7 +143,8 @@ export async function installServerAsync(
             {
                 provider: spec.provider,
                 catalogId: spec.catalogId,
-                image: spec.dockerImage,
+                image,
+                ...(native ? { native: nativeContainerOptions(native, spec.env, spec.ports) } : {}),
                 env: spec.env,
                 mounts: resolvedMounts,
                 ports: spec.ports,
@@ -158,6 +182,7 @@ export async function installServerAsync(
 
         await assertServerExistsDuringInstall(serverId);
         const runtime = await dockerUtils.inspectContainerRuntime(containerInfo.id);
+        if (native && runtime.containerStatus !== 'running') throw new Error('Native game process exited during startup. Inspect the game console before retrying.');
         await serverRepository.updateRuntimeState(serverId, runtime);
         await completeInstallStatus({
             serverId,
@@ -194,6 +219,7 @@ export async function installServerAsync(
             });
         }
     } catch (error) {
+        cleanupFailed = error instanceof NativeCleanupError;
         if (error instanceof ServerInstallCancelledError || !(await serverExists(serverId))) {
             clearServerTransition(serverId);
             await installInteractionRepository.cancelActiveForServer(serverId).catch(() => undefined);
@@ -211,6 +237,14 @@ export async function installServerAsync(
         await serverRepository.markFailed(serverId, message);
         await installProgressRepository.update(serverId, 0, 'failed', message);
         await actionsRepository.create(serverId, 'error', `Installation failed: ${message}`, username || "");
+    } finally {
+        if (!cleanupFailed) {
+            if (native && await serverExists(serverId)) {
+                const { nativeOperation: _operation, ...runtime } = spec.runtimeConfig;
+                await serverRepository.update(serverId, { runtime_config_json: JSON.stringify(runtime) });
+            }
+            release();
+        }
     }
 }
 

@@ -15,7 +15,23 @@ Each runtime owns its servers, files, transfers, schedules, operation journal an
 
 Existing installations keep their Local runtime. This release does not adopt existing Docker containers, migrate servers, move files or remove the panel's Docker dependency. Nodes are managed by **root administrators only**; ordinary users access assigned servers through scoped delegation. See [Server workspace and access](FLEET.md). Automatic placement and cross-node migration are not implemented.
 
-## Requirements
+## Local runtime and deleting nodes
+
+Every node, including Local, has **Node settings → Overview / IP allocations** and an **Open servers** action. Allocations are no longer edited in global Settings; see [ownership, recovery and API](SETTINGS.md#cross-node-ownership). Host capacity limits and overcommit controls are not implemented by these views.
+
+Use **Nodes → Local → Open local servers** to enter the administrator workspace and create games on the panel host. You do not need to register the panel host again or install another agent. Opening the currently selected runtime also returns to its server workspace. Local is built in and cannot be deleted.
+
+**Delete node** removes a remote node registration, not its host installation:
+
+- A node that has **never enrolled** can be deleted immediately, whether enabled or disabled. Enter its exact name in the confirmation dialog.
+- For a previously connected node, disable management first. The panel must successfully read an empty inventory from the agent over verified HTTPS. An unreachable agent is not treated as empty.
+- Any central server record, including a missing-server record, blocks deletion. The panel does not discard server identities, grants or history to make deletion succeed. Clearing historical missing records/decommissioning is not implemented in this release.
+- Re-enrollment does not erase enrollment history. If credentials were revoked, reconnect the agent before attempting deletion.
+- Deletion invalidates the pending enrollment token and removes the panel's agent credential. Node audit events remain. No game stop, container removal or filesystem deletion is requested. Uninstalling the agent is a separate host maintenance operation.
+
+The deletion API is `DELETE /api/nodes/:id` with JSON `{ "confirmationName": "Exact node name" }`, available only to root administrators. Confirmation errors return 400, missing nodes 404 and unsafe/state-changed removals 409.
+
+## Agent requirements
 
 - A separate Linux Docker host with Docker Engine and Compose v2+, Python 3, sufficient disk/RAM and a working system clock.
 - A reviewed checkout of this release on the node. The installer builds the backend image locally; it does not download or execute an unversioned shell installer.
@@ -48,7 +64,8 @@ The Docker socket gives the agent host-level authority. Labels prevent accidenta
        ssl_certificate_key /etc/letsencrypt/live/node.example.com/privkey.pem;
        # Restrict management to the panel address/VPN at the firewall if possible.
        client_max_body_size 64m;
-       location /api/ {
+       # Match /api itself too: the agent WebSocket endpoint has no trailing slash.
+       location ~ ^/api(?:/|$) {
            proxy_pass http://127.0.0.1:18082;
            proxy_http_version 1.1;
            proxy_set_header Host $host;

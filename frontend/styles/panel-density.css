@@ -1,0 +1,48 @@
+/* Shared density for page controls, not editor/terminal content or navigation. */
+:is(.gp-page-layout, .gp-app-modal-content) {
+  --gp-control-height: 36px;
+  --gp-control-font: 14px;
+}
+:is(.gp-page-layout, .gp-app-modal-content) .gp-app-button[data-ods='button'] {
+  min-height: var(--gp-control-height);
+  font-size: var(--gp-control-font);
+  line-height: 20px;
+  padding: 7px 12px;
+  gap: 6px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+:is(.gp-page-layout, .gp-app-modal-content) .gp-app-button[data-ods='button'] > svg,
+.gp-server-heading button > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.gp-page-layout .gp-app-input,
+.gp-page-layout .gp-app-select [data-part='trigger'] {
+  min-height: var(--gp-control-height);
+  font-size: var(--gp-control-font);
+}
+.gp-page-layout h1:not(.gp-server-heading h1) {
+  font-size: 22px;
+  line-height: 30px;
+  font-weight: 600;
+}
+.gp-page-layout .gp-server-settings-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.gp-page-layout .gp-server-settings-body :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select) {
+  font-size: 14px;
+}
+/* Keep icon-only actions compact; their enclosing row already supplies spacing. */
+:is(.gp-page-layout, .gp-app-modal-content) .gp-app-button[data-ods='button']:has(> svg:only-child) {
+  padding: 7px;
+  min-width: var(--gp-control-height);
+}
+@media (pointer: coarse) {
+  :is(.gp-page-layout, .gp-app-modal-content) { --gp-control-height: 44px; }
+  .gp-server-back, .gp-server-power button, .gp-console-dock-toggle,
+  .gp-server-tabs a { min-height: 44px; }
+  .gp-page-layout .gp-app-input { font-size: 16px; }
+}

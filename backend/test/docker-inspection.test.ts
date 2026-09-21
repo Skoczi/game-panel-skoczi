@@ -6,10 +6,12 @@ import { loadWithMocks } from './loadWithMocks.js';
 import { buildPortMaps } from '../src/utils/docker/portBindings.js';
 import * as portPolicy from '../src/utils/portPolicy.js';
 import * as ownership from '../src/utils/docker/ownership.js';
+import * as hostname from '../src/utils/docker/hostname.js';
 
 test('Docker inspection retains HostIp and respects edited-container exclusions', async () => {
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
         './ownership.js': ownership,
+        './hostname.js': hostname,
         './portBindings.js': { buildPortMaps },
         '../portPolicy.js': portPolicy,
         './client.js': { docker: {
@@ -38,6 +40,7 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
     let binding: any = { NetworkMode: 'bridge', PortBindings: { '8080/tcp': [{ HostIp: '192.0.2.10', HostPort: '8080' }] } };
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
         './ownership.js': ownership,
+        './hostname.js': hostname,
         './portBindings.js': { buildPortMaps },
         '../portPolicy.js': { ...portPolicy, configuredPortPolicy: () => portPolicy.configuredPortPolicy('{"192.0.2.10":{"tcp":"27015"}}') },
         './client.js': { docker: { getContainer: () => ({
@@ -57,4 +60,21 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
     binding.NetworkMode = 'bridge'; binding.PublishAllPorts = true;
     await assert.rejects(module.startContainer('test'), /automatic port/);
     assert.equal(starts + restarts, 2);
+});
+
+test('port inventory ignores deleted containers only; inspection errors fail closed', async () => {
+    let statusCode = 503;
+    const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        './ownership.js': ownership, './hostname.js': hostname, './portBindings.js': { buildPortMaps },
+        '../portPolicy.js': portPolicy,
+        './client.js': { docker: {
+            listContainers: async () => [{ Id: 'unreadable' }],
+            getContainer: () => ({ inspect: async () => { throw Object.assign(new Error('Cannot inspect'), { statusCode }); } }),
+        } },
+        './networks.js': {}, '../../config.js': {}, 'node:crypto': crypto,
+        '../logger.js': {}, '../resourceLimits.js': {}, stream,
+    });
+    await assert.rejects(module.listPublishedHostPorts(), /Cannot inspect/);
+    statusCode = 404;
+    assert.equal((await module.listPublishedHostPorts()).length, 0);
 });

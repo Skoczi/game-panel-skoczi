@@ -14,11 +14,13 @@ import {
 } from '../middleware/auth.js';
 import type { JWTPayload } from '../utils/auth.js';
 import { nodes } from '../nodes/control.js';
+import { NodeRemovalError, type NodeRow } from '../nodes/store.js';
 import { nodeTls } from '../nodes/transport.js';
 import { signNodeRequest, NODE_ID } from '../nodes/protocol.js';
 import { delegatedPath, type Delegation } from '../nodes/delegation.js';
 import { ASSIGNABLE_SERVER_PERMISSIONS } from '../permissions.js';
 import { FleetStore, type InventoryItem, type FleetRow } from './store.js';
+import { fleetDisplayIdentity } from './displayIdentity.js';
 
 let store: FleetStore;
 let refreshing: Promise<void> | undefined;
@@ -32,9 +34,9 @@ export async function initializeFleet() {
     timer.unref();
 }
 
-async function readInventory(id: string): Promise<InventoryItem[]> {
-    const node = await nodes().get(id);
-    if (!node?.enabled || !node.key_encrypted)
+async function readInventory(id: string, deletionSnapshot?: NodeRow): Promise<InventoryItem[]> {
+    const node = deletionSnapshot || await nodes().get(id);
+    if (!node || (!deletionSnapshot && !node.enabled) || !node.key_encrypted)
         throw new Error('Node unavailable');
     const url = new URL('/api/servers', node.origin);
     return new Promise((resolve, reject) => {
@@ -44,7 +46,8 @@ async function readInventory(id: string): Promise<InventoryItem[]> {
                 ...nodeTls(),
                 headers: {
                     'x-gamepanel-node-auth': signNodeRequest(
-                        nodes().key(node),
+                        // Only this read-only inventory check may use a disabled node's credential.
+                        nodes().key(deletionSnapshot ? { ...node, enabled: 1 } : node),
                         id,
                         'GET',
                         '/api/servers',
@@ -76,12 +79,11 @@ async function readInventory(id: string): Promise<InventoryItem[]> {
                             throw new Error('Invalid inventory');
                         // Secrets, environment and host paths are never retained in the fleet database.
                         resolve(
-                            value.servers.map((s: InventoryItem) => ({
+                            value.servers.map((s: InventoryItem & { providerMetadata?: unknown }) => ({
                                 id: s.id,
                                 runtimeKey: s.runtimeKey,
                                 name: s.name,
-                                provider: s.provider,
-                                catalogId: s.catalogId,
+                                ...fleetDisplayIdentity(s.provider, s.catalogId, s.providerMetadata),
                                 status: s.status,
                             })),
                         );
@@ -100,6 +102,16 @@ async function readInventory(id: string): Promise<InventoryItem[]> {
         req.end();
     });
 }
+export async function verifyNodeEmpty(node: NodeRow): Promise<void> {
+    let inventory: InventoryItem[];
+    try {
+        inventory = await readInventory(node.id, node);
+    } catch {
+        throw new NodeRemovalError('Cannot verify the agent inventory. Restore connectivity before deleting this node.');
+    }
+    if (inventory.length)
+        throw new NodeRemovalError('The agent still has servers. Move or remove them before deleting this node.');
+}
 export function refreshFleet(): Promise<void> {
     refreshing ??= (async () => {
         const local = await serverRepository.listAll();
@@ -109,8 +121,7 @@ export function refreshFleet(): Promise<void> {
                 id: s.id,
                 runtimeKey: s.runtime_uuid!,
                 name: s.name,
-                provider: s.provider,
-                catalogId: s.catalog_id,
+                ...fleetDisplayIdentity(s.provider, s.catalog_id, s.provider_metadata_json),
                 status: s.status,
             })),
         );
@@ -128,6 +139,7 @@ export function refreshFleet(): Promise<void> {
                         await store.observe(
                             node.id,
                             await readInventory(node.id),
+                            true,
                         );
                         reachable.set(node.id, Date.now());
                     } catch {
@@ -249,6 +261,7 @@ export function mountFleet(app: express.Application) {
                     Date.now() - (reachable.get(row.node_id) || 0) < 75000;
                 servers.push({
                     id: row.id,
+                    displayId: `SRV-${row.server_number}`,
                     name: row.name,
                     provider: row.provider,
                     catalogId: row.catalog_id,
@@ -268,7 +281,12 @@ export function mountFleet(app: express.Application) {
     router.get(
         '/:id/context',
         safe(async (req, res) => {
-            const row = await store.get(req.params.id);
+            // Both aliases enter the same missing-server and grant checks below.
+            // A public number is global, never a runtime ID on the selected node.
+            const number = /^[1-9]\d*$/.test(req.params.id) ? Number(req.params.id) : null;
+            const row = number !== null && Number.isSafeInteger(number)
+                ? await store.getByNumber(number)
+                : await store.get(req.params.id);
             const permissions =
                 row && !row.missing
                     ? await fleetPermissions(row, req.user!)
@@ -284,6 +302,7 @@ export function mountFleet(app: express.Application) {
                 return res.status(503).json({ error: 'Node unavailable' });
             res.json({
                 id: row.id,
+                displayId: `SRV-${row.server_number}`,
                 runtimeId: row.runtime_id,
                 nodeId: row.node_id,
                 name: row.name,

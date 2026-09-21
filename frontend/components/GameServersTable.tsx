@@ -1,4 +1,5 @@
 import type { GameServer, GameServerStatus } from '../types/gameServer';
+import { gameDisplayName } from '../utils/gameDisplayName';
 import { lazy, Suspense, useDeferredValue, useState, useMemo, useEffect, useRef } from 'react';
 import { ServerSettingsModal } from './ServerSettingsModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -28,6 +29,7 @@ import {
 } from './gameServersTable/utils';
 
 interface GameServersTableProps {
+  onManage?: (server: GameServer) => void;
   servers: GameServer[];
   metricsHistoryByServer?: Record<string, ServerMetricHistoryPoint[]>;
   onLoadMetricsHistory?: (serverId: string) => void;
@@ -53,6 +55,7 @@ interface ConnectionPortRow {
 }
 
 export function GameServersTable({
+  onManage,
   servers,
   metricsHistoryByServer,
   onLoadMetricsHistory,
@@ -146,6 +149,7 @@ export function GameServersTable({
   const connectionCopyTimerRef = useRef<number | null>(null);
 
   const handleOpenSettings = (server: GameServer) => {
+    if (onManage) { onManage(server); return; }
     setSelectedServer(server);
     setSettingsModalOpen(true);
   };
@@ -195,7 +199,7 @@ export function GameServersTable({
           // Malformed metadata: keep the catalog/key fallback.
         }
       }
-      map.set(server.id, label);
+      map.set(server.id, gameDisplayName(label));
     });
     return map;
   }, [servers, gameNamesByKey]);
@@ -447,6 +451,7 @@ export function GameServersTable({
       if (!last || now - last.timestamp > 15000) {
         next.push({
           timestamp: now,
+          resources: selectedMetricServer.resources,
           cpuUsage: selectedMetricServer.cpuUsage ?? 0,
           memoryUsage: selectedMetricServer.memoryUsage ?? 0,
           diskUsage: selectedMetricServer.diskUsage ?? 0,
@@ -460,11 +465,11 @@ export function GameServersTable({
       timestamp: point.timestamp,
       value:
         metricModal.metric === 'cpu'
-          ? point.cpuUsage
+          ? point.resources?.cpuCores ?? NaN
           : metricModal.metric === 'memory'
-            ? point.memoryUsage
-            : point.diskUsage,
-    }));
+            ? point.resources?.memoryBytes ?? NaN
+            : point.resources?.diskBytes ?? NaN,
+    })).filter(point => Number.isFinite(point.value));
   }, [metricsHistoryByServer, metricModal.metric, selectedMetricServer]);
 
   const metricNetworkAllData = useMemo(() => {
@@ -479,6 +484,7 @@ export function GameServersTable({
       if (!last || now - last.timestamp > 15000) {
         next.push({
           timestamp: now,
+          resources: selectedMetricServer.resources,
           cpuUsage: selectedMetricServer.cpuUsage ?? 0,
           memoryUsage: selectedMetricServer.memoryUsage ?? 0,
           diskUsage: selectedMetricServer.diskUsage ?? 0,

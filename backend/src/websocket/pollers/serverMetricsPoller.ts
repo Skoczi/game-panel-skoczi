@@ -6,7 +6,7 @@ import { sendSafe } from '../auth.js';
 import { round2 } from '../../utils/number.js';
 import { logError } from '../../utils/logger.js';
 import { nowIso } from '../../utils/time.js';
-import { getCachedServerStorageDiskUsagePercent } from '../../utils/diskUsage.js';
+import { getCachedServerStorageDiskUsagePercent, getServerDiskResources } from '../../utils/diskUsage.js';
 import {
     getServerMetricsSamples,
     retainServerMetricsSamples,
@@ -71,6 +71,7 @@ export function startServerMetricsPoller(wss: WebSocketServer, opts?: ServerMetr
 
                 const diskUsage = await getCachedServerStorageDiskUsagePercent(server.id);
 
+                const resources = { ...stats.resources, ...await getServerDiskResources(server.id) };
                 // Store one row per tick. Disk is cached and refreshed independently.
                 await serverMetricsRepository.create(
                     server.id,
@@ -78,10 +79,11 @@ export function startServerMetricsPoller(wss: WebSocketServer, opts?: ServerMetr
                     stats.memoryUsage,
                     diskUsage,
                     stats.networkUsage.in,
-                    stats.networkUsage.out
+                    stats.networkUsage.out, resources
                 );
 
                 setServerMetricsSample(server.id, {
+                    resources,
                     cpuUsage: round2(stats.cpuUsage), // %
                     memoryUsage: round2(stats.memoryUsage), // %
                     diskUsage: round2(diskUsage), // %

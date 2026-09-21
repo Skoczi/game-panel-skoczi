@@ -15,9 +15,12 @@ import { createServerPatchRoutes } from './servers/patch.js';
 import { createServerPowerRoutes } from './servers/power.js';
 import { createServerReadRoutes } from './servers/read.js';
 import { buildServerVisibility, type AuthenticatedRequest } from '../middleware/auth.js';
+import { enterServerMutation } from '../services/nativeOperationLock.js';
+import { createNativeUpdateRoutes } from './servers/nativeUpdate.js';
+import { createAvailablePortRoutes } from './servers/availablePorts.js';
 
 const router = Router();
-// Membership is a prerequisite for every server sub-resource, including provider extensions.
+// Check membership before reporting mutation conflicts or acquiring locks.
 router.use('/:id', (req: AuthenticatedRequest, res, next) => {
     if (!/^\d+$/.test(req.params.id)) return next();
     void buildServerVisibility(req.user)
@@ -27,7 +30,19 @@ router.use('/:id', (req: AuthenticatedRequest, res, next) => {
         })
         .catch(next);
 });
-
+// Serialize mutations from HTTP clients, including files, against native maintenance.
+router.use('/:id', (req, res, next) => {
+    if (!/^\d+$/.test(req.params.id) || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    try {
+        const release = enterServerMutation(Number(req.params.id));
+        const end = res.end;
+        res.end = function (this: typeof res, ...args: any[]) {
+            try { return (end as any).apply(this, args); }
+            finally { release(); }
+        } as typeof res.end;
+        next();
+    } catch (error) { res.status(409).json({ error: (error as Error).message }); }
+});
 // /api/servers/:id/file
 router.use('/:id/file', serverFileRoutes);
 // /api/servers/:id/files
@@ -47,6 +62,7 @@ router.use('/:id/scheduled-tasks', scheduledTasksRoutes);
 router.use('/', createServerMetricsRoutes());
 
 // /api/servers
+router.use('/', createAvailablePortRoutes());
 router.use('/', createServerReadRoutes());
 // POST /api/servers/install
 router.use('/', createServerInstallRoutes());
@@ -54,6 +70,7 @@ router.use('/', createServerInstallRoutes());
 router.use('/', createServerPatchRoutes());
 // POST /api/servers/:id/start|stop|restart
 router.use('/', createServerPowerRoutes());
+router.use('/', createNativeUpdateRoutes());
 // POST /api/servers/:id/install/interactions/:interactionId/respond
 router.use('/', createServerInteractionRoutes());
 // DELETE /api/servers/:id

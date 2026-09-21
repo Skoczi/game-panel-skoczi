@@ -1,5 +1,10 @@
-import { useState } from 'react';
-import { AppButton, AppSlider, AppToggle } from '../../src/ui/components';
+import { NativeRetentionPanel } from './NativeRetentionPanel';
+import { NativeProtectionCard } from './NativeProtectionCard';
+import { AppSectionHeader } from '../../src/ui/layout';
+import { OperationList } from './OperationList';
+import { apiClient, type BackupJob } from '../../utils/api';
+import { useEffect, useState } from 'react';
+import { AppButton, AppInput, AppSlider, AppToggle } from '../../src/ui/components';
 import {
   AlertTriangle,
   Calendar,
@@ -22,6 +27,9 @@ interface BackupItem {
 }
 
 interface BackupTabProps {
+  serverId: number;
+  serverStatus?: string | null;
+  native?: boolean;
   contentBg: string;
   borderColor: string;
   hoverBg: string;
@@ -67,6 +75,8 @@ interface BackupTabProps {
 }
 
 export function BackupTab({
+  serverId,
+  serverStatus,
   contentBg,
   borderColor,
   hoverBg,
@@ -109,7 +119,37 @@ export function BackupTab({
   isLinuxGSMGame,
   backupsNotSupported,
   hideManualBackup = false,
+  native = false,
 }: BackupTabProps) {
+  const [jobs, setJobs] = useState<BackupJob[]>([]);
+  const [jobsError, setJobsError] = useState('');
+  const [jobsKnown, setJobsKnown] = useState(false);
+  const [compatibilityError, setCompatibilityError] = useState(false);
+  const [compatibilityCheck, setCompatibilityCheck] = useState(0);
+  const [compatibility, setCompatibility] = useState<Awaited<ReturnType<typeof apiClient.backupCompatibility>>>();
+  useEffect(() => {
+    setCompatibility(undefined);
+    setCompatibilityError(false);
+    setJobs([]);
+    setJobsKnown(false);
+    setJobsError('');
+    if (!native) return;
+    let active = true;
+    const refresh = async () => {
+      try { const result = await apiClient.listBackupJobs(serverId); if (active) { setJobs(result); setJobsKnown(true); setJobsError(''); } }
+      catch { if (active) setJobsError('Unable to refresh operation status. Refresh before retrying an operation.'); }
+    };
+    void apiClient.backupCompatibility(serverId).then(result => { if(active) setCompatibility(result); }).catch(() => { if (active) setCompatibilityError(true); });
+    void refresh(); const timer = setInterval(refresh, 3000);
+    return () => { active = false; clearInterval(timer); };
+  }, [serverId, native, compatibilityCheck]);
+  const nativeReady = !native || (compatibility?.capabilities?.backupJobs === 1 && compatibility?.capabilities?.nativeRestoreRecovery === 1 && compatibility.layoutReady);
+  const operationReason = !nativeReady ? 'Check runtime compatibility before changing backups.'
+    : native && (!jobsKnown || Boolean(jobsError)) ? 'Wait for a confirmed operation status before starting another action.'
+    : backupNowLoading || backupRestoreLoading !== null || jobs.some(job => job.status === 'running') ? 'Another backup operation is running.' : '';
+  const createReason = !canCreateBackups ? 'You do not have permission to create backups.' : operationReason;
+  const restoreReason = !canRestoreBackups ? 'You do not have permission to restore backups.' : operationReason
+    || (native && !['stopped', 'exited', 'created', 'dead'].includes(serverStatus || '') ? 'Stop the server before restoring a Native backup.' : '');
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -130,29 +170,42 @@ export function BackupTab({
   const toggleRowClass = `p-4 rounded-lg border ${borderColor} bg-gray-50 dark:bg-gray-900/30 flex items-center justify-between gap-4`;
 
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+    <div className="h-full overflow-y-auto p-4 sm:p-5">
+      <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className={`text-2xl font-bold ${textPrimary} mb-2`}>Backups</h3>
-            <p className={`text-sm ${textSecondary}`}>
-              Manage and download backups for {serverName}
-            </p>
-          </div>
+        <AppSectionHeader title="Backups" description={<>Manage and download backups for {serverName}</>} actions={<>
           {!backupsNotSupported && !hideManualBackup && (
             <AppButton
               tone="primary"
               onClick={handleBackupNow}
-              disabled={!canCreateBackups || backupNowLoading}
+              disabled={Boolean(createReason)}
+              title={createReason || undefined}
+              aria-describedby={createReason ? `backup-create-reason-${serverId}` : undefined}
               className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-lg text-sm font-medium disabled:opacity-60 w-full sm:w-auto flex-shrink-0"
             >
               <Download className="w-5 h-5" />
               <span>{backupNowLoading ? 'Creating backup...' : 'Create backup now'}</span>
             </AppButton>
           )}
-        </div>
+        </>} />
+        {createReason && !hideManualBackup && <p id={`backup-create-reason-${serverId}`} className={`text-sm ${textSecondary}`}>{createReason}</p>}
+        {native && restoreReason && <p id={`backup-restore-reason-${serverId}`} className={`text-sm ${textSecondary}`}>Restore: {restoreReason}</p>}
 
+        {native && !nativeReady && <p role="status" className="text-sm text-amber-500">{!compatibility ? (compatibilityError ? 'Runtime compatibility could not be checked. Check the node connection and agent version before creating or restoring backups.' : 'Checking runtime compatibility…') : !compatibility.layoutReady ? 'Native backup actions require the serverfiles layout.' : 'Update this node’s agent to enable persistent backup jobs and safe restore recovery.'}</p>}
+        {native && (!nativeReady || Boolean(jobsError)) && <AppButton onClick={() => setCompatibilityCheck(value => value + 1)}>Recheck runtime</AppButton>}
+        {native && <p className={`rounded-xl border ${borderColor} p-4 text-sm ${textSecondary}`}>Native backups are stored in backups/ next to serverfiles/ and contain only serverfiles/. Live backups may contain files from different moments; stop the game first for a consistent copy. Restore requires a stopped server and retains previous files. Download archives for off-node storage; automatic retention is not enabled.</p>}
+        {native && compatibility && !compatibility.layoutReady && <p role="alert" className="text-sm text-amber-500">This server uses a legacy data layout. Move to the serverfiles layout with a reviewed migration before creating or restoring Native backups. Existing files have not been moved.</p>}
+        {native && compatibility && compatibility.legacy.length > 0 && <section className={`rounded-xl border ${borderColor} p-4 text-sm space-y-2`} aria-label="Legacy backups">
+          <h4 className="font-semibold">Legacy archives</h4><p>These archives use the previous mount format. Download them for manual recovery; they are not compatible with serverfiles restore.</p>
+          {compatibility.legacy.map(item => <div key={item.name} className="flex items-center justify-between gap-2"><span className="truncate">{item.name}</span><AppButton disabled={!canDownloadBackups} onClick={() => { void apiClient.downloadLegacyBackup(serverId,item.name).catch(() => setJobsError('Legacy archive download failed.')); }}>Download</AppButton></div>)}
+        </section>}
+        {native && compatibility && compatibility.recoveryCount > 0 && <p className={`text-sm ${textSecondary}`}>{compatibility.recoveryCount} recovery directories retained in backups/. They are excluded from ordinary file operations.</p>}
+        {native && jobsError && <p role="alert" className="text-sm text-amber-500">{jobsError}</p>}
+        {native && jobs.length > 0 && <div className={`rounded-xl border ${borderColor} p-4`}>
+          <OperationList label="Backup operations" secondaryClass={textSecondary} operations={jobs.slice(0, 5).map(job => ({
+            ...job, name: job.kind === 'restore' ? 'Restore' : 'Backup',
+          }))} />
+        </div>}
         {backupsNotSupported && (
           <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
             <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
@@ -166,7 +219,7 @@ export function BackupTab({
         )}
 
         {isLinuxGSMGame && (
-          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6 space-y-6 sm:space-y-8`}>
+          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5 space-y-6 sm:space-y-5`}>
             <h4 className={`text-lg font-semibold ${textPrimary}`}>Retention Policy</h4>
             {backupSettingsError && <div className="text-sm text-red-400">{backupSettingsError}</div>}
             <div className="space-y-5">
@@ -245,12 +298,16 @@ export function BackupTab({
           </div>
         )}
 
+        {native && canDeleteBackups && compatibility?.capabilities?.nativeRetention === 1 && <NativeRetentionPanel key={serverId} serverId={serverId} onChanged={() => { void loadBackups(); }} />}
+
+        {native && <NativeProtectionCard serverId={serverId} supported={compatibility?.capabilities?.nativeProtection === 1} checking={!compatibility && !compatibilityError} />}
+
         {!backupsNotSupported && (
-          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6 space-y-3 sm:space-y-4`}>
+          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-5 space-y-3 sm:space-y-4`}>
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
               <div>
                 <h4 className={`text-lg font-semibold ${textPrimary} mb-1`}>Available Backups</h4>
-                <p className={`text-sm ${textSecondary}`}>{isLinuxGSMGame ? 'Download or delete your server backups' : 'Download, restore or delete your server backups'}</p>
+                <p className={`text-sm ${textSecondary}`}>{isLinuxGSMGame || !canRestoreBackups ? 'Download or delete your server backups' : 'Download, restore or delete your server backups'}</p>
               </div>
               <AppButton
                 onClick={() => loadBackups()}
@@ -261,11 +318,11 @@ export function BackupTab({
               </AppButton>
             </div>
 
-            {backupsError && <div className="text-sm text-red-400">{backupsError}</div>}
+            {backupsError && <div role="alert" className="text-sm text-red-400">{backupsError}</div>}
 
             <div className="space-y-3">
               {backupsLoading && <div className={`text-sm ${textSecondary}`}>Loading backups...</div>}
-              {!backupsLoading && backups.length === 0 && (
+              {!backupsLoading && !backupsError && backups.length === 0 && (
                 <div className={`text-sm ${textSecondary}`}>No backups found.</div>
               )}
               {!backupsLoading && backups.map((backup) => (
@@ -280,7 +337,7 @@ export function BackupTab({
                     <div className="min-w-0 flex-1">
                       {renamingPath === backup.path ? (
                         <div className="flex items-center gap-2 mb-1">
-                          <input
+                          <AppInput
                             type="text"
                             value={renameValue}
                             onChange={(e) => setRenameValue(e.target.value)}
@@ -292,20 +349,20 @@ export function BackupTab({
                             }}
                             className="flex-1 min-w-0 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[var(--color-cyan-400)]"
                           />
-                          <button
+                          <AppButton
                             onClick={() => void confirmRename(backup)}
                             disabled={backupRenameLoading === backup.name || !renameValue.trim()}
                             className="p-1 rounded text-green-500 hover:bg-green-500/10 disabled:opacity-40"
                           >
                             <Check className="w-4 h-4" />
-                          </button>
-                          <button
+                          </AppButton>
+                          <AppButton
                             onClick={cancelRename}
                             disabled={backupRenameLoading === backup.name}
                             className="p-1 rounded text-gray-400 hover:bg-gray-500/10 disabled:opacity-40"
                           >
                             <X className="w-4 h-4" />
-                          </button>
+                          </AppButton>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 mb-1">
@@ -313,12 +370,12 @@ export function BackupTab({
                             {backup.name}
                           </h5>
                           {canRenameBackups && (
-                            <button
+                            <AppButton
                               onClick={() => startRename(backup)}
                               className="p-1 rounded text-gray-400 hover:text-[var(--color-cyan-400)] hover:bg-[var(--color-cyan-400)]/10 flex-shrink-0"
                             >
                               <Pencil className="w-3.5 h-3.5" />
-                            </button>
+                            </AppButton>
                           )}
                         </div>
                       )}
@@ -338,7 +395,7 @@ export function BackupTab({
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                     <AppButton
-                      tone="primary"
+                      tone="neutral"
                       onClick={() => handleDownloadBackup(backup)}
                       disabled={!canDownloadBackups || backupDownloadLoading === backup.name}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 whitespace-nowrap w-full sm:w-auto"
@@ -350,7 +407,9 @@ export function BackupTab({
                       <AppButton
                         tone="ghost"
                         onClick={() => handleRestoreBackup(backup)}
-                        disabled={backupRestoreLoading !== null}
+                        disabled={Boolean(restoreReason)}
+                        title={restoreReason || undefined}
+                        aria-describedby={native && restoreReason ? `backup-restore-reason-${serverId}` : undefined}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 whitespace-nowrap w-full sm:w-auto border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         <RotateCcw className="w-4 h-4" />

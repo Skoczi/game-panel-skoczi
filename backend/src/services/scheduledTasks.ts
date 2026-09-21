@@ -1,4 +1,7 @@
+import { isPanelMaintenance } from './panelMaintenance.js';
+import { nativeServerTemplate } from './nativeBackups.js';
 import { scheduledTaskRepository, serverRepository, actionsRepository } from '../database/index.js';
+import { enterServerMutation } from './nativeOperationLock.js';
 import type { ScheduledTaskRow } from '../types/database.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import { getRuntimeConfig } from '../providers/serverMetadata.js';
@@ -32,6 +35,7 @@ export type ScheduledTaskStep =
 export type ScheduledTaskPayload = {
     pre?: ScheduledTaskStep[];
     post?: ScheduledTaskStep[];
+    cleanup?: ScheduledTaskStep[];
     command?: string;
     workdir?: string;
     includeServerArtifact?: boolean;
@@ -44,6 +48,8 @@ export type SerializedScheduledTask = {
     schedule: string;
     enabled: boolean;
     payload: ScheduledTaskPayload;
+    timeZone: string;
+    nextRuns: string[];
     nextRunAt: string | null;
     lastRunAt: string | null;
     lastStatus: string | null;
@@ -104,7 +110,7 @@ function normalizeWorkdir(value: unknown): string | undefined {
     return workdir;
 }
 
-function normalizeSteps(value: unknown, fieldName: 'pre' | 'post'): ScheduledTaskStep[] | undefined {
+function normalizeSteps(value: unknown, fieldName: 'pre' | 'post' | 'cleanup'): ScheduledTaskStep[] | undefined {
     if (value === undefined || value === null) return undefined;
     if (!Array.isArray(value)) {
         throw Object.assign(new Error(`payload.${fieldName} must be an array`), { statusCode: 400 });
@@ -151,9 +157,11 @@ function normalizePayload(type: ScheduledTaskType, value: unknown): ScheduledTas
     const payload: ScheduledTaskPayload = {};
     const pre = normalizeSteps(raw.pre, 'pre');
     const post = normalizeSteps(raw.post, 'post');
+    const cleanup = normalizeSteps(raw.cleanup, 'cleanup');
 
     if (pre) payload.pre = pre;
     if (post) payload.post = post;
+    if (cleanup) payload.cleanup = cleanup;
 
     if (type === 'custom') {
         payload.command = normalizeCommand(raw.command, 'payload.command');
@@ -207,7 +215,12 @@ function getExecContext(server: GameServerRow): { user: string; workdir: string 
 }
 
 export function serializeScheduledTask(row: ScheduledTaskRow): SerializedScheduledTask {
+    const nextRuns: string[] = [];
+    let from = new Date();
+    try { for (let i = 0; i < 3; i++) { from = nextCronRunAt(row.schedule, from); nextRuns.push(from.toISOString()); } } catch { /* Invalid legacy schedules remain inspectable. */ }
     return {
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        nextRuns,
         id: row.id,
         serverId: row.server_id,
         type: row.type,
@@ -419,6 +432,8 @@ async function executeCustomTask(server: GameServerRow & { docker_container_id: 
 async function executeScheduledTaskCore(server: GameServerRow & { docker_container_id: string }, row: ScheduledTaskRow): Promise<void> {
     const payload = parsePayload(row);
 
+    let failure: unknown;
+    try {
     await executeSteps(server, payload.pre);
 
     if (row.type === 'restart') {
@@ -432,6 +447,10 @@ async function executeScheduledTaskCore(server: GameServerRow & { docker_contain
     const freshServer = await serverRepository.findById(server.id);
     const postServer = getServerWithContainer(freshServer) ?? server;
     await executeSteps(postServer, payload.post);
+    } catch (error) { failure = error; }
+    try { await executeSteps(server, payload.cleanup); }
+    catch (error) { throw new Error(`${failure ? errorMessage(failure) + '; ' : ''}Cleanup failed: ${errorMessage(error)}`); }
+    if (failure) throw failure;
 }
 
 async function finishTask(row: ScheduledTaskRow, status: ScheduledTaskLastStatus, error?: unknown): Promise<void> {
@@ -450,10 +469,12 @@ async function finishTask(row: ScheduledTaskRow, status: ScheduledTaskLastStatus
 }
 
 async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
-    if (runningTasks.has(row.id)) return;
+    if (isPanelMaintenance() || runningTasks.has(row.id)) return;
     runningTasks.add(row.id);
+    let releaseMutation: (() => void) | undefined;
 
     try {
+        releaseMutation = enterServerMutation(row.server_id);
         const locked = await scheduledTaskRepository.lock(row.id, nowIso());
         if (!locked) return;
 
@@ -470,7 +491,8 @@ async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
         }
 
         const status = await dockerUtils.checkContainerStatus(server.docker_container_id).catch(() => 'missing');
-        if (status !== 'running') {
+        const nativeBackup = fresh.type === 'backup' && Boolean(nativeServerTemplate(server));
+        if (nativeBackup ? !['running', 'exited', 'created', 'dead'].includes(status) : status !== 'running') {
             await actionsRepository.create(
                 server.id,
                 'info',
@@ -495,12 +517,13 @@ async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
         ).catch(() => undefined);
         await finishTask(row, 'failed', error).catch(() => undefined);
     } finally {
+        releaseMutation?.();
         runningTasks.delete(row.id);
     }
 }
 
 export async function runDueScheduledTasks(): Promise<void> {
-    if (runnerTickRunning) return;
+    if (isPanelMaintenance() || runnerTickRunning) return;
     runnerTickRunning = true;
 
     try {

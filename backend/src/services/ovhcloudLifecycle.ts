@@ -6,6 +6,7 @@ import type {
 } from '../providers/ovhcloud/adapters/types.js';
 import type { ResolvedInstallSpec } from '../providers/installTypes.js';
 import type { GameServerRow, HealthStatus } from '../types/gameServer.js';
+import { nativeTemplate } from '../templates/nativeContract.js';
 
 export const DEFAULT_DOCKER_STOP_TIMEOUT_SECONDS = 30;
 
@@ -39,6 +40,8 @@ export function getOvhcloudInstallRestartPolicy(spec: ResolvedInstallSpec): 'no'
 }
 
 export function getServerStopTimeoutSeconds(server: GameServerRow): number {
+    const native = nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'));
+    if (native) return native.lifecycle!.stopTimeoutSeconds;
     if (server.provider !== 'ovhcloud') return DEFAULT_DOCKER_STOP_TIMEOUT_SECONDS;
     return getOvhcloudServerAdapter(server).lifecycle?.stopTimeoutSeconds ?? DEFAULT_DOCKER_STOP_TIMEOUT_SECONDS;
 }

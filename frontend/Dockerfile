@@ -6,10 +6,15 @@ WORKDIR /app
 COPY frontend/package*.json frontend/
 RUN cd frontend && npm ci
 COPY frontend frontend
+COPY docs/pro/RELEASE-2.0.50.md docs/pro/RELEASE-2.0.50.md
+# Data-only contract imported by the template editor during type checking.
+COPY backend/src/templates/types.ts backend/src/templates/types.ts
 ARG VITE_DB_API_BASE_URL
 ENV VITE_DB_API_BASE_URL=${VITE_DB_API_BASE_URL}
-RUN cd frontend && npm run build
+ARG NODE_BUILD_HEAP_MB=4096
+RUN cd frontend && NODE_OPTIONS="--max-old-space-size=${NODE_BUILD_HEAP_MB}" npm run build
 
 FROM ${NGINX_IMAGE}
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080

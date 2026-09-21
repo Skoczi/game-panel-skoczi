@@ -1,10 +1,12 @@
 import { clearAppCache } from './appStorage';
+import { appRootPath, serverNumber, shortServerRoute, shortServerUrl } from './serverLinks';
 
 const KEY = 'gamepanel_active_node';
 const SERVER_KEY = 'gamepanel_active_server';
 const ADMIN_KEY = 'gamepanel_admin_runtime';
 const valid = /^(?:local|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 export type ServerContext = {
+  displayId?: string;
   id: string;
   nodeId: string;
   runtimeId: number;
@@ -38,14 +40,16 @@ export const ACTIVE_NODE = (() => {
     return 'local';
   }
 })();
-export function selectNode(id: string) {
+export function selectNode(id: string, preserveServerPage = false) {
   if (!valid.test(id)) throw new Error('Invalid node');
-  if (id === ACTIVE_NODE && ADMIN_RUNTIME && !ACTIVE_SERVER) return;
+  // An explicit Open servers action must also leave the Nodes tab for the current runtime.
   // Per-tab identity. A full reload closes sockets and discards every server-ID cache.
   sessionStorage.setItem(KEY, id);
   sessionStorage.setItem(ADMIN_KEY, '1');
   sessionStorage.removeItem(SERVER_KEY);
-  history.replaceState(null, '', location.pathname);
+  const hash =
+    preserveServerPage && location.hash.startsWith(`#/nodes/${id}/servers/`) ? location.hash : '';
+  history.replaceState(null, '', `${appRootPath()}${hash}`);
   clearAppCache();
   window.location.reload();
 }
@@ -57,13 +61,24 @@ export function clearNodeSelection() {
 export function openServer(context: ServerContext) {
   clearNodeSelection();
   sessionStorage.setItem(SERVER_KEY, JSON.stringify(context));
-  history.replaceState(null, '', `${location.pathname}?server=${encodeURIComponent(context.id)}`);
+  const hash = location.hash.startsWith(`#/nodes/${context.nodeId}/servers/${context.runtimeId}/`)
+    ? location.hash
+    : '';
+  const number = serverNumber(context.displayId);
+  const tab = shortServerRoute()?.tab || hash.split('/').pop() || 'console';
+  history.replaceState(
+    null,
+    '',
+    number
+      ? shortServerUrl(number, tab)
+      : `${appRootPath()}?server=${encodeURIComponent(context.id)}${hash}`
+  );
   clearAppCache();
   window.location.reload();
 }
 export function openFleet() {
   clearNodeSelection();
-  history.replaceState(null, '', location.pathname);
+  history.replaceState(null, '', appRootPath());
   clearAppCache();
   window.location.reload();
 }

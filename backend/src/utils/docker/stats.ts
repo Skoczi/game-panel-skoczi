@@ -1,3 +1,4 @@
+import { calculateResources, type ResourceUsage } from './resources.js';
 import os from 'os';
 import { docker } from './client.js';
 import { round2 } from '../number.js';
@@ -18,6 +19,7 @@ const clampPercent = (n: number) => {
 };
 
 export async function getContainerStats(containerId: string): Promise<{
+    resources: ResourceUsage;
     cpuUsage: number; // 0..100 (% host)
     memoryUsage: number; // 0..100 (% host)
     networkUsage: { in: number; out: number }; // bytes/s
@@ -87,5 +89,6 @@ export async function getContainerStats(containerId: string): Promise<{
 
     lastNetworkSamples.set(containerId, { rx, tx, timestamp });
 
-    return { cpuUsage, memoryUsage, networkUsage };
+    const inspected = await container.inspect();
+    return { cpuUsage, memoryUsage, networkUsage, resources: calculateResources(stats, inspected.HostConfig) };
 }

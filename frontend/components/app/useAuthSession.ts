@@ -6,9 +6,11 @@ import {
   ADMIN_RUNTIME,
   openServer,
   openFleet,
+  selectNode,
   type ServerContext,
 } from '../../utils/nodeContext';
 import { nodesRequest } from '../../utils/nodesApi';
+import { serverNumber, shortServerRoute, shortServerUrl } from '../../utils/serverLinks';
 import {
   type AuthPermissions,
   type AuthUser,
@@ -32,7 +34,26 @@ export function useAuthSession() {
 
   const applyProfile = useCallback(async (profile: any) => {
     const user = profile?.user ?? null;
-    const requestedServer = new URLSearchParams(location.search).get('server') || ACTIVE_SERVER?.id;
+    const shortRoute = shortServerRoute();
+    if (location.pathname.startsWith('/s/') && !shortRoute) {
+      openFleet();
+      return;
+    }
+    const requestedServer =
+      shortRoute?.number || new URLSearchParams(location.search).get('server') || ACTIVE_SERVER?.id;
+    const requestedNode =
+      /^#\/nodes\/(local|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\/servers\/[1-9]\d*\//.exec(
+        location.hash
+      )?.[1];
+    if (
+      !requestedServer &&
+      requestedNode &&
+      user?.isRoot &&
+      (!ADMIN_RUNTIME || requestedNode !== ACTIVE_NODE)
+    ) {
+      selectNode(requestedNode, true);
+      return;
+    }
     if (requestedServer) {
       try {
         const context = await nodesRequest<ServerContext>(
@@ -41,6 +62,7 @@ export function useAuthSession() {
         if (
           !ACTIVE_SERVER ||
           context.id !== ACTIVE_SERVER.id ||
+          context.displayId !== ACTIVE_SERVER.displayId ||
           context.nodeId !== ACTIVE_NODE ||
           context.runtimeId !== ACTIVE_SERVER.runtimeId ||
           context.placementRevision !== ACTIVE_SERVER.placementRevision
@@ -55,6 +77,16 @@ export function useAuthSession() {
             servers: [{ serverId: context.runtimeId, permissions: context.permissions }],
           },
         };
+        const number = serverNumber(context.displayId);
+        if (number) {
+          const legacyTab = location.hash.startsWith(
+            `#/nodes/${context.nodeId}/servers/${context.runtimeId}/`
+          )
+            ? location.hash.split('/').pop()
+            : undefined;
+          const canonical = shortServerUrl(number, shortRoute?.tab || legacyTab || 'console');
+          history.replaceState(null, '', canonical);
+        }
       } catch {
         openFleet();
         return;
@@ -89,6 +121,7 @@ export function useAuthSession() {
         if (
           context.nodeId !== ACTIVE_NODE ||
           context.runtimeId !== ACTIVE_SERVER!.runtimeId ||
+          context.displayId !== ACTIVE_SERVER!.displayId ||
           context.placementRevision !== ACTIVE_SERVER!.placementRevision
         ) {
           openServer(context);

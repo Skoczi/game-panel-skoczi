@@ -1,4 +1,14 @@
 import { getStoredToken } from './api/runtime';
+export type LocalNode = {
+  id: 'local';
+  name: string;
+  location: string;
+  origin: string;
+  status: 'online';
+  agent_version: string;
+  last_seen: number;
+  heartbeat_kind: 'panel-response';
+};
 export type ExecutionNode = {
   id: string;
   name: string;
@@ -15,7 +25,11 @@ export async function nodesRequest<T>(
   method = body === undefined ? 'GET' : 'POST'
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  // Allocation saves verify ownership across runtimes before the signed write/readback.
+  const timer = setTimeout(
+    () => controller.abort(),
+    /\/allocations(?:\/retry)?$/.test(path) ? 90000 : 15000
+  );
   try {
     const response = await fetch(path, {
       method,

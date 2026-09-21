@@ -1,8 +1,10 @@
+import type { ResourceUsage } from '../utils/resourceMetrics';
 // Modified by Skoczi: retain complete host bindings alongside legacy port summaries.
 export interface PortBinding { host: number; container: number; label: string; hostIp?: string }
 export interface InstallStep {
   key: string;
   optional: boolean;
+  label?: string;
 }
 
 export interface InstallInteraction {
@@ -17,6 +19,7 @@ export interface InstallInteraction {
 }
 
 export type GameServerStatus =
+  | 'unknown'
   | 'running'
   | 'stopped'
   | 'creating'
@@ -48,6 +51,7 @@ export interface GameServer {
   dockerContainerId?: string | null;
   installStatus?: string | null;
   installProgress?: number | null;
+  resources?: ResourceUsage;
   cpuUsage?: number;
   memoryUsage?: number;
   diskUsage?: number;

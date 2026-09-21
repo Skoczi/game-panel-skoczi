@@ -11,6 +11,7 @@ import {
 import { bus } from '../../realtime/bus.js';
 import { normalizeEnvPayload } from '../../providers/installPayload.js';
 import { assertHostPortsAvailableForServer } from '../../services/hostPortAvailability.js';
+import { enterPortAllocationMutation } from '../../services/portAllocationLock.js';
 import { renameServer } from '../../services/servers.js';
 import {
     reconfigureServerContainer,
@@ -59,6 +60,7 @@ export function createServerPatchRoutes(): Router {
         '/:id',
         requireServerPermission(PERMISSIONS.server.edit),
         async (req: AuthenticatedRequest, res: Response) => {
+            let releaseAllocation: (() => void) | undefined;
             try {
                 const serverId = parseServerId(req.params.id);
                 if (!serverId) {
@@ -82,6 +84,7 @@ export function createServerPatchRoutes(): Router {
 
                 const hasNamePatch = hasOwn(body, 'name');
                 const hasPortsPatch = hasOwn(body, 'ports');
+                if (hasPortsPatch) releaseAllocation = enterPortAllocationMutation();
                 const hasMountsPatch = hasOwn(body, 'mounts');
                 const hasEnvPatch = hasOwn(body, 'env') && canSeeEnv;
                 const hasHealthcheckPatch = hasOwn(body, 'healthcheck');
@@ -269,6 +272,8 @@ export function createServerPatchRoutes(): Router {
                     fallbackMessage: 'Failed to patch server',
                     logContext: { serverId: req.params.id },
                 });
+            } finally {
+                releaseAllocation?.();
             }
         }
     );

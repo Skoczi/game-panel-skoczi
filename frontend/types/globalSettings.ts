@@ -1,9 +1,11 @@
 export type Allocation = { ip: string; alias: string; tcp: string; udp: string };
+export type LoginTheme = 'light' | 'dark' | 'system';
 export const DEFAULT_APPEARANCE = {
   showFollowUs: true, showTrustpilot: true, showNews: true,
-  siteName: 'Game Panel', siteSubtitle: 'Skoczi Edition', logo: '',
+  siteName: 'Game Panel PRO', siteSubtitle: 'Server management', logo: '',
   loginDescription: 'Sign in to manage your game servers',
-  showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Skoczi Edition',
+  loginTheme: 'light' as LoginTheme,
+  showLoginFooter: true, loginFooter: 'Based on OVHcloud Game Panel · Developed by Skoczi',
 };
 export type Appearance = typeof DEFAULT_APPEARANCE;
 export type GlobalSettings = {

@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadWithMocks } from './loadWithMocks.js';
 import { assertPortPolicy, configuredPortPolicy } from '../src/utils/portPolicy.js';
+import * as nativeContract from '../src/templates/nativeContract.js';
 
 test('tightened policy blocks recreation before touching a running container or its files', async () => {
     const calls: string[] = [];
     const mark = (name: string) => async () => { calls.push(name); };
     const policy = configuredPortPolicy('{"192.0.2.10":{"tcp":"27015-27030"}}');
     const module = loadWithMocks('../src/services/serverReconfiguration.ts', {
+        '../templates/nativeContract.js': nativeContract,
         '../database/index.js': {}, '../providers/ovhcloud/adapters/registry.js': {},
         '../utils/portPolicy.js': { assertPortPolicy: (ports: any) => assertPortPolicy(ports, policy) },
         '../utils/storage.js': { ensureServerMountDirs: mark('mounts') },

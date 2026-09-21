@@ -1,12 +1,12 @@
+import { managedUpdateCapability, readManagedUpdateResult } from './managedUpdates.js';
 import { panelUpdateJobRepository } from '../database/index.js';
 import { getAppVersion } from '../utils/appInfo.js';
 import { docker } from '../utils/docker/client.js';
-import { pullImageByName } from '../utils/docker/containers.js';
 import { getConfig } from '../config.js';
 import { logError } from '../utils/logger.js';
 import { toIsoTimestamp, toIsoTimestampOrNull } from '../utils/time.js';
 
-// Modified by Skoczi: fork release notes; automatic updates disabled for this preview.
+// Game Panel PRO releases only; never fall back to the upstream repository.
 const GITHUB_RELEASES_URL = 'https://api.github.com/repos/Skoczi/game-panel-skoczi/releases?per_page=100';
 const RELEASES_CACHE_TTL_MS = 10 * 60 * 1000;
 const VERSION_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
@@ -44,6 +44,7 @@ export type PanelUpdateCheck = {
   updateAvailable: boolean;
   currentRelease: PanelReleaseNotes | null;
   newerReleases: PanelReleaseNotes[];
+  managedUpdates: { enabled: boolean; reason: string };
 };
 
 export type PanelUpdateStartResult = {
@@ -129,9 +130,10 @@ async function fetchReleaseNotes(): Promise<PanelReleaseNotes[]> {
   }
 
   const response = await fetch(GITHUB_RELEASES_URL, {
+    signal: AbortSignal.timeout(10_000),
     headers: {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'GamePanel-Updater',
+      'User-Agent': 'Game-Panel-PRO',
     },
   });
 
@@ -170,24 +172,19 @@ async function fetchReleaseNotes(): Promise<PanelReleaseNotes[]> {
   return releases;
 }
 
-async function fetchAvailableVersions(): Promise<string[]> {
-  const releases = await fetchReleaseNotes();
-  return Array.from(new Set(releases.map((release) => release.version)));
-}
-
 export async function checkPanelUpdate(): Promise<PanelUpdateCheck> {
   const currentVersion = getAppVersion();
   const current = parseVersion(currentVersion);
   const releases = await fetchReleaseNotes();
 
-  const latestVersion = releases[0]?.version ?? null;
+  const latestVersion = releases.find(release => !release.prerelease && !parseVersion(release.version)?.prerelease.length)?.version ?? null;
   const latest = latestVersion ? parseVersion(latestVersion) : null;
 
   const currentRelease = releases.find((release) => release.version === currentVersion) ?? null;
   const newerReleases = current
     ? releases.filter((release) => {
         const parsed = parseVersion(release.version);
-        return parsed ? compareVersions(parsed, current) > 0 : false;
+        return parsed && !release.prerelease && !parsed.prerelease.length ? compareVersions(parsed, current) > 0 : false;
       })
     : [];
 
@@ -197,6 +194,7 @@ export async function checkPanelUpdate(): Promise<PanelUpdateCheck> {
     updateAvailable: Boolean(current && latest && compareVersions(latest, current) > 0),
     currentRelease,
     newerReleases,
+    managedUpdates: await managedUpdateCapability(),
   };
 }
 
@@ -205,10 +203,21 @@ const STALE_PENDING_GRACE_MS = 5 * 60 * 1000;
 export async function reconcileStalePanelUpdate(): Promise<void> {
   const job = await panelUpdateJobRepository.getRunning();
   if (!job) return;
+  const reconcileResult = async () => {
+    const result = await readManagedUpdateResult(job.id);
+    if (!result) return false;
+    if (result.status === 'completed') await panelUpdateJobRepository.markCompleted(job.id, result.message);
+    else await panelUpdateJobRepository.markFailed(job.id, result.message);
+    return true;
+  };
+  if (await reconcileResult()) return;
 
   if (job.container_id) {
     try {
-      await docker.getContainer(job.container_id).inspect();
+      const state = await docker.getContainer(job.container_id).inspect();
+      if (state.State.Running) return;
+      if (await reconcileResult()) return;
+      await panelUpdateJobRepository.markFailed(job.id, 'Updater stopped without reporting completion. Inspect the host snapshot before retrying.');
       return;
     } catch (error) {
       if ((error as { statusCode?: number }).statusCode !== 404) {
@@ -217,6 +226,7 @@ export async function reconcileStalePanelUpdate(): Promise<void> {
       }
     }
 
+    if (await reconcileResult()) return;
     await panelUpdateJobRepository.markFailed(
       job.id,
       'Updater container is no longer running; the update never reported completion.'
@@ -264,7 +274,8 @@ export async function startPanelUpdate(input: {
   version: unknown;
   startedBy: string | null;
 }): Promise<PanelUpdateStartResult> {
-  assertForkUpdatesEnabled();
+  const capability = await managedUpdateCapability();
+  if (!capability.enabled) throw Object.assign(new Error(capability.reason), { statusCode: 409 });
   const targetVersion = normalizeApiVersion(input.version);
   const currentVersion = getAppVersion();
   const target = parseVersion(targetVersion);
@@ -274,12 +285,12 @@ export async function startPanelUpdate(input: {
     throw Object.assign(new Error('Invalid local or target version'), { statusCode: 400 });
   }
 
-  if (compareVersions(target, current) < 0) {
-    throw Object.assign(new Error('Downgrades are not supported'), { statusCode: 400 });
+  if (compareVersions(target, current) <= 0) {
+    throw Object.assign(new Error('Choose a newer release'), { statusCode: 400 });
   }
 
-  const availableVersions = await fetchAvailableVersions();
-  if (!availableVersions.includes(targetVersion)) {
+  const available = await fetchReleaseNotes();
+  if (!/^2\.0\.\d+$/.test(targetVersion) || !available.some(release => release.version === targetVersion && !release.prerelease)) {
     throw Object.assign(new Error(`Unknown update version: ${targetVersion}`), { statusCode: 400 });
   }
 
@@ -297,20 +308,20 @@ export async function startPanelUpdate(input: {
 
   try {
     const config = getConfig();
-    await pullImageByName(config.updaterImage);
+    const updaterImage = process.env.GAMEPANEL_PRO_UPDATER_IMAGE!;
 
     const container = await docker.createContainer({
-      Image: config.updaterImage,
+      Image: updaterImage,
       name: `gamepanel-updater-${jobId}`,
       Env: [
         `GP_UPDATE_JOB_ID=${jobId}`,
         `GP_UPDATE_VERSION=${targetVersion}`,
         `GP_UPDATE_FROM_VERSION=${currentVersion}`,
         `GP_UPDATE_TAG=${targetTag}`,
-        `GP_UPDATE_REPO_URL=${config.repositoryUrl}`,
+
         `GP_APP_ROOT=${config.gamepanelAppRoot}`,
         `GP_COMPOSE_PROJECT_NAME=${config.composeProjectName}`,
-        `GP_UPDATER_IMAGE=${config.updaterImage}`,
+
       ],
       Labels: {
         'gamepanel.managed': 'true',
@@ -341,8 +352,4 @@ export async function startPanelUpdate(input: {
     jobId,
     targetVersion,
   };
-}
-
-function assertForkUpdatesEnabled(): void {
-  throw Object.assign(new Error('Automatic updates are disabled in the Skoczi preview. Follow docs/skoczi/INSTALLATION.md for reviewed manual updates.'), { statusCode: 409 });
 }

@@ -1,3 +1,4 @@
+import { resourceLabel } from '../../utils/resourceMetrics';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -471,11 +472,11 @@ export function GameServersDesktopTable({
                         <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-800/80">
                           <div
                             className="h-full rounded-full"
-                            style={{ width: `${Math.min(server.cpuUsage ?? 0, 100)}%`, backgroundColor: ODS_CHART_THEME.cpu }}
+                            style={{ width: `${Math.min(server.resources?.cpuLimitPercent ?? 0, 100)}%`, backgroundColor: ODS_CHART_THEME.cpu }}
                           />
                         </div>
-                        <span className="w-10 shrink-0 text-right font-mono text-xs text-gray-300">
-                          {server.cpuUsage !== undefined ? `${server.cpuUsage.toFixed(1)}%` : '–'}
+                        <span className="shrink-0 text-right font-mono text-xs text-gray-300">
+                          {resourceLabel(server.resources, 'cpu')}
                         </span>
                       </button>
                       )}
@@ -490,11 +491,11 @@ export function GameServersDesktopTable({
                           <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-800/80">
                             <div
                               className="h-full rounded-full"
-                              style={{ width: `${Math.min(server.memoryUsage ?? 0, 100)}%`, backgroundColor: ODS_CHART_THEME.ram }}
+                              style={{ width: `${Math.min(server.resources?.memoryLimitPercent ?? 0, 100)}%`, backgroundColor: ODS_CHART_THEME.ram }}
                             />
                           </div>
-                          <span className="w-10 shrink-0 text-right font-mono text-xs text-gray-300">
-                            {server.memoryUsage !== undefined ? `${server.memoryUsage.toFixed(1)}%` : '–'}
+                          <span className="shrink-0 text-right font-mono text-xs text-gray-300">
+                            {resourceLabel(server.resources, 'memory')}
                           </span>
                         </button>
                       )}
@@ -509,11 +510,11 @@ export function GameServersDesktopTable({
                           <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-800/80">
                             <div
                               className="h-full rounded-full"
-                              style={{ width: `${Math.min(server.diskUsage ?? 0, 100)}%`, backgroundColor: ODS_CHART_THEME.disk }}
+                              style={{ width: `${Math.min(0, 100)}%`, backgroundColor: ODS_CHART_THEME.disk }}
                             />
                           </div>
-                          <span className="w-10 shrink-0 text-right font-mono text-xs text-gray-300">
-                            {server.diskUsage !== undefined ? `${server.diskUsage.toFixed(1)}%` : '–'}
+                          <span className="shrink-0 text-right font-mono text-xs text-gray-300">
+                            {resourceLabel(server.resources, 'disk')}
                           </span>
                         </button>
                       )}
@@ -662,7 +663,7 @@ export function GameServersDesktopTable({
                       }`}
                     >
                       <Settings className="w-4 h-4" />
-                      Settings
+                      Manage
                     </AppButton>
                     <AppButton
                       disabled={!canReadLogs}

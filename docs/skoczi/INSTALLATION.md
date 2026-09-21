@@ -52,6 +52,8 @@ Version 1.5.0-skoczi.3 seeds allocation rules from these environment values once
 
 Version .4 adds public branding and extends the stored appearance schema. It preserves existing rules and switches. Downgrading to .3 also requires the corresponding pre-upgrade database backup.
 
+The login-theme addition also extends the stored appearance schema, defaulting existing installations to Light. Deploy frontend and backend together. To roll back to code predating this field, restore the matching pre-upgrade settings/database backup; older validators reject the new field.
+
 ## Rollback
 
 Keep the previous source tag and matching database/configuration backup. An upstream build does not understand the allocation UI and may discard host IPs during later edits.

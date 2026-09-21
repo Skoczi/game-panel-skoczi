@@ -1,12 +1,20 @@
+import { listServerBackups } from '../services/backupListing.js';
+import { planNativeRetention, applyNativeRetention } from '../services/nativeRetention.js';
+import { inspectNativeProtection, readNativeBackupRecord, moveNativeBackupRecord } from '../services/nativeProtection.js';
+import { getServerStoragePaths } from '../utils/storage.js';
+import { backupCompatibility, legacyBackupPath } from '../services/backupCompatibility.js';
+import { startBackupJob, listBackupJobs, readBackupJob } from '../services/backupJobs.js';
+import { nativeServerTemplate, createNativeBackup, normalizeBackupName } from '../services/nativeBackups.js';
+import { restoreNativeBackup } from '../services/nativeRestore.js';
 import { Router, type Response } from 'express';
 import { type AuthenticatedRequest, requireServerPermission } from '../middleware/auth.js';
 import { getBackupSettings, setBackupSettings } from '../services/backupSettings.js';
-import { listServerFiles, resolveServerPath } from '../services/fileExplorer.js';
+import { resolveServerPath } from '../services/fileExplorer.js';
 import { ensureIsDir, ensureIsFile, getBasenameFromApiPath, guessContentTypeByName } from '../utils/fsBrowser.js';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { getServerOrThrow } from '../services/servers.js';
-import { actionsRepository } from '../database/index.js';
+import { actionsRepository, scheduledTaskRepository } from '../database/index.js';
 import { sendRouteError } from '../utils/routeErrors.js';
 import {
     optionalNumber,
@@ -22,14 +30,78 @@ import {
     getBackupFileLocation,
     getBackupFilePair,
     getBackupKind,
-    getSupportedBackupExtensions,
-    listBackupDirectories,
     restoreOvhcloudBackup,
 } from '../services/serverBackups.js';
 import { resolveDownloadTarget, streamDirectoryZip, streamFilesZip } from '../services/fileTransfers.js';
 import { PERMISSIONS } from '../permissions.js';
 
 const router = Router({ mergeParams: true });
+
+router.get('/jobs', requireServerPermission(PERMISSIONS.backups.read), async (req, res) => {
+    try { res.json({ jobs: await listBackupJobs(requirePositiveInt(req.params.id, 'Invalid server id')) }); }
+    catch (error) { sendRouteError(res, error, { route: 'BACKUP:JOBS', fallbackMessage: 'Unable to load backup jobs' }); }
+});
+
+router.get('/jobs/:jobId', async (req: AuthenticatedRequest, res) => {
+    try {
+        const job = await readBackupJob(requirePositiveInt(req.params.id, 'Invalid server id'), req.params.jobId);
+        await requireServerPermission(job.kind === 'restore' ? PERMISSIONS.backups.restore : PERMISSIONS.backups.create)(req, res, () => { res.json({job}); });
+    } catch (error) { sendRouteError(res,error,{route:'BACKUP:JOB',fallbackMessage:'Unable to load operation status'}); }
+});
+
+router.get('/compatibility', requireServerPermission(PERMISSIONS.backups.read), async (req, res) => {
+    try { res.json(await backupCompatibility(await getServerOrThrow(requirePositiveInt(req.params.id, 'Invalid server id')))); }
+    catch (error) { sendRouteError(res, error, { route:'BACKUP:COMPATIBILITY', fallbackMessage:'Unable to inspect backup layout' }); }
+});
+router.get('/protection', requireServerPermission(PERMISSIONS.backups.read), async (req, res) => {
+    try {
+        const serverId = requirePositiveInt(req.params.id, 'Invalid server id');
+        const server = await getServerOrThrow(serverId);
+        if (!nativeServerTemplate(server)) return res.status(400).json({ error: 'Protection summary requires a Native server' });
+        const [storage, tasks, jobs] = await Promise.all([
+            inspectNativeProtection(getServerStoragePaths(serverId).dataDir),
+            scheduledTaskRepository.listForServer(serverId).catch(() => null),
+            listBackupJobs(serverId).catch(() => null),
+        ]);
+        // Expose only backup schedule health, never custom commands or their payloads.
+        const backupTasks = tasks?.filter(task => task.type === 'backup');
+        const schedules = backupTasks ? {
+            total: backupTasks.length,
+            enabled: backupTasks.filter(task => task.enabled).length,
+            nextRunAt: backupTasks.filter(task => task.enabled && task.next_run_at).map(task => task.next_run_at!).sort()[0] || null,
+            lastProblem: backupTasks.filter(task => task.enabled && ['failed', 'skipped'].includes(task.last_status || '')).length,
+        } : null;
+        const lastRestore = jobs?.find(job => job.kind === 'restore');
+        return res.json({ ...storage, schedules, restoreHistoryAvailable: jobs !== null, lastRestore: lastRestore ? { status: lastRestore.status, startedAt: lastRestore.startedAt, completedAt: lastRestore.completedAt ?? null } : null });
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:PROTECTION', fallbackMessage: 'Unable to inspect data protection' }); }
+});
+router.get('/retention', requireServerPermission(PERMISSIONS.backups.delete), async (req, res) => {
+    try {
+        const serverId = requirePositiveInt(req.params.id, 'Invalid server id');
+        const server = await getServerOrThrow(serverId);
+        if (!nativeServerTemplate(server)) return res.status(400).json({ error: 'Cleanup requires a Native server' });
+        res.json(await planNativeRetention(getServerStoragePaths(serverId).dataDir, { keepArchives: Number(req.query.keepArchives), keepRecovery: Number(req.query.keepRecovery) }));
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:RETENTION:PREVIEW', fallbackMessage: 'Unable to preview cleanup' }); }
+});
+router.post('/retention', requireServerPermission(PERMISSIONS.backups.delete), async (req: AuthenticatedRequest, res) => {
+    try {
+        const serverId = requirePositiveInt(req.params.id, 'Invalid server id');
+        const body = requireBodyObject(req.body);
+        const server = await getServerOrThrow(serverId);
+        if (!nativeServerTemplate(server)) return res.status(400).json({ error: 'Cleanup requires a Native server' });
+        await actionsRepository.create(serverId, 'info', `Native cleanup requested: keep ${body.keepArchives} archives and ${body.keepRecovery} completed recovery directories`, req.user?.username || '');
+        const result = await applyNativeRetention(getServerStoragePaths(serverId).dataDir, { keepArchives: body.keepArchives as number, keepRecovery: body.keepRecovery as number }, typeof body.fingerprint === 'string' ? body.fingerprint : '');
+        await actionsRepository.create(serverId, 'info', `Native backup cleanup removed ${result.removed.length} item(s): ${result.removed.join(', ')}`, req.user?.username || '');
+        res.json(result);
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:RETENTION', fallbackMessage: 'Could not confirm cleanup. Refresh the backup list before trying again.' }); }
+});
+router.get('/legacy/file', requireServerPermission(PERMISSIONS.backups.download), async (req, res) => {
+    try {
+        const server = await getServerOrThrow(requirePositiveInt(req.params.id, 'Invalid server id'));
+        const name = typeof req.query.name === 'string' ? req.query.name : '';
+        res.download(await legacyBackupPath(server,name), name);
+    } catch (error) { sendRouteError(res,error,{route:'BACKUP:LEGACY',fallbackMessage:'Unable to download legacy archive'}); }
+});
 
 function joinApiPath(basePath: string, apiPath: string): string {
     const base = basePath.replace(/\/+$/, '') || '/';
@@ -75,42 +147,7 @@ router.get('/', requireServerPermission(PERMISSIONS.backups.read), async (req: A
     try {
         const serverId = requirePositiveInt(req.params.id, 'Invalid server id');
 
-        const server = await getServerOrThrow(serverId);
-        const kind = getBackupKind(server);
-        const location = await getBackupFileLocation(server);
-
-        let result;
-        try {
-            result = await listServerFiles({
-                serverId,
-                path: joinApiPath(location.basePath, '/'),
-                root: location.root,
-            });
-        } catch (error: any) {
-            if (server.provider === 'ovhcloud' && error?.statusCode === 404) {
-                return res.json({
-                    root: location.root,
-                    path: '/',
-                    entries: [],
-                    roots: [],
-                });
-            }
-            throw error;
-        }
-
-        if (kind === 'directory') {
-            result.entries = listBackupDirectories(server, result.entries);
-        } else if (kind === 'file-pair') {
-            result.entries = getBackupFilePair(server).listBackups(result.entries);
-        } else {
-            const extensions = getSupportedBackupExtensions(server);
-            result.entries = result.entries.filter((e: any) => (
-                e.type === 'file' && extensions.some((extension) => e.name.endsWith(extension))
-            ));
-        }
-        result.path = '/';
-
-        return res.json(result);
+        return res.json(await listServerBackups(serverId));
     } catch (error) {
         return sendRouteError(res, error, {
             route: 'ROUTE:BACKUPS:LIST',
@@ -251,7 +288,9 @@ router.patch('/file', requireServerPermission(PERMISSIONS.backups.rename), async
             return res.status(409).json({ error: 'A backup with this name already exists' });
         }
 
+        const record = nativeServerTemplate(server) ? await readNativeBackupRecord(source.absPath) : null;
         await fs.rename(source.absPath, target.absPath);
+        if (record) await moveNativeBackupRecord(source.absPath, target.absPath, record).catch(() => {});
         await actionsRepository.create(
             serverId,
             'info',
@@ -290,7 +329,7 @@ router.get('/settings', requireServerPermission(PERMISSIONS.backups.read), async
 
 // POST /api/servers/:id/backups/create
 router.post(
-    '/create',
+    ['/create', '/create-native'],
     requireServerPermission(PERMISSIONS.backups.create),
     async (req: AuthenticatedRequest, res: Response) => {
         try {
@@ -298,8 +337,15 @@ router.post(
             const body = req.body === undefined ? {} : requireBodyObject(req.body);
 
             const server = await getServerOrThrow(serverId);
+            if (req.path === '/create-native' && !nativeServerTemplate(server))
+                return res.status(400).json({ error: 'This endpoint requires a Native server' });
             await actionsRepository.create(serverId, 'info', 'Backup requested', req.user?.username || "");
 
+            if (nativeServerTemplate(server)) {
+                const name = normalizeBackupName(body.name);
+                const job = await startBackupJob(serverId, 'backup', req.user?.username || '', () => createNativeBackup(server, true, name));
+                return res.status(202).json({ job });
+            }
             const result = await createServerBackup(server, {
                 includeServerArtifact: optionalBoolean(body.includeServerArtifact, 'includeServerArtifact must be a boolean') ?? false,
             });
@@ -335,6 +381,11 @@ router.post(
             if (!apiPath) return res.status(400).json({ error: 'Missing path' });
 
             const server = await getServerOrThrow(serverId);
+            if (nativeServerTemplate(server)) {
+                await actionsRepository.create(serverId, 'info', `Native restore requested: ${apiPath}`, req.user?.username || '');
+                const job = await startBackupJob(serverId, 'restore', req.user?.username || '', () => restoreNativeBackup(server, apiPath, true));
+                return res.status(202).json({ job });
+            }
             if (server.provider !== 'ovhcloud') {
                 return res.status(501).json({ error: 'Restore is only supported for OVHcloud servers with restore support' });
             }

@@ -8,12 +8,12 @@ export interface AppSelectOption {
   value: string;
 }
 
-export interface AppSelectProps
-  extends Omit<
-    SelectProp,
-    'className' | 'defaultValue' | 'items' | 'multiple' | 'onChange' | 'onValueChange' | 'value'
-  > {
+export interface AppSelectProps extends Omit<
+  SelectProp,
+  'className' | 'defaultValue' | 'items' | 'multiple' | 'onChange' | 'onValueChange' | 'value'
+> {
   className?: string;
+  controlLabel?: string;
   createPortal?: boolean;
   defaultValue?: string;
   onChange?: (value: string) => void;
@@ -24,6 +24,7 @@ export interface AppSelectProps
 
 export function AppSelect({
   className,
+  controlLabel,
   createPortal = false,
   defaultValue,
   onChange,
@@ -52,8 +53,12 @@ export function AppSelect({
       value={value !== undefined ? [value] : undefined}
       onValueChange={({ value: nextValue }) => onChange?.(nextValue[0] ?? '')}
     >
-      <SelectControl className="gp-app-select-control" placeholder={placeholder} />
-      <SelectContent createPortal={createPortal} />
+      <SelectControl
+        className="gp-app-select-control"
+        placeholder={placeholder}
+        aria-label={controlLabel}
+      />
+      <SelectContent className="gp-app-select-content" createPortal={createPortal} />
     </Select>
   );
 }

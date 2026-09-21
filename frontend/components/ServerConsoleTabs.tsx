@@ -4,7 +4,7 @@ import { AppButton, AppToggle } from '../src/ui/components';
 import { useBodyScrollLock } from '../src/ui/utils/useBodyScrollLock';
 import { ansiToHtml, stripAnsi } from '../utils/ansi';
 import { isServerDownLike, formatLogDisplayTime } from '../utils/serverRuntime';
-import { supportsConsoleCommand } from '../utils/providerCapabilities';
+import { supportsConsoleCommand, isNativeTemplate } from '../utils/providerCapabilities';
 import type { GameServer } from '../types/gameServer';
 import type { CLIMessage } from '../types/cli';
 
@@ -18,6 +18,14 @@ interface LogEntry {
   displayTime?: string;
   type: 'info' | 'warning' | 'error' | 'success' | 'command' | 'action';
   message: string;
+}
+
+// Length stays constant once the rolling buffer is full. Count entries after the
+// previous tail instead; IDs need not be consecutive across server streams.
+function appendedLogCount<T extends string | number>(entries: { id: T }[], previousTail: T | undefined) {
+  if (!entries.length || entries[entries.length - 1]?.id === previousTail) return 0;
+  const previousIndex = entries.findIndex(entry => entry.id === previousTail);
+  return entries.length - previousIndex - 1;
 }
 
 interface ServerLogs {
@@ -37,7 +45,34 @@ const AnsiLine = memo(function AnsiLine({
   return <pre className={className} dangerouslySetInnerHTML={{ __html }} />;
 });
 
+const getLogColor = (type: LogEntry['type']) => {
+  const isDark = true;
+  switch (type) {
+    case 'error':
+      return isDark ? 'text-red-400' : 'text-red-200';
+    case 'warning':
+      return isDark ? 'text-yellow-400' : 'text-yellow-200';
+    case 'success':
+      return isDark ? 'text-green-400' : 'text-green-200';
+    case 'command':
+      return isDark ? 'text-[var(--color-cyan-400)]' : 'text-white';
+    case 'action':
+      return isDark ? 'text-purple-400' : 'text-purple-200';
+    default:
+      return isDark ? 'text-gray-300' : 'text-white';
+  }
+};
+
+const ServerLogLine = memo(function ServerLogLine({ log }: { log: LogEntry }) {
+  return <div className="mb-1 flex items-start gap-2 rounded px-1 leading-5 hover:bg-white/5">
+    <span className="gp-log-time shrink-0 text-gray-500">[{log.displayTime ?? formatLogDisplayTime(log.timestamp)}]</span>
+    <AnsiLine className={`m-0 inline-block min-w-max flex-none whitespace-pre font-mono text-sm ${getLogColor(log.type)}`} message={log.message} />
+  </div>;
+});
+
 interface ServerConsoleTabsProps {
+  singleServer?: boolean;
+  hideActivity?: boolean;
   servers: GameServer[];
   logs: ServerLogs;
   cliMessages: CLIMessage[];
@@ -52,6 +87,8 @@ interface ServerConsoleTabsProps {
 }
 
 export function ServerConsoleTabs({
+  singleServer = false,
+  hideActivity = false,
   servers,
   logs,
   cliMessages,
@@ -64,13 +101,14 @@ export function ServerConsoleTabs({
   canSendCommandByServer,
   onSendCommand,
 }: ServerConsoleTabsProps) {
+  const heightStorageKey = singleServer ? 'gp_server_console_height' : CONSOLE_HEIGHT_STORAGE_KEY;
   const [isMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [panelHeight, setPanelHeight] = useState(() => {
-    let stored = DEFAULT_CONSOLE_HEIGHT;
+    let stored = singleServer ? 450 : DEFAULT_CONSOLE_HEIGHT;
     try {
-      const raw = Number(localStorage.getItem(CONSOLE_HEIGHT_STORAGE_KEY));
-      if (Number.isFinite(raw) && raw > 0) stored = raw;
+      const raw = Number(localStorage.getItem(heightStorageKey));
+      if (Number.isFinite(raw) && raw > 0) stored = singleServer && raw === 360 ? 450 : raw;
     } catch { /* ignore */ }
     const max = typeof window !== 'undefined'
       ? Math.max(MIN_CONSOLE_HEIGHT, Math.round(window.innerHeight * 0.85))
@@ -85,7 +123,7 @@ export function ServerConsoleTabs({
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [historyDraft, setHistoryDraft] = useState('');
-  const commandInputRef = useRef<HTMLInputElement>(null);
+  const commandInputRef = useRef<HTMLTextAreaElement>(null);
   const [autoScrollCli, setAutoScrollCli] = useState(true);
   const [autoScrollServer, setAutoScrollServer] = useState(true);
   const [pendingCliLogs, setPendingCliLogs] = useState(0);
@@ -109,12 +147,14 @@ export function ServerConsoleTabs({
   const serverContainerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticCliScrollRef = useRef(false);
   const isProgrammaticServerScrollRef = useRef(false);
-  const previousCliLengthRef = useRef(0);
-  const previousActiveServerLogLengthRef = useRef(0);
+  const previousCliTailRef = useRef<string | undefined>();
+  const previousServerTailRef = useRef<number | undefined>();
   const scrollPositionsByTabRef = useRef<Record<string, number>>({});
   const isCLIConsoleActive = activeTab === 'cli-console';
   const activeServer = servers.find((s) => s.id === activeTab);
   const activeLogs = activeTab && activeTab !== 'cli-console' ? logs[activeTab] || [] : [];
+  const cliTail = cliMessages[cliMessages.length - 1]?.id;
+  const serverTail = activeLogs[activeLogs.length - 1]?.id;
   const openTabServers = servers.filter((server) => openTabs.includes(server.id));
 
   const isNearBottom = (element: HTMLDivElement | null, threshold = 36) => {
@@ -178,17 +218,19 @@ export function ServerConsoleTabs({
 
     if (!element) return;
 
-    const nextScrollTop = scrollPositionsByTabRef.current[tabId] ?? Infinity;
+    const nextScrollTop = scrollPositionsByTabRef.current[tabId];
     scrollFlagRef.current = true;
 
     let restoreFrameId = 0;
     let finalizeFrameId = 0;
 
     restoreFrameId = requestAnimationFrame(() => {
-      element.scrollTop = nextScrollTop;
+      // Non-finite scrollTop values normalize to zero in browsers, not to the bottom.
+      element.scrollTop = nextScrollTop ?? element.scrollHeight;
       saveScrollPosition(tabId, element);
 
       finalizeFrameId = requestAnimationFrame(() => {
+        if (nextScrollTop === undefined) element.scrollTop = element.scrollHeight;
         scrollFlagRef.current = false;
         syncAutoScrollState(tabId, element);
       });
@@ -213,20 +255,20 @@ export function ServerConsoleTabs({
 
   useEffect(() => {
     if (isCLIConsoleActive) {
-      previousCliLengthRef.current = cliMessages.length;
+      previousCliTailRef.current = cliTail;
       setPendingCliLogs(0);
       return;
     }
 
     if (activeTab && activeTab !== 'cli-console') {
-      previousActiveServerLogLengthRef.current = activeLogs.length;
+      previousServerTailRef.current = serverTail;
       setPendingServerLogs(0);
     }
   }, [activeTab]);
 
   useEffect(() => {
-    const diff = cliMessages.length - previousCliLengthRef.current;
-    previousCliLengthRef.current = cliMessages.length;
+    const diff = appendedLogCount(cliMessages, previousCliTailRef.current);
+    previousCliTailRef.current = cliTail;
 
     if (diff <= 0) {
       if (cliMessages.length === 0) setPendingCliLogs(0);
@@ -240,13 +282,13 @@ export function ServerConsoleTabs({
     }
 
     setPendingCliLogs((prev) => prev + diff);
-  }, [cliMessages.length, isCLIConsoleActive, isMinimized, autoScrollCli]);
+  }, [cliMessages.length, cliTail, isCLIConsoleActive, isMinimized, autoScrollCli]);
 
   useEffect(() => {
     if (!activeTab || isCLIConsoleActive) return;
 
-    const diff = activeLogs.length - previousActiveServerLogLengthRef.current;
-    previousActiveServerLogLengthRef.current = activeLogs.length;
+    const diff = appendedLogCount(activeLogs, previousServerTailRef.current);
+    previousServerTailRef.current = serverTail;
 
     if (diff <= 0) {
       if (activeLogs.length === 0) setPendingServerLogs(0);
@@ -260,7 +302,7 @@ export function ServerConsoleTabs({
     }
 
     setPendingServerLogs((prev) => prev + diff);
-  }, [activeLogs.length, activeTab, isCLIConsoleActive, isMinimized, autoScrollServer]);
+  }, [activeLogs.length, serverTail, activeTab, isCLIConsoleActive, isMinimized, autoScrollServer]);
 
   // Keep the view pinned to the bottom while auto-scroll is on. Runs synchronously
   // before paint on every new log, so it can't lose a requestAnimationFrame race
@@ -273,7 +315,7 @@ export function ServerConsoleTabs({
     el.scrollTop = el.scrollHeight;
     const id = requestAnimationFrame(() => { isProgrammaticServerScrollRef.current = false; });
     return () => cancelAnimationFrame(id);
-  }, [activeLogs.length, autoScrollServer, isCLIConsoleActive, isMinimized, isFullscreen]);
+  }, [activeLogs.length, serverTail, autoScrollServer, isCLIConsoleActive, isMinimized, isFullscreen]);
 
   useLayoutEffect(() => {
     if (!isCLIConsoleActive || isMinimized || !autoScrollCli) return;
@@ -283,7 +325,16 @@ export function ServerConsoleTabs({
     el.scrollTop = el.scrollHeight;
     const id = requestAnimationFrame(() => { isProgrammaticCliScrollRef.current = false; });
     return () => cancelAnimationFrame(id);
-  }, [cliMessages.length, autoScrollCli, isCLIConsoleActive, isMinimized, isFullscreen]);
+  }, [cliMessages.length, cliTail, autoScrollCli, isCLIConsoleActive, isMinimized, isFullscreen]);
+
+  useLayoutEffect(() => {
+    const element = isCLIConsoleActive ? cliContainerRef.current : serverContainerRef.current;
+    const following = isCLIConsoleActive ? autoScrollCli : autoScrollServer;
+    if (!element || !following || isMinimized) return;
+    const observer = new ResizeObserver(() => { element.scrollTop = element.scrollHeight; });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [activeTab, isCLIConsoleActive, autoScrollCli, autoScrollServer, isMinimized]);
 
   const handleCliScroll = () => {
     const el = cliContainerRef.current;
@@ -339,23 +390,7 @@ export function ServerConsoleTabs({
     );
   };
 
-  const getLogColor = (type: LogEntry['type']) => {
-    const isDark = true;
-    switch (type) {
-      case 'error':
-        return isDark ? 'text-red-400' : 'text-red-200';
-      case 'warning':
-        return isDark ? 'text-yellow-400' : 'text-yellow-200';
-      case 'success':
-        return isDark ? 'text-green-400' : 'text-green-200';
-      case 'command':
-        return isDark ? 'text-[var(--color-cyan-400)]' : 'text-white';
-      case 'action':
-        return isDark ? 'text-purple-400' : 'text-purple-200';
-      default:
-        return isDark ? 'text-gray-300' : 'text-white';
-    }
-  };
+
 
   const cardBg = 'bg-gp-surface-card shadow-[0_4px_24px_rgba(2,6,23,0.55),0_1px_4px_rgba(2,6,23,0.3)]';
   const borderColor = 'border-gray-700';
@@ -415,7 +450,7 @@ export function ServerConsoleTabs({
     if (!activeTab || !commandValue.trim() || commandSending) return;
     // External images have no console script and some games expose no command interface at
     // all — the backend returns 501, so never call it.
-    if (activeServer?.provider === 'external') return;
+    if (activeServer?.provider === 'external' && !isNativeTemplate(activeServer.providerMetadataJson)) return;
     if (!supportsConsoleCommand(activeServer?.providerMetadataJson)) return;
     const cmd = commandValue.trim();
     setCommandHistory((prev) => [cmd, ...prev].slice(0, 100));
@@ -436,9 +471,11 @@ export function ServerConsoleTabs({
     }
   }, [commandSending]);
 
-  const handleCommandKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !commandSending) {
-      void handleSendCommand();
+  const handleCommandKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!commandSending) void handleSendCommand();
       return;
     }
     if (e.key === 'ArrowUp') {
@@ -486,8 +523,8 @@ export function ServerConsoleTabs({
   }, [isFullscreen]);
 
   useEffect(() => {
-    try { localStorage.setItem(CONSOLE_HEIGHT_STORAGE_KEY, String(panelHeight)); } catch { /* ignore */ }
-  }, [panelHeight]);
+    try { localStorage.setItem(heightStorageKey, String(panelHeight)); } catch { /* ignore */ }
+  }, [panelHeight, heightStorageKey]);
 
   useEffect(() => {
     const onResize = () => setPanelHeight((h) => clampConsoleHeight(h));
@@ -550,6 +587,7 @@ export function ServerConsoleTabs({
 
   return (
     <div
+      data-fullscreen={isFullscreen}
       className={`gp-console-panel ${cardBg} overflow-hidden ${
         isFullscreen
           ? 'fixed inset-0 z-[70] flex flex-col rounded-none border-0 shadow-none'
@@ -560,7 +598,7 @@ export function ServerConsoleTabs({
         className={`flex min-h-[44px] shrink-0 items-stretch justify-between border-b ${borderColor} ${isFullscreen ? '' : 'rounded-t-lg'} overflow-hidden bg-gp-surface-input`}
       >
         <div className="flex min-w-0 flex-1 items-stretch overflow-x-auto hide-scrollbar">
-          <div
+          {!singleServer && !hideActivity && <div
             className={`flex h-full shrink-0 items-center gap-2 border-l px-4 transition-colors cursor-pointer select-none ${
               activeTab === 'cli-console'
                 ? `${tabActiveBg} ${tabActiveText}`
@@ -587,7 +625,7 @@ export function ServerConsoleTabs({
                 {cliMessages.length}
               </span>
             )}
-          </div>
+          </div>}
 
           {openTabServers.map((server, index) => {
               const isLastOpenTab = index === openTabServers.length - 1;
@@ -604,9 +642,9 @@ export function ServerConsoleTabs({
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <Terminal className="w-4 h-4" />
-                    <span className="text-sm font-medium whitespace-nowrap">{server.name}</span>
+                    <span className="text-sm font-medium whitespace-nowrap">{singleServer ? 'Server Console' : server.name}</span>
                   </div>
-                  <button
+                  {!singleServer && <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -620,14 +658,14 @@ export function ServerConsoleTabs({
                     }`}
                   >
                     <X className="h-4 w-4" strokeWidth={2.2} />
-                  </button>
+                  </button>}
                 </div>
               );
             })}
         </div>
         <div className="flex min-h-full self-stretch flex-shrink-0 items-center gap-1 sm:gap-2 bg-gp-surface-input px-2 sm:px-4 py-0">
           <div className="flex h-full items-center justify-center gap-2">
-            <span className={`hidden sm:inline text-xs ${textSecondary}`}>Date/Time</span>
+            <span className={`gp-console-tool-label hidden sm:inline text-xs ${textSecondary}`}>Date/Time</span>
             <AppToggle
               checked={showTimestamps}
               onChange={setShowTimestamps}
@@ -638,18 +676,20 @@ export function ServerConsoleTabs({
           <AppButton
             tone="ghost"
             onClick={handleCopyActiveLogs}
+            aria-label="Copy console logs"
             className={`inline-flex h-8 items-center gap-2 px-2 sm:px-3 rounded ${tabHoverBg} transition-colors ${textSecondary} hover:text-[var(--color-cyan-400)] text-sm`}
           >
             <Copy className="w-3 h-3" />
-            <span className="hidden sm:inline">Copy</span>
+            <span className="gp-console-tool-label hidden sm:inline">Copy</span>
           </AppButton>
           <AppButton
             tone="ghost"
             onClick={handleClearActiveLogs}
+            aria-label="Clear console logs"
             className={`inline-flex h-8 items-center gap-2 px-2 sm:px-3 rounded ${tabHoverBg} transition-colors ${textSecondary} hover:text-orange-400 text-sm`}
           >
             <Trash2 className="w-3 h-3" />
-            <span className="hidden sm:inline">Clear</span>
+            <span className="gp-console-tool-label hidden sm:inline">Clear</span>
           </AppButton>
           <AppButton
             tone="ghost"
@@ -658,7 +698,7 @@ export function ServerConsoleTabs({
             className={`inline-flex h-8 items-center gap-2 px-2 sm:px-3 rounded ${tabHoverBg} transition-colors ${textSecondary} hover:text-[var(--color-cyan-400)] text-sm`}
           >
             {isFullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-            <span className="hidden sm:inline">{isFullscreen ? 'Reduce' : 'Full screen'}</span>
+            <span className="gp-console-tool-label hidden sm:inline">{isFullscreen ? 'Reduce' : 'Full screen'}</span>
           </AppButton>
         </div>
       </div>
@@ -757,20 +797,7 @@ export function ServerConsoleTabs({
                     </div>
                   ) : (
                     <Fragment key={activeTab}>
-                      {activeLogs.map((log) => (
-                        <div
-                          key={log.id}
-                          className="mb-1 flex items-start gap-2 rounded px-1 leading-5 hover:bg-white/5"
-                        >
-                          <span className="gp-log-time shrink-0 text-gray-500">
-                            [{log.displayTime ?? formatLogDisplayTime(log.timestamp)}]
-                          </span>
-                          <AnsiLine
-                            className={`m-0 inline-block min-w-max flex-none whitespace-pre font-mono text-sm ${getLogColor(log.type)}`}
-                            message={log.message}
-                          />
-                        </div>
-                      ))}
+                      {activeLogs.map(log => <ServerLogLine key={log.id} log={log} />)}
                     </Fragment>
                   )}
                 </div>
@@ -789,8 +816,8 @@ export function ServerConsoleTabs({
               </div>
               {(() => {
                 const canSend = canSendCommandByServer?.[activeServer.id] ?? false;
-                const isStopped = isServerDownLike(activeServer.status);
-                const isExternal = activeServer.provider === 'external';
+                const isStopped = isServerDownLike(activeServer.status) || (isNativeTemplate(activeServer.providerMetadataJson) && !['running', 'unhealthy'].includes(activeServer.status));
+                const isExternal = activeServer.provider === 'external' && !isNativeTemplate(activeServer.providerMetadataJson);
                 const hasConsole = supportsConsoleCommand(activeServer.providerMetadataJson);
                 const noConsole = isExternal || !hasConsole;
                 const isInputDisabled = commandSending || !canSend || isStopped || noConsole;
@@ -808,23 +835,33 @@ export function ServerConsoleTabs({
                     <span className="shrink-0 select-none font-mono text-sm font-bold text-[var(--color-cyan-400)]">
                       {commandSending ? '…' : '>'}
                     </span>
-                    <input
+                    <textarea
                       ref={commandInputRef}
-                      type="text"
+                      rows={1}
+                      wrap="off"
+                      name="server-console-command"
+                      aria-label="Server console command"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      data-form-type="other"
                       value={commandValue}
                       onChange={(e) => {
-                        setCommandValue(e.target.value);
+                        setCommandValue(e.target.value.replace(/[\r\n]+/g, ' '));
                         if (historyIndex !== -1) setHistoryIndex(-1);
                       }}
                       onKeyDown={handleCommandKeyDown}
                       disabled={isInputDisabled}
                       placeholder={inputPlaceholder}
-                      style={{ color: isInputDisabled ? '#4b5563' : '#e2e8f0' }}
-                      className="flex-1 bg-transparent font-mono text-sm caret-[var(--color-cyan-400)] placeholder-gray-600 focus:outline-none disabled:cursor-not-allowed"
+                      style={{ color: isInputDisabled ? '#4b5563' : '#e2e8f0', height: 24, minHeight: 24, padding: 0, border: 0, boxShadow: 'none' }}
+                      className="min-w-0 flex-1 resize-none overflow-hidden bg-transparent font-mono text-sm leading-6 caret-[var(--color-cyan-400)] placeholder-gray-600 focus:outline-none disabled:cursor-not-allowed"
                     />
                     <button
                       onClick={() => void handleSendCommand()}
-                      disabled={commandSending || !commandValue.trim() || !canSend || noConsole}
+                      disabled={isInputDisabled || !commandValue.trim()}
                       title="Send command (Enter)"
                       className="shrink-0 rounded p-1.5 text-gray-600 transition-colors hover:bg-[var(--color-cyan-400)]/10 hover:text-[var(--color-cyan-400)] disabled:cursor-not-allowed disabled:opacity-30"
                     >
@@ -856,4 +893,3 @@ export function ServerConsoleTabs({
     </div>
   );
 }
-

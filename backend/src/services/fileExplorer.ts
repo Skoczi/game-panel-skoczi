@@ -10,6 +10,7 @@ import {
 import { getServerOrThrow } from './servers.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import { parseStoredMounts } from '../providers/runtimeConfig.js';
+import { nativeBackupDirectory, nativeServerTemplate } from './nativeBackups.js';
 
 type ListFilesResult = {
     root: string;
@@ -30,6 +31,9 @@ export async function getServerFsRoot(params: {
     root: ServerFsRoot;
 }): Promise<{ server: GameServerRow; root: string; rootDir: string; roots: FileRoot[] }> {
     const server = await getServerOrThrow(params.serverId);
+    if (params.root === 'native-backups') {
+        return { server, root: 'native-backups', rootDir: await nativeBackupDirectory(server), roots: [] };
+    }
     const mounts = parseStoredMounts(server);
     const roots = mounts.map((mount) => ({
         key: mount.key,
@@ -70,6 +74,7 @@ export async function listServerFiles(params: {
     const fsRoot = await getServerFsRoot({ serverId: params.serverId, root });
 
     const resolved = resolveSafeChildPath(fsRoot.rootDir, params.path);
+    if (fsRoot.root !== 'native-backups') await assertPublicServerPath(params.serverId, resolved.absPath);
     const st = await fs.lstat(resolved.absPath).catch(() => null);
 
     if (!st) throw Object.assign(new Error('Path not found'), { statusCode: 404 });
@@ -77,7 +82,8 @@ export async function listServerFiles(params: {
     await ensureResolvedPathInsideRoot(resolved.absPath, fsRoot.rootDir);
     if (!st.isDirectory()) throw Object.assign(new Error('Path is not a directory'), { statusCode: 400 });
 
-    const entries = await listDirectory(resolved.absPath);
+    let entries = await listDirectory(resolved.absPath);
+    if (nativeServerTemplate(fsRoot.server) && fsRoot.root === 'data' && resolved.apiPath === '/') entries = entries.filter(entry => entry.name !== 'backups');
     return {
         root: fsRoot.root,
         path: resolved.apiPath,
@@ -93,9 +99,33 @@ export async function resolveServerPath(params: {
 }): Promise<{ root: string; apiPath: string; absPath: string; rootDir: string }> {
     const root = params.root ?? 'data';
     const fsRoot = await getServerFsRoot({ serverId: params.serverId, root });
+    const resolved = resolveSafeChildPath(fsRoot.rootDir, params.path);
+    if (root !== 'native-backups') await assertPublicServerPath(params.serverId, resolved.absPath);
     return {
         root: fsRoot.root,
-        ...resolveSafeChildPath(fsRoot.rootDir, params.path),
+        ...resolved,
         rootDir: fsRoot.rootDir,
     };
+}
+
+// Physical placement does not grant file-manager access to managed backup data.
+export async function assertPublicServerPath(serverId: number, filename: string, recursive = false): Promise<void> {
+    const server = await getServerOrThrow(serverId);
+    if (!nativeServerTemplate(server)) return;
+    const reserved = path.resolve(getServerStoragePaths(serverId).serverRoot, 'data', 'backups');
+    async function canonical(filename: string): Promise<string> {
+        try { return await fs.realpath(filename); }
+        catch (error: any) {
+            if (error.code !== 'ENOENT') throw error;
+            const parent = path.dirname(filename);
+            if (parent === filename) throw error;
+            return path.join(await canonical(parent), path.basename(filename));
+        }
+    }
+    const target = path.resolve(filename);
+    const actual = await canonical(target), privateRoot = await canonical(reserved);
+    const overlaps = (file: string, privateDir: string) => file === privateDir || file.startsWith(privateDir + path.sep) || (recursive && privateDir.startsWith(file + path.sep));
+    if (overlaps(target, reserved) || overlaps(actual, privateRoot)) {
+        throw Object.assign(new Error('This directory contains managed backups. Use Backups to access them; select serverfiles for game files.'), { statusCode: 403 });
+    }
 }

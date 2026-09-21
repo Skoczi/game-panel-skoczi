@@ -3,10 +3,12 @@ import {
   useEffect,
   useRef,
   useCallback,
+  lazy,
+  Suspense,
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { ACTIVE_SERVER } from './utils/nodeContext';
+import { ACTIVE_SERVER, ACTIVE_NODE } from './utils/nodeContext';
 import { Login } from './components/Login';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { type GameServer } from './types/gameServer';
@@ -14,7 +16,7 @@ import { apiClient } from './utils/api';
 import { METRICS_HISTORY_REQUEST_LIMIT } from './components/gameServersTable/utils';
 import { clearAppCache } from './utils/appStorage';
 import { OVHCLOUD_IMAGES } from './utils/ovhcloudCatalog';
-import { AppShell } from './components/app/AppShell';
+const AppShell = lazy(() => import('./components/app/AppShell').then(module => ({ default: module.AppShell })));
 import {
   createWebSocketMessageHandler,
   type FleetMetricValues,
@@ -85,6 +87,14 @@ function AppContent() {
   );
 
   const [gameServers, setGameServersState] = useState<GameServer[]>([]);
+  const [serverSnapshotStatus, setServerSnapshotStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading'
+  );
+  useEffect(() => {
+    if (serverSnapshotStatus !== 'loading' || !authReady || !isAuthenticated) return;
+    const timer = window.setTimeout(() => setServerSnapshotStatus('error'), 15000);
+    return () => window.clearTimeout(timer);
+  }, [serverSnapshotStatus, authReady, isAuthenticated]);
   const setGameServers: Dispatch<SetStateAction<GameServer[]>> = useCallback((value) => {
     setGameServersState((previous) => {
       const next = typeof value === 'function' ? value(previous) : value;
@@ -168,6 +178,9 @@ function AppContent() {
 
     const wsListener = (message: any) => {
       handleWebSocketMessageRef.current(message);
+      if (message.type === 'servers:snapshot' && Array.isArray(message.servers)) {
+        setServerSnapshotStatus('ready');
+      }
     };
 
     const connectWS = async () => {
@@ -176,6 +189,7 @@ function AppContent() {
 
         apiClient.subscribeServers();
       } catch (error) {
+        setServerSnapshotStatus('error');
         console.error('Failed to connect WebSocket:', error);
       }
     };
@@ -261,6 +275,7 @@ function AppContent() {
       const points = (data.metrics ?? [])
         .map((sample) => ({
           timestamp: new Date(sample.timestamp).getTime(),
+          resources: sample.resources,
           cpuUsage: sample.cpuUsage ?? 0,
           memoryUsage: sample.memoryUsage ?? 0,
           diskUsage: sample.diskUsage ?? 0,
@@ -348,12 +363,39 @@ function AppContent() {
 
   useInstallAutoOpenLogs(installServerId, installStatus, openInstallLogs);
 
+  const nativeSubscriptions = useRef(new Set<string>());
+  useEffect(() => {
+    for (const server of gameServers) {
+      if (nativeSubscriptions.current.has(server.id)) continue;
+      let native = false;
+      try { native = JSON.parse(server.providerMetadataJson || '{}')?.template?.document?.schemaVersion === 2; } catch {}
+      if (!native || !canAccessServer(Number(server.id), 'container.logs.read') || !canAccessServer(Number(server.id), 'server.edit')) continue;
+      nativeSubscriptions.current.add(server.id);
+      apiClient.subscribeActions(Number(server.id), 200, 'native-activity');
+      if (server.installStatus && !['completed', 'failed'].includes(server.installStatus)) apiClient.subscribeInstall(Number(server.id));
+    }
+  }, [gameServers, canAccessServer]);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('native-install-open-console');
+    if (!raw) return;
+    try {
+      const target = JSON.parse(raw);
+      if (target.nodeId !== ACTIVE_NODE || !gameServers.some(s => s.id === String(target.id))) return;
+      if (!canAccessServer(target.id, 'container.logs.read')) return;
+      sessionStorage.removeItem('native-install-open-console');
+      openServerConsole(target.id);
+    } catch { sessionStorage.removeItem('native-install-open-console'); }
+  }, [gameServers, canAccessServer, openServerConsole]);
+
   const removeServerFromUi = useCallback(
     (serverId: string) => {
       const numericServerId = Number(serverId);
       if (Number.isFinite(numericServerId) && numericServerId > 0) {
         apiClient.unsubscribeLogs(numericServerId);
         apiClient.unsubscribeActions(numericServerId);
+        apiClient.unsubscribeActions(numericServerId, 'native-activity');
+        nativeSubscriptions.current.delete(serverId);
         apiClient.unsubscribeInstall(numericServerId);
       }
 
@@ -443,6 +485,7 @@ function AppContent() {
       id: String(server.id),
       name: server.name,
       game:
+        server.providerMetadata?.template?.document?.name ??
         server.catalogId ??
         (server.provider === 'external' ? server.dockerImage : null) ??
         server.provider ??
@@ -489,6 +532,11 @@ function AppContent() {
   }, [activeTab, canManageUsers]);
 
   const handleLogin = () => {
+    if (window.location.pathname.startsWith('/s/')) {
+      // Resolve the destination before mounting clients bound to a particular runtime.
+      window.location.reload();
+      return;
+    }
     if (window.location.pathname !== '/') {
       window.history.replaceState(null, '', '/');
     }
@@ -497,11 +545,13 @@ function AppContent() {
   };
 
   const handleLogout = () => {
+    nativeSubscriptions.current.clear();
     apiClient.logout();
     clearAppCache();
     resetSession();
     setMobileMenuOpen(false);
     setGameServers([]);
+    setServerSnapshotStatus('loading');
     setServerLogs({});
     setServerHistoryById({});
     setServerMetricsHistoryById({});
@@ -724,6 +774,7 @@ function AppContent() {
   const pageShellClassName = 'w-full px-3 py-4 sm:px-4 sm:py-5 md:px-6 md:py-6';
 
   return (
+    <Suspense fallback={<div role="status" className="min-h-screen grid place-items-center text-sm">Opening panel…</div>}>
     <AppShell
       activeTab={activeTab}
       setActiveTab={setActiveTab}
@@ -735,6 +786,11 @@ function AppContent() {
       currentUser={currentUser}
       pageShellClassName={pageShellClassName}
       gameServers={gameServers}
+      serverSnapshotStatus={serverSnapshotStatus}
+      onRetryServerSnapshot={() => {
+        setServerSnapshotStatus('loading');
+        void handleRefreshServerSnapshot();
+      }}
       serverMetricsHistoryById={serverMetricsHistoryById}
       onLoadServerMetricsHistory={loadServerMetricsHistory}
       serverHistoryById={serverHistoryById}
@@ -783,6 +839,7 @@ function AppContent() {
       setChangePasswordOpen={setChangePasswordOpen}
       currentUserId={currentUserId}
     />
+    </Suspense>
   );
 }
 

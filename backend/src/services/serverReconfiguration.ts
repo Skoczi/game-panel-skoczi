@@ -1,4 +1,5 @@
 import { serverRepository } from '../database/index.js';
+import { nativeTemplate, nativeContainerOptions } from '../templates/nativeContract.js';
 import { getOvhcloudServerAdapter } from '../providers/ovhcloud/adapters/registry.js';
 import type { NormalizedHealthcheck } from '../utils/healthcheck.js';
 import type { NormalizedMount } from '../utils/mounts.js';
@@ -73,6 +74,7 @@ async function resolveImageForRecreate(server: GameServerRow): Promise<{
     if (await dockerUtils.imageExists(primary)) {
         return { image: primary, usedFallback: false };
     }
+    if (nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'))) throw new Error('Pinned native image is missing on this node; restore the same image before recreating this server');
 
     try {
         await dockerUtils.pullImageByName(primary);
@@ -168,6 +170,9 @@ export async function reconfigureServerContainer(
     const nextEnv = validateEnvForServer(server, input.env ?? currentEnv);
     const nextHealthcheck = input.hasHealthcheckPatch ? input.healthcheck ?? null : currentHealthcheck;
     const nextResourceLimits = input.hasResourceLimitsPatch ? input.resourceLimits ?? null : currentResourceLimits;
+    const native = nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'));
+    const nativeOptions = native ? nativeContainerOptions(native, nextEnv, nextPorts) : undefined;
+    if (native && JSON.stringify(nextMounts) !== JSON.stringify(native.mounts)) throw Object.assign(new Error('Native data mounts are fixed by the installed template'), { statusCode: 400 });
 
     const wasRunning = currentContainerStatus === 'running' || currentContainerStatus === 'restarting';
     const shouldStopBeforeReconfigure = currentContainerStatus === 'running';
@@ -250,6 +255,7 @@ export async function reconfigureServerContainer(
                 provider: server.provider,
                 catalogId: server.catalog_id,
                 image: image.image,
+                ...(nativeOptions ? { native: nativeOptions } : {}),
                 env: nextEnv,
                 mounts: resolvedMounts,
                 ports: nextPorts,

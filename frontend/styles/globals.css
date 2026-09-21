@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './panel-density.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -1426,6 +1427,18 @@ html:not(.dark) .gp-settings-modal .bg-\[\#1e293b\] {
 }
 
 /* Active tab — white text + icon on navy background */
+html.dark .gp-settings-modal .gp-settings-menu-btn.gp-app-button--ghost[data-ods='button']:not([disabled]):not([aria-disabled='true']) {
+  color: #e2e8f0 !important;
+}
+html.dark .gp-settings-modal .gp-settings-menu-btn.gp-app-button--ghost[data-ods='button']:not([disabled]):not([aria-disabled='true']):hover {
+  background: #334155 !important;
+}
+html.dark .gp-settings-modal .gp-settings-menu-btn.gp-app-button--ghost[data-ods='button'][class~="bg-[var(--gp-primary-300)]"] {
+  color: #ffffff !important;
+}
+html.dark .gp-settings-modal .gp-settings-menu-btn.gp-app-button--ghost[data-ods='button'][disabled] {
+  color: #94a3b8 !important;
+}
 html:not(.dark) .gp-settings-modal .gp-settings-menu-btn.gp-app-button--ghost[data-ods='button'][class~="bg-[var(--gp-primary-300)]"] {
   color: #ffffff !important;
 }

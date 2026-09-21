@@ -139,9 +139,9 @@ export const HostStatusView = memo(function HostStatusView({
   const networkHistoryOutColor = networkOutColor;
 
   return (
-    <div className="space-y-3 md:space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-6">
-        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+    <div className="space-y-3 md:space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Cpu className="w-5 h-5" style={{ color: ODS_CHART_THEME.cpu }} />
@@ -157,7 +157,7 @@ export const HostStatusView = memo(function HostStatusView({
           </div>
         </AppCard>
 
-        <AppCard className={`${cardBg} rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+        <AppCard className={`${cardBg} rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Activity className="w-5 h-5" style={{ color: ODS_CHART_THEME.ram }} />
@@ -173,7 +173,7 @@ export const HostStatusView = memo(function HostStatusView({
           </div>
         </AppCard>
 
-        <AppCard className={`${cardBg} rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+        <AppCard className={`${cardBg} rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <HardDrive className="w-5 h-5" style={{ color: ODS_CHART_THEME.disk }} />
@@ -189,7 +189,7 @@ export const HostStatusView = memo(function HostStatusView({
           </div>
         </AppCard>
 
-        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Network className="w-5 h-5" style={{ color: networkInColor }} />
@@ -259,8 +259,8 @@ export const HostStatusView = memo(function HostStatusView({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
-        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <h3 className={`text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2 ${textPrimary}`}>
             <Cpu className="w-5 h-5" style={{ color: ODS_CHART_THEME.cpu }} />
             CPU History
@@ -340,7 +340,7 @@ export const HostStatusView = memo(function HostStatusView({
           </ChartZoomArea>
         </AppCard>
 
-        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+        <AppCard className={`${cardBg} h-full rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <h3 className={`text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2 ${textPrimary}`}>
             <Activity className="w-5 h-5" style={{ color: ODS_CHART_THEME.ram }} />
             RAM History
@@ -420,7 +420,7 @@ export const HostStatusView = memo(function HostStatusView({
           </ChartZoomArea>
         </AppCard>
 
-        <AppCard className={`${cardBg} rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+        <AppCard className={`${cardBg} rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <h3 className={`text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2 ${textPrimary}`}>
             <HardDrive className="w-5 h-5" style={{ color: ODS_CHART_THEME.disk }} />
             Disk History
@@ -500,7 +500,7 @@ export const HostStatusView = memo(function HostStatusView({
           </ChartZoomArea>
         </AppCard>
 
-        <AppCard className={`${cardBg} rounded-lg p-4 md:p-6 border ${cardBorder} ${cardShadow}`}>
+        <AppCard className={`${cardBg} rounded-lg p-4 md:p-5 border ${cardBorder} ${cardShadow}`}>
           <div className="flex items-center justify-between mb-3 md:mb-4">
             <h3 className={`text-base md:text-lg flex items-center gap-2 ${textPrimary}`}>
               <Network className="w-5 h-5" style={{ color: networkInColor }} />

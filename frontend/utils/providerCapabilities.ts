@@ -5,6 +5,11 @@ interface ProviderCapabilities {
   backup?: { type?: unknown; supportsCreate?: unknown } | null;
 }
 
+export function isNativeTemplate(metadataJson: string | null | undefined): boolean {
+  try { return JSON.parse(metadataJson || '{}')?.template?.document?.schemaVersion === 2; }
+  catch { return false; }
+}
+
 function readCapabilities(metadataJson: string | null | undefined): ProviderCapabilities | null {
   if (!metadataJson) return null;
   try {

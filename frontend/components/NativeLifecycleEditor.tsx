@@ -33,6 +33,15 @@ export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; 
       <textarea aria-label="Startup arguments" className={`${field} font-mono`} rows={7} value={lifecycle.startup.join('\n')} onChange={e => update({ startup: e.target.value.split('\n') })} />
     </label>
     <p className="text-sm text-slate-500">First line: absolute executable path. Use {'{{VARIABLE}}'} for declared variables or managed port variables. Arguments are passed directly, without a shell. Do not add quoting around values.</p>
+    <label className="block text-sm font-medium">Stop command (optional)
+      <input aria-label="Stop command" className={`${field} font-mono`} maxLength={1000} placeholder="For example: quit or stop" value={lifecycle.stopCommand ?? ''} onChange={e => {
+        const next = { ...lifecycle };
+        if (e.target.value) next.stopCommand = e.target.value;
+        else delete next.stopCommand;
+        change({ lifecycle: next });
+      }} />
+    </label>
+    <p className="text-sm text-slate-500">Sent to the game console before stopping. The panel waits for the process to exit; the stop signal is a fallback if it does not respond. Leave empty to use the stop signal directly.</p>
     <div className="grid gap-4 md:grid-cols-3">
       <label className="text-sm">Working directory<input className={field} value={lifecycle.workdir} onChange={e => update({ workdir: e.target.value })} /></label>
       <label className="text-sm">Stop timeout (seconds)<input className={field} type="number" min={1} max={120} value={lifecycle.stopTimeoutSeconds} onChange={e => update({ stopTimeoutSeconds: Number(e.target.value) })} /></label>

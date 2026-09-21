@@ -1,3 +1,4 @@
+import { tryGracefulGameStop, restoreGracefulRestartPolicy } from '../../services/gracefulGameStop.js';
 // Modified by Skoczi: preserve explicit HostIp and multiple bindings per container port.
 import { ownsContainer, runtimeNodeId } from './ownership.js';
 import { buildPortMaps } from './portBindings.js';
@@ -346,15 +347,22 @@ async function assertContainerPortPolicy(containerId: string): Promise<void> {
 
 export async function startContainer(containerId: string): Promise<void> {
     await assertContainerPortPolicy(containerId);
+    const finishRestore = await restoreGracefulRestartPolicy(containerId);
     await docker.getContainer(containerId).start();
+    await finishRestore?.();
 }
 
 export async function stopContainer(containerId: string, timeoutSeconds = 30): Promise<void> {
+    if (await tryGracefulGameStop(containerId, timeoutSeconds)) return;
     await docker.getContainer(containerId).stop({ t: timeoutSeconds });
 }
 
 export async function restartContainer(containerId: string, timeoutSeconds = 30): Promise<void> {
     await assertContainerPortPolicy(containerId);
+    if (await tryGracefulGameStop(containerId, timeoutSeconds)) {
+        await startContainer(containerId);
+        return;
+    }
     await docker.getContainer(containerId).restart({ t: timeoutSeconds });
 }
 

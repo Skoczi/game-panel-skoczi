@@ -98,7 +98,12 @@ export function validateTemplate(input: unknown): GameTemplate {
     let lifecycle: GameTemplate['lifecycle'];
     if (v.schemaVersion === 2) {
         if (provider !== 'external') throw new TemplateError('Native lifecycle requires the generic runtime provider, not a legacy adapter');
-        const l = object(v.lifecycle, ['startup', 'install', 'update', 'workdir', 'stopSignal', 'stopTimeoutSeconds', 'installerImage']);
+        const l = object(v.lifecycle, ['startup', 'install', 'update', 'workdir', 'stopSignal', 'stopTimeoutSeconds', 'installerImage', 'stopCommand']);
+        let stopCommand: string | undefined;
+        if (l.stopCommand !== undefined) {
+            stopCommand = text(l.stopCommand, 1000).trim();
+            if (/[\r\n\x00-\x1f\x7f{}]/.test(stopCommand)) throw new TemplateError('Stop command must be a fixed single console line');
+        }
         let installerImage: string | undefined;
         if (l.installerImage !== undefined) {
             installerImage = text(l.installerImage, 255);
@@ -139,7 +144,7 @@ export function validateTemplate(input: unknown): GameTemplate {
         });
         const workdir = text(l.workdir, 160);
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
-        lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}) };
+        lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}), ...(stopCommand ? { stopCommand } : {}) };
     }
     return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}) };
 }

@@ -19,6 +19,8 @@ export type NativeLifecycle = {
     install: NativeStep[];
     update: NativeStep[];
     workdir: string;
+    // Optional fixed console command sent before the fallback stop signal.
+    stopCommand?: string;
     stopSignal: 'SIGTERM' | 'SIGINT';
     stopTimeoutSeconds: number;
 };

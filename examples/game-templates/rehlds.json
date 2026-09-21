@@ -53,6 +53,14 @@
       "required": true,
       "secret": false,
       "default": "16"
+    },
+    {
+      "key": "CFG",
+      "label": "Server config",
+      "type": "string",
+      "required": true,
+      "secret": false,
+      "default": "server.cfg"
     }
   ],
   "mounts": [
@@ -89,7 +97,7 @@
     "startup": [
       "/bin/bash",
       "-c",
-      "set -euo pipefail\ncd /data/serverfiles\n[[ \"$MAX_PLAYERS\" =~ ^[0-9][0-9]?$ ]] && (( 10#$MAX_PLAYERS >= 1 && 10#$MAX_PLAYERS <= 32 )) || ( echo 'Player limit must be 1-32'; exit 2 )\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || ( echo 'Invalid map name'; exit 2 )\n# GoldSrc config syntax does not safely quote these characters. Never evaluate\n# user input as shell code or permit it to introduce another game command.\n[[ \"$SERVER_NAME\" != *\\\"* && \"$SERVER_NAME\" != *\\\\* && \"$SERVER_NAME\" != *';'* && \"$SERVER_NAME\" != *$'\\n'* && \"$SERVER_NAME\" != *$'\\r'* ]] || ( echo 'Server name cannot contain quotes, backslashes, semicolons or line breaks'; exit 2 )\n# Stock Steam server.cfg contains its own hostname. Keep the owner's config\n# untouched, then apply the template variable on startup and every map change.\nprintf 'exec server.cfg\\nhostname \"%s\"\\n' \"$SERVER_NAME\" > cstrike/gamepanel-startup.cfg\nexport LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin\nexec ./hlds_linux \"$@\"\n",
+      "set -euo pipefail\ncd /data/serverfiles\n[[ \"$MAX_PLAYERS\" =~ ^[0-9][0-9]?$ ]] && (( 10#$MAX_PLAYERS >= 1 && 10#$MAX_PLAYERS <= 32 )) || ( echo 'Player limit must be 1-32'; exit 2; )\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || ( echo 'Invalid map name'; exit 2; )\n[[ \"$SERVER_NAME\" != *\\\"* && \"$SERVER_NAME\" != *\\\\* && \"$SERVER_NAME\" != *';'* && \"$SERVER_NAME\" != *$'\\n'* && \"$SERVER_NAME\" != *$'\\r'* ]] || ( echo 'Server name cannot contain quotes, backslashes, semicolons or line breaks'; exit 2; )\n[[ \"$CFG\" =~ ^[A-Za-z0-9_-]+\\.cfg$ ]] || ( echo 'Config must be a .cfg filename without directories'; exit 2; )\nconfig=\"cstrike/$CFG\"\n[[ ! -L \"$config\" ]] || ( echo 'Config must not be a symbolic link'; exit 2; )\n[[ -f \"$config\" ]] || touch \"$config\"\n# Keep the owner's settings; update only hostname and remove an exact self-include.\n[[ -e \"$config.bak\" ]] || cp -p -- \"$config\" \"$config.bak\"\ntmp=$(mktemp \"cstrike/.hostname.XXXXXXXX\")\ntrap 'rm -f -- \"$tmp\"' EXIT\ncp -p -- \"$config\" \"$tmp\"\nwritten=0\nwhile IFS= read -r line || [[ -n \"$line\" ]]; do\n  if [[ \"$line\" =~ ^[[:space:]]*[Hh][Oo][Ss][Tt][Nn][Aa][Mm][Ee][[:space:]] ]]; then\n    (( written )) || printf 'hostname \"%s\"\\n' \"$SERVER_NAME\"\n    written=1\n  elif [[ \"$line\" =~ ^[[:space:]]*exec[[:space:]]+\\\"?\"$CFG\"\\\"?[[:space:]]*$ ]]; then\n    continue\n  else\n    printf '%s\\n' \"$line\"\n  fi\ndone < \"$config\" > \"$tmp\"\n(( written )) || printf 'hostname \"%s\"\\n' \"$SERVER_NAME\" >> \"$tmp\"\nmv -- \"$tmp\" \"$config\"\ntrap - EXIT\nexport LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin\nexec ./hlds_linux \"$@\"\n",
       "hlds",
       "-console",
       "-game",
@@ -100,12 +108,13 @@
       "{{SERVER_PORT}}",
       "-strictportbind",
       "+servercfgfile",
-      "gamepanel-startup.cfg",
+      "{{CFG}}",
       "+maxplayers",
       "{{MAX_PLAYERS}}",
       "+map",
       "{{MAP}}"
     ],
+    "stopCommand": "quit",
     "stopSignal": "SIGINT",
     "stopTimeoutSeconds": 30,
     "install": [

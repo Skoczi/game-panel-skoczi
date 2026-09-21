@@ -60,6 +60,6 @@ jobs:
           GP_DEPLOY_DOCKER_TEST: '1'
       - name: Test two independent runtimes on real Docker
         working-directory: backend
-        run: npx tsx --test test/integration/nodes.test.ts
-        env:
-          GAMEPANEL_NODE_DOCKER_TEST: '1'
+        # The fixture creates and restores files owned by game UID 101.
+        # Run this isolated test as root, matching the local Docker-in-Docker runner.
+        run: sudo env GAMEPANEL_NODE_DOCKER_TEST=1 "$(command -v node)" --import tsx --test test/integration/nodes.test.ts

@@ -48,7 +48,7 @@ Reserved for real panel captures. Each view has a defined slot in the [screensho
 
 ### Console and resources
 
-- Send commands, search command history, copy output and switch to full screen.
+- Send commands, recall previous commands, copy output and switch to full screen.
 - Follow incoming logs or pause scrolling to read earlier output. The rolling buffer retains up to 5000 server log entries.
 - Read CPU in vCPU, memory in bytes and usage against assigned limits. Game data size, free node storage and network rates are separate measurements.
 - Missing or stale information stays visibly unavailable rather than appearing as zero usage or a successful operation.

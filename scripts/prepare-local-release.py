@@ -53,12 +53,12 @@ def main():
     if candidate_meta['commit'] == rollback_meta['commit']:
         raise SystemExit('Candidate and rollback must be different commits.')
     output.mkdir(parents=True, exist_ok=False)
-    manifest = {'version': args.version, 'scope': 'Source archives only; not an executable deployment or a host/data rollback snapshot.',
+    manifest = {'version': args.version, 'scope': 'Release source with installation tools; rollback archive is source only, not a host/data snapshot.',
                 'candidate': candidate_meta, 'rollback': rollback_meta,
-                'deploymentGates': ['Coordinated panel and agent update; WAW1 terminal access required.',
+                'deploymentGates': ['Coordinate panel and remote-agent updates when agents are configured.',
                                     'Preserve actual host image digests, environment, SQLite and migration ledger before deployment.',
                                     'Preserve game data, backup archives and recovery journals.',
-                                    'Disposable-server acceptance on WAW, including a real game client.']}
+                                    'Validate the target installation with a disposable server and a real game client.']}
     for name, data, metadata in [('candidate', candidate, candidate_meta), ('rollback', rollback, rollback_meta)]:
         filename = f'game-panel-pro-{args.version}.tar.gz' if name == 'candidate' else name + '-' + metadata['commit'][:12] + '.tar.gz'
         (output / filename).write_bytes(data)

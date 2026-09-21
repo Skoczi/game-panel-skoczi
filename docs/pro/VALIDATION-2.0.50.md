@@ -6,7 +6,7 @@ Release work follows the local 2.0.49 candidate (`475521d`). No WAW production d
 
 - **146 backend tests:** includes the real upstream v1.5.0 SQL schema, migration of accounts/memberships/game records, scoped update capability, stable-release filtering and duplicate update rejection.
 - **167 browser tests:** includes offline installed changelog, unmanaged-installation behavior and confirmation/single submission for a managed update.
-- **5 deployment tests:** complete source copy without local secrets, custom-layout rejection, restoration after failed health checks, archive traversal/link rejection and checksum/repository enforcement.
+- **6 deployment tests:** complete source copy without local secrets, custom-layout and unfinished-update rejection, restoration after failed health checks, archive traversal/link rejection and checksum/repository enforcement.
 - TypeScript backend and production frontend builds.
 - A real Docker Compose transaction with small HTTP fixture services verifies migration 1.5.0 → 2.0.50 and rollback, retained panel/game files, exact old image reuse and an unchanged proxy container.
 

@@ -56,6 +56,14 @@ class UpgradeTests(unittest.TestCase):
         self.assertFalse((target / 'backend/.env').exists())
         self.assertFalse((target / 'backend/node_modules').exists())
 
+    def test_unfinished_update_requires_explicit_recovery(self):
+        (self.root / 'data/.panel-upgrade').write_text('interrupted')
+        with patch.object(self.app, 'inspect') as inspect:
+            with self.assertRaisesRegex(ValueError, 'unfinished update'):
+                self.app.apply(Path('/unused'))
+            inspect.assert_not_called()
+        self.assertTrue((self.root / 'data/.panel-upgrade').exists())
+
     def test_preflight_refuses_custom_mounts_without_changes(self):
         config = self.config(); config['services']['backend']['volumes'].append({'type':'bind','source':'/private','target':'/private'})
         with patch.object(self.app,'compose',return_value=json.dumps(config)):

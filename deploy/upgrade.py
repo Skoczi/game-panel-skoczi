@@ -184,6 +184,8 @@ class Upgrade:
         print('Rollback complete; replaced state retained at ' + str(failed))
 
     def apply(self, source):
+        if (self.root / 'data/.panel-upgrade').exists():
+            raise ValueError('An unfinished update requires recovery before another update can start')
         manifest = self.inspect()
         target_version = version(source)
         if not re.fullmatch(r'2\.0\.\d+', target_version):

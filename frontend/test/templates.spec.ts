@@ -190,7 +190,7 @@ test('remote installation sends a signed ticket and explicit bindings, never a c
   await page.getByRole('combobox', { name: /Public IP/ }).click();
   await page.getByRole('option', { name: /Game IP/ }).click();
   await page.getByRole('button', { name: 'Create server', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Server #7 created');
+  await expect(page.locator('.gp-install-status__badge')).toHaveText('Installing');
   expect(prepared.nodeId).toBe('test-node');
   expect(body.templateTicket).toBe('test-ticket');
   expect(body.bindings).toEqual([{ key: 'game', host: 'auto', hostIp: '192.0.2.10' }]);

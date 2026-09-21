@@ -18,6 +18,7 @@ import { OVHCLOUD_IMAGES } from '../utils/ovhcloudCatalog';
 import { selectNode } from '../utils/nodeContext';
 import { NativeLifecycleEditor } from './NativeLifecycleEditor';
 import { TemplatePortBindings, bindingSignature, type PublicBinding } from './TemplatePortBindings';
+import { TemplateInstallStatus } from './TemplateInstallStatus';
 import { InstallationProgressModal } from './InstallationProgressModal';
 import type { InstallStep } from '../types/gameServer';
 
@@ -997,7 +998,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [result, setResult] = useState('');
+  const [connection, setConnection] = useState('');
   const [uncertain, setUncertain] = useState(false);
   const [installedServer, setInstalledServer] = useState<{ id: number; nodeId: string } | null>(() => {
     if (!resumePreviousInstallation) return null;
@@ -1026,9 +1027,11 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
     const poll = async () => {
       try {
         const base = installedServer.nodeId === 'local' ? '' : `/api/nodes/${installedServer.nodeId}/runtime`;
-        const value = await nodesRequest<{ server: { installProgress?: typeof progress } }>(`${base}/api/servers/${installedServer.id}`);
+        const value = await nodesRequest<{ server: { name?: string; ports?: { tcp: Array<{ hostIp?: string; host: number }>; udp: Array<{ hostIp?: string; host: number }> }; installProgress?: typeof progress } }>(`${base}/api/servers/${installedServer.id}`);
         if (cancelled) return;
         setProgressError('');
+        if (value.server.name) setName(value.server.name);
+        if (value.server.ports) setConnection([...new Set([...value.server.ports.tcp, ...value.server.ports.udp].map(p => `${p.hostIp || '0.0.0.0'}:${p.host}`))].join(', '));
         if (value.server.installProgress) {
           setProgress(value.server.installProgress);
           if (['completed', 'failed'].includes(value.server.installProgress.status)) {
@@ -1144,9 +1147,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
             ),
           ].join(', ')
         : '';
-      setResult(
-        `Server #${response.server.id} created.${assigned ? ` Connection: ${assigned}.` : ''} Installation is running on ${nodeId === 'local' ? 'Local' : nodes.find((n) => n.id === nodeId)?.name}. Check its logs for completion.`
-      );
+      setConnection(assigned);
     } catch (e) {
       const status = (e as { status?: number }).status;
       if (status === 409) setPortRefresh((v) => v + 1);
@@ -1169,37 +1170,21 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
           onClose={() => { setShowProgress(false); onDismiss?.(); }}
         />;
   if (installedServer && onDismiss) return progressModal;
+  if (installedServer) return <>
+    <TemplateInstallStatus name={name} template={row.document.name} version={row.version}
+      serverId={installedServer.id} node={installedServer.nodeId === 'local' ? localNode?.name || 'Local' : nodes.find(n => n.id === installedServer.nodeId)?.name || 'Loading…'}
+      connection={connection} progress={progress.progress} status={progress.status} warning={progressError} error={progress.errorMessage}
+      onCatalog={onClose} onProgress={() => setShowProgress(true)}
+      onConsole={() => { sessionStorage.setItem('native-install-open-console', JSON.stringify(installedServer)); selectNode(installedServer.nodeId); }}
+      onServers={() => selectNode(installedServer.nodeId)}
+      onAnother={() => { sessionStorage.removeItem(installStorageKey); setInstalledServer(null); setConnection(''); setShowProgress(false); }} />
+    {progressModal}
+  </>;
   return (
     <div className={`${card} space-y-5`}>
-      {installedServer && <>
-        <button className={button} onClick={() => setShowProgress(true)}>Installation status · server #{installedServer.id}</button>
-        {progressError && <p role="alert">{progressError}</p>}
-        {progressModal}
-      </>}
-      <button className={button} disabled={busy} onClick={onClose}>
-        <ArrowLeft size={16} />
-        Catalog
-      </button>
-      <h2 className="text-2xl font-semibold">
-        Install {row.document.name} · v{row.version}
-      </h2>
-      {error && (
-        <p role="alert" className="text-red-500">
-          {error}
-        </p>
-      )}
-      {result || installedServer ? (
-        <>
-          <p role="status">{result || `Server #${installedServer?.id} · ${progress.status}`}</p>
-          <button className={primary} onClick={() => selectNode(installedServer?.nodeId || nodeId)}>
-            Open node servers
-          </button>
-          {['completed', 'failed'].includes(progress.status) && <button className={button} onClick={async () => {
-            sessionStorage.removeItem(installStorageKey);
-            setInstalledServer(null); setResult(''); setShowProgress(false);
-          }}>Create another server</button>}
-        </>
-      ) : (
+      <button className={button} disabled={busy} onClick={onClose}><ArrowLeft size={16} />Catalog</button>
+      <h2 className="text-2xl font-semibold">Install {row.document.name} · v{row.version}</h2>
+      {error && <p role="alert" className="text-red-500">{error}</p>}
         <fieldset disabled={busy || uncertain} className="space-y-5">
           <div>
             <Field label="Panel server name" value={name} onChange={setName} />
@@ -1272,7 +1257,6 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
             {busy ? 'Submitting…' : 'Create server'}
           </button>
         </fieldset>
-      )}
       {uncertain && (
         <div role="alert" className="space-y-3">
           <p>

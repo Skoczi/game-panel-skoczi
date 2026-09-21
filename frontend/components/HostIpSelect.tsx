@@ -1,5 +1,8 @@
 // Skoczi fork: operator-managed host IPv4 selection; never silently replace a saved IP.
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
+import { InstallTargetContext } from '../contexts/InstallTargetContext';
+import { nodesRequest } from '../utils/nodesApi';
+import { runtimeUrl } from '../utils/nodeContext';
 import { apiClient } from '../utils/api';
 import { AppSelect } from '../src/ui/components';
 
@@ -7,6 +10,7 @@ export function HostIpSelect({ value = '', onChange, disabled = false, protocol 
   value?: string; onChange: (value: string) => void; disabled?: boolean;
   protocol?: 'tcp' | 'udp'; hostPort?: string;
 }) {
+  const targetNode = useContext(InstallTargetContext);
   const [addresses, setAddresses] = useState<string[]>([]);
   const [policy, setPolicy] = useState<Awaited<ReturnType<typeof apiClient.getBindAddresses>> | null>(null);
   const [error, setError] = useState(false);
@@ -14,11 +18,12 @@ export function HostIpSelect({ value = '', onChange, disabled = false, protocol 
   const [open, setOpen] = useState(false);
   useEffect(() => {
     let active = true;
-    apiClient.getBindAddresses().then((result) => { if (active) { setAddresses(result.addresses); setPolicy(result); } })
+    const request = targetNode ? nodesRequest<Awaited<ReturnType<typeof apiClient.getBindAddresses>>>(runtimeUrl('/api/system/bind-addresses', targetNode)) : apiClient.getBindAddresses();
+    request.then((result) => { if (active) { setAddresses(result.addresses); setPolicy(result); } })
       .catch(() => { if (active) setError(true); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [targetNode]);
   const restricted = policy?.requireExplicitIp === true;
   const ranges = policy?.portsByIp?.[value]?.[protocol] ?? [];
   const portAllowed = /^\d+$/.test(hostPort) && ranges.some(({ from, to }) => Number(hostPort) >= from && Number(hostPort) <= to);

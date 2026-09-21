@@ -26,7 +26,6 @@ export function NativeTemplatePicker({ search, canInstall, onSelect }: { search:
   if (error) return <div role="alert" className="space-y-3"><p>{error}</p><button onClick={() => setRetry(v => v + 1)} className="rounded-lg border px-3 py-2">Retry templates</button></div>;
   const filtered = rows.filter(row => `${row.document.name} ${row.document.description || ''}`.toLowerCase().includes(search.trim().toLowerCase()));
   return <section aria-label="Panel templates" className="space-y-3 text-gray-900 dark:text-white">
-    <p className="text-sm text-gray-500 dark:text-gray-400">Panel templates · native installation, configuration and console.</p>
     {!rows.length ? <p>No published native templates. Publish one in Game Templates.</p> : !filtered.length ? <p>No templates match your search.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {filtered.map(row => <article key={row.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-gray-300 bg-gp-surface-elevated p-4 dark:border-gray-700">
         <div className="min-w-0"><h3 className="break-words font-medium">{row.document.name}</h3><p className="text-xs text-gray-500">v{row.version} · Native</p></div>

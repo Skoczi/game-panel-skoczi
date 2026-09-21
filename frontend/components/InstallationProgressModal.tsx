@@ -1,4 +1,3 @@
-import { OperationNotice } from './OperationNotice';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Loader2, Terminal, ExternalLink, User, ShieldCheck } from 'lucide-react';
 import { AppButton } from '../src/ui/components';
@@ -196,7 +195,6 @@ export function InstallationProgressModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <OperationNotice state={connectionWarning ? 'unknown' : installationStatus === 'installing' ? 'running' : installationStatus === 'failed' ? 'failed' : 'completed'} />
           {connectionWarning && <p role="alert" className="mb-4 text-amber-500">{connectionWarning}</p>}
           {installationStatus === 'installing' && (
             <>

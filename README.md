@@ -16,7 +16,7 @@ Game Panel PRO is a self-hosted panel for managing game servers across multiple 
 
 Developed by **Skoczi**, it extends **[OVHcloud Game Panel 1.5.0](https://github.com/ovh/game-panel/tree/v1.5.0)** with a multi-node workspace, Native runtime, recovery tools and a scoped integration API. It is an independent project, not an official OVHcloud release.
 
-**Current release: 2.0.53.** [Release notes](docs/pro/RELEASE-2.0.53.md) · [Compatibility](docs/pro/FEATURES.md)
+**Current release: 2.0.54.** [Release notes](docs/pro/RELEASE-2.0.54.md) · [Compatibility](docs/pro/FEATURES.md)
 
 ## Screenshots
 
@@ -96,7 +96,7 @@ Capabilities differ by provider. A listed template is not a certification that e
 Install Game Panel PRO directly; no existing OVH panel is required:
 
 ```sh
-git clone --branch v2.0.53 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
+git clone --branch v2.0.54 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
 cd game-panel-skoczi
 sudo bash deploy/install.sh
 ```

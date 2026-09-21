@@ -977,11 +977,11 @@ export function GameTemplates() {
   );
 }
 
-export function TemplateInstall({ row, onClose, fixedNodeId, onInstallationStarted, onDismiss, resumePreviousInstallation = true }: { row: TemplateVersion; onClose: () => void; fixedNodeId?: string; onInstallationStarted?: () => void; onDismiss?: () => void; resumePreviousInstallation?: boolean }) {
+export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onInstallationStarted, onDismiss, resumePreviousInstallation = true }: { row: TemplateVersion; onClose: () => void; fixedNodeId?: string; initialNodeId?: string; onInstallationStarted?: () => void; onDismiss?: () => void; resumePreviousInstallation?: boolean }) {
   const installStorageKey = `template-install-${row.id}${fixedNodeId ? `-${fixedNodeId}` : ''}`;
   const [nodes, setNodes] = useState<ExecutionNode[]>([]);
   const [localNode, setLocalNode] = useState<LocalNode>();
-  const [nodeId, setNodeId] = useState(fixedNodeId || 'local');
+  const [nodeId, setNodeId] = useState(fixedNodeId || initialNodeId || 'local');
   const [allocations, setAllocations] = useState<
     Array<{ ip: string; alias: string; tcp: string; udp: string }>
   >([]);

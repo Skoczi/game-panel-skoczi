@@ -1,5 +1,5 @@
 import { withoutDeletedServers } from '../utils/deletedFleetServers';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
 import {
   DndContext,
@@ -76,20 +76,20 @@ type FleetServer = {
 };
 type Member = { userId: number; username: string; permissions: string[] };
 type User = { id: number; username: string; isRoot: boolean; isEnabled: boolean };
+const FleetInstaller = lazy(() => import('./FleetInstaller').then(module => ({ default: module.FleetInstaller })));
 const button = 'gp-fleet-button';
 
 export function FleetWorkspace({
   administrator,
-  onNodes,
   userId,
   gameNames = {},
 }: {
   administrator: boolean;
-  onNodes: () => void;
   userId: number;
   gameNames?: Record<string, string>;
 }) {
   const { scope } = useNodeScope();
+  const [installOpen, setInstallOpen] = useState(false);
   const [layout, setLayout] = useState(() => readFleetLayout(userId));
   const [storageError, setStorageError] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -310,6 +310,9 @@ export function FleetWorkspace({
     const ids = ordered.map((s) => s.id);
     changeLayout({ ...layout, order: arrayMove(ids, ids.indexOf(from.id), ids.indexOf(to.id)) });
   };
+  if (installOpen && administrator) return <Suspense fallback={<p role="status">Loading games…</p>}>
+    <FleetInstaller initialNodeId={scope === 'all' ? undefined : scope} onClose={() => { setInstallOpen(false); void load(); }} />
+  </Suspense>;
   return (
     <section className="gp-fleet gp-fleet-node-workspace" aria-label="Game servers workspace">
       <header className="gp-fleet-heading">
@@ -341,7 +344,7 @@ export function FleetWorkspace({
             Refresh
           </button>
           {administrator && (
-            <button className={`${button} gp-fleet-primary`} onClick={onNodes}>
+            <button className={`${button} gp-fleet-primary`} onClick={() => setInstallOpen(true)}>
               <Plus size={16} />
               Add Game Server
             </button>

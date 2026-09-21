@@ -299,7 +299,6 @@ function AppShellContent({
               userId={currentUser.id}
               gameNames={gameNamesByKey}
               administrator={Boolean(currentUser?.isRoot)}
-              onNodes={() => setActiveTab('nodes')}
             />
           </AppPageLayout>
         )}

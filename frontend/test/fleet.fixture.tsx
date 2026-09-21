@@ -52,7 +52,6 @@ createRoot(document.getElementById('root')!).render(
           <FleetWorkspace
             userId={Number(sessionStorage.getItem('test-user') || 2)}
             administrator={admin}
-            onNodes={() => {}}
           />
         )}
       </main>

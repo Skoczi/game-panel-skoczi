@@ -402,12 +402,11 @@ export function ContainerConfigTab({
   }
 
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6">
+    <div className="gp-server-tab-body h-full overflow-y-auto p-4 sm:p-6">
       <div className="gp-server-settings-body gp-settings">
-        <div>
-          <h3 className={`gp-section-title ${textPrimary} mb-1`}>Settings</h3>
-
-        </div>
+        <header className="gp-server-tab-header">
+          <h3 className={`gp-section-title ${textPrimary}`}>Settings</h3>
+        </header>
 
         <div className="gp-settings-runtime">
           <section className="gp-settings-card gp-settings-startup">

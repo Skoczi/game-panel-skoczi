@@ -493,9 +493,8 @@ export function ServerManagementPage({
           )}
 
           {tab === 'activity' && (
-            <section className="gp-server-stat">
-              <h2 className="gp-section-title">Activity</h2>
-              <p>Runtime events received by this panel session.</p>
+            <section className="gp-server-stat gp-server-tab-body">
+              <header className="gp-server-tab-header"><h2 className="gp-section-title">Activity</h2></header>
               {!canLogs ? (
                 <p>No access to server activity.</p>
               ) : history.length ? (

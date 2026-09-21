@@ -169,10 +169,10 @@ export function BackupTab({
   const toggleRowClass = `p-4 rounded-lg border ${borderColor} bg-gray-50 dark:bg-gray-900/30 flex items-center justify-between gap-4`;
 
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-5">
+    <div className="gp-server-tab-body h-full overflow-y-auto p-4 sm:p-5">
       <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        <AppSectionHeader title="Backups" actions={<>
+        <AppSectionHeader className="gp-server-tab-header" title="Backups" actions={<>
           {!backupsNotSupported && !hideManualBackup && (
             <AppButton
               tone="primary"

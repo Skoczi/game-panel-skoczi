@@ -38,8 +38,8 @@ export function NativeGameConfig({ serverId, metadata, onOpen }: {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [serverId, metadata]);
-  return <div className="p-6 space-y-5 text-gray-800 dark:text-gray-200">
-    <h3 className="gp-section-title">Game Config</h3>
+  return <div className="gp-server-tab-body p-6 space-y-5 text-gray-800 dark:text-gray-200">
+    <header className="gp-server-tab-header"><h3 className="gp-section-title">Game Config</h3></header>
     {template?.configFiles !== undefined ? template.configFiles.map(file => <section key={`${file.root}:${file.path}`}>
       <h4 className="text-sm font-medium mb-2">{file.label}</h4>
       <GameConfigAdvancedLinks configFiles={[file.path]} isLoading={false} canReadFileManager canWriteFileManager={false}

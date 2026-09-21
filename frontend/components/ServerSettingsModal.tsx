@@ -1051,7 +1051,7 @@ export function ServerSettingsModal({
           />
         }
         terminalContent={
-          <div className="h-full overflow-hidden p-3 sm:p-4 md:p-6">
+          <div className="gp-server-tab-body h-full overflow-hidden p-3 sm:p-4 md:p-6">
             <Suspense fallback={<div className="p-4 text-sm text-gray-400">Loading terminal…</div>}>
               <ServerSshTerminal serverId={serverId} serverName={serverName} serverStatus={serverStatus} />
             </Suspense>

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import { apiClient } from '../../utils/api';
-import { openFleet } from '../../utils/nodeContext';
+import { recordFleetDeletion } from '../../utils/deletedFleetServers';
+import { ACTIVE_SERVER, openFleet } from '../../utils/nodeContext';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 export function DeleteServerSection({ serverId, serverName }: { serverId: number; serverName: string }) {
@@ -12,6 +13,7 @@ export function DeleteServerSection({ serverId, serverName }: { serverId: number
     try {
       const result = await apiClient.deleteServer(serverId);
       if (result.success !== true) throw new Error('Deletion was not confirmed');
+      if (ACTIVE_SERVER?.runtimeId === serverId) recordFleetDeletion(ACTIVE_SERVER.id);
       openFleet();
     } catch (error: any) {
       // A lost reply can follow a completed deletion. Require checking the fleet,

@@ -1,3 +1,4 @@
+import { withoutDeletedServers } from '../utils/deletedFleetServers';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
 import {
@@ -187,7 +188,7 @@ export function FleetWorkspace({
     try {
       const data = await nodesRequest<{ servers: FleetServer[] }>('/api/fleet');
       setServers(
-        data.servers.map((server) => {
+        withoutDeletedServers(data.servers).map((server) => {
           const pendingName = renamed.current.get(server.id);
           if (!pendingName) return server;
           if (server.name === pendingName.name || Date.now() > pendingName.until) {

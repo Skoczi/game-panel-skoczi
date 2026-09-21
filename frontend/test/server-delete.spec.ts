@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 for (const remote of [false, true]) test(`Settings deletes only the confirmed server and returns to fleet; remote=${remote}`, async ({ page }) => {
   if (remote) await page.addInitScript(({ node, globalServer }) => {
+    if (location.pathname !== '/test/server-page.fixture.html') return;
     sessionStorage.removeItem('gamepanel_admin_runtime');
     sessionStorage.setItem('gamepanel_active_server', JSON.stringify({ id: globalServer, nodeId: node, runtimeId: 7, name: 'CS16 Test', nodeName: 'WAW2', location: 'Warsaw', permissions: ['*'], placementRevision: 1 }));
   }, { node, globalServer });
@@ -35,6 +36,15 @@ for (const remote of [false, true]) test(`Settings deletes only the confirmed se
   expect(new URL(writes[0].url).pathname).toBe(`${remote ? '/api/nodes/'+node+'/runtime' : ''}/api/servers/7`);
   if (remote) expect(writes[0].headers['x-gamepanel-server']).toBe(globalServer);
   await expect(page).not.toHaveURL(/servers\/7/);
+  if (remote) {
+    await page.route('**/api/fleet', route => route.fulfill({ json: { servers: [
+      { id: globalServer, name: 'Stale deleted server', provider: 'external', status: 'running', available: true, observedAt: Date.now(), node: { name: 'WAW2' } },
+      { id: 'cccccccc-cccc-4ccc-cccc-cccccccccccc', name: 'Other server', provider: 'external', status: 'running', available: true, observedAt: Date.now(), node: { name: 'WAW1' } },
+    ] } }));
+    await page.goto('/test/fleet.fixture.html');
+    await expect(page.getByText('Other server', { exact: true })).toBeVisible();
+    await expect(page.getByText('Stale deleted server', { exact: true })).toHaveCount(0);
+  }
 });
 
 test('read-only users cannot delete; delete-only grants do not enable editing', async ({ page }) => {

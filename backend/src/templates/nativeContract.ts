@@ -1,3 +1,4 @@
+import { applyStartupOverride } from './startupCommand.js';
 import { TemplateError, templateHash, validateTemplate, validateVariable, type GameTemplate } from './schema.js';
 import type { NormalizedPorts } from '../utils/ports.js';
 
@@ -43,11 +44,11 @@ export function renderNativeArgv(argv: string[], values: Record<string, string>)
     }));
 }
 
-export function nativeContainerOptions(t: GameTemplate, env: string[], ports: NormalizedPorts) {
+export function nativeContainerOptions(t: GameTemplate, env: string[], ports: NormalizedPorts, startupOverride?: unknown) {
     const lifecycle = t.lifecycle!;
     const identity = t.runtime.identity!;
     return {
-        command: renderNativeArgv(lifecycle.startup, nativeEnvironment(t, env, ports)),
+        command: renderNativeArgv(applyStartupOverride(lifecycle.startup, startupOverride, [...t.variables.map(v => v.key), ...t.ports.map(p => p.env)]), nativeEnvironment(t, env, ports)),
         user: `${identity.uid}:${identity.gid}`,
         workdir: lifecycle.workdir,
         stopSignal: lifecycle.stopSignal,

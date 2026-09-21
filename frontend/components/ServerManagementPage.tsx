@@ -60,7 +60,6 @@ const labels: Record<ServerPageTab, string> = {
   gameconfig: 'Game Config',
   backup: 'Backups',
   scheduledtasks: 'Schedules',
-  network: 'Network',
   containerconfig: 'Settings',
   terminal: 'Terminal',
   activity: 'Activity',
@@ -228,7 +227,7 @@ export function ServerManagementPage({
       setConfirm(null);
     }
   };
-  const settingsTab = !['console', 'activity', 'network'].includes(tab);
+  const settingsTab = !['console', 'activity'].includes(tab);
   let hasBackup = server.provider === 'linuxgsm' || isNativeTemplate(server.providerMetadataJson);
   if (server.provider === 'ovhcloud') {
     try {
@@ -238,7 +237,7 @@ export function ServerManagementPage({
     }
   }
   const tabs = (Object.keys(labels) as ServerPageTab[]).filter((key) => {
-    if (key === 'console' || key === 'network' || key === 'containerconfig') return true;
+    if (key === 'console' || key === 'containerconfig') return true;
     if (key === 'activity') return canLogs;
     if (key === 'backup') return hasBackup && access.canReadBackups;
     if (
@@ -259,12 +258,6 @@ export function ServerManagementPage({
       );
     return access.canAccessTab(key as SettingsTab);
   });
-  const rows = ['tcp', 'udp'].flatMap((protocol) =>
-    (server.portBindings?.[protocol as 'tcp' | 'udp'] || []).map((binding) => ({
-      ...binding,
-      protocol,
-    }))
-  );
   return (
     <div className="gp-server-page">
       <header className="gp-server-heading">
@@ -496,39 +489,7 @@ export function ServerManagementPage({
               serverPermissions={permissions}
             />
           )}
-          {tab === 'network' && (
-            <section className="gp-server-stat">
-              <h2 className="gp-section-title">Network</h2>
-              <p>
-                Public connection: <strong>{address}</strong>
-              </p>
-              <div className="overflow-x-auto">
-                <table className="gp-server-network">
-                  <thead>
-                    <tr>
-                      <th>Purpose</th>
-                      <th>Protocol</th>
-                      <th>Public address</th>
-                      <th>Container port</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, i) => (
-                      <tr key={i}>
-                        <td>{row.label || 'Game server'}</td>
-                        <td>{row.protocol.toUpperCase()}</td>
-                        <td>
-                          {row.hostIp || host}:{row.host}
-                        </td>
-                        <td>{row.container}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!rows.length && <p>No additional port mappings available.</p>}
-            </section>
-          )}
+
           {tab === 'activity' && (
             <section className="gp-server-stat">
               <h2 className="gp-section-title">Activity</h2>

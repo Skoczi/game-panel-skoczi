@@ -5,7 +5,6 @@ export const SERVER_TAB_SLUGS: Record<string, string> = {
   gameconfig: 'config',
   backup: 'backups',
   scheduledtasks: 'schedules',
-  network: 'network',
   containerconfig: 'settings',
   terminal: 'terminal',
   activity: 'activity',
@@ -17,7 +16,7 @@ export function serverNumber(displayId?: string): string | null {
 export function shortServerRoute(path = location.pathname) {
   const match = /^\/s\/([1-9]\d*)(?:\/([^/]+))?\/?$/.exec(path);
   if (!match || !Number.isSafeInteger(Number(match[1]))) return null;
-  const tab =
+  const tab = match[2] === 'network' ? 'containerconfig' :
     Object.entries(SERVER_TAB_SLUGS).find(
       ([key, slug]) => slug === match[2] || key === match[2]
     )?.[0] || 'console';

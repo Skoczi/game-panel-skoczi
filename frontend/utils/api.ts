@@ -451,6 +451,7 @@ class ApiClient {
   async updateServer(
     serverId: number,
     payload: {
+      startupCommand?: string[] | null;
       name?: string;
       ports?: {
         tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
@@ -475,6 +476,11 @@ class ApiClient {
   async createTerminalSession(id: number) {
     const response = await this.client.post(`/api/servers/${id}/terminal/container/sessions`);
     return response.data as { sessionId: string };
+  }
+
+  async getAvailableServerPorts(id: number, ip: string, protocol: 'tcp' | 'udp') {
+    const response = await this.client.get(`/api/servers/${id}/available-ports`, { params: { ip, protocol } });
+    return response.data as { ports: number[] };
   }
 
   async getServer(id: number) {

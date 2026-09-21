@@ -1,6 +1,7 @@
 import { DeleteServerSection } from './DeleteServerSection';
 // Modified by Skoczi: retain and edit host IPv4 allocations without widening bindings.
-import { HostIpSelect } from '../HostIpSelect';
+import './container-settings.css';
+import { gameStartup, formatStartup, parseStartup, applyStartupOverride } from '../../../backend/src/templates/startupCommand';
 import { WorkspaceModalOverlay } from './WorkspaceModalOverlay';
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Save, AlertTriangle, Loader2, RefreshCw, X } from 'lucide-react';
@@ -177,6 +178,11 @@ export function ContainerConfigTab({
   const [success, setSuccess] = useState(false);
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
+  const [startupText, setStartupText] = useState('');
+  const [savedStartupText, setSavedStartupText] = useState('');
+  const [editingStartup, setEditingStartup] = useState(false);
+  const [portCheck, setPortCheck] = useState<{ signature: string; errors: Record<string, string>; pools: Record<string, number[]> }>();
+  const [portRefresh, setPortRefresh] = useState(0);
   const [dockerImage, setDockerImage] = useState('');
   const [nativeSnapshot, setNativeSnapshot] = useState<{ document: GameTemplate; version: number } | null>(null);
   const [tcpPorts, setTcpPorts] = useState<PortEntry[]>([]);
@@ -196,6 +202,7 @@ export function ContainerConfigTab({
   const [savedMemoryLimitMb, setSavedMemoryLimitMb] = useState('');
 
   const hasChanges = useMemo(() => (
+    startupText !== savedStartupText ||
     JSON.stringify(tcpPorts) !== JSON.stringify(savedTcpPorts) ||
     JSON.stringify(udpPorts) !== JSON.stringify(savedUdpPorts) ||
     JSON.stringify(envEntries) !== JSON.stringify(savedEnvEntries) ||
@@ -203,12 +210,15 @@ export function ContainerConfigTab({
     JSON.stringify(healthcheck) !== JSON.stringify(savedHealthcheck) ||
     cpuLimit !== savedCpuLimit ||
     memoryLimitMb !== savedMemoryLimitMb
-  ), [tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
+  ), [startupText, savedStartupText, tcpPorts, udpPorts, envEntries, mounts, healthcheck, cpuLimit, memoryLimitMb, savedTcpPorts, savedUdpPorts, savedEnvEntries, savedMounts, savedHealthcheck, savedCpuLimit, savedMemoryLimitMb]);
 
   const applyLoaded = (raw: any) => {
     const snapshot = raw?.providerMetadata?.template;
     setNativeSnapshot(snapshot?.document?.schemaVersion === 2 ? snapshot : null);
     setDockerImage(raw?.dockerImage ?? '');
+    const game = gameStartup(snapshot?.document?.lifecycle?.startup || []);
+    const command = game ? formatStartup(raw?.providerMetadata?.startupCommand || game.command) : '';
+    setStartupText(command); setSavedStartupText(command); setEditingStartup(false);
     const ports = portsFromRaw(raw?.ports);
     const env = envToEntries(raw?.env);
     const mnts = mountsFromRaw(raw?.mounts);
@@ -239,8 +249,58 @@ export function ContainerConfigTab({
       .finally(() => setLoading(false));
   }, [serverId]);
 
+  const portSignature = JSON.stringify([tcpPorts, udpPorts, portRefresh]);
+  const checkPorts = async () => {
+    const errors: Record<string, string> = {};
+    const pools: Record<string, number[]> = {};
+    for (const protocol of ['tcp', 'udp'] as const) {
+      const ports = protocol === 'tcp' ? tcpPorts : udpPorts;
+      const saved = protocol === 'tcp' ? savedTcpPorts : savedUdpPorts;
+      for (let i = 0; i < ports.length; i++) {
+        const port = ports[i]; const key = `${protocol}-${i}`;
+        const unchanged = saved.some(p => p.host === port.host && p.hostIp === port.hostIp);
+        if (!/^\d+$/.test(port.host) || Number(port.host) < 1025 || Number(port.host) > 65535 || !/^\d+$/.test(port.container) || Number(port.container) < 1 || Number(port.container) > 65535) {
+          errors[key] = 'Enter a valid port (1025–65535).'; continue;
+        }
+        if (ports.some((p, j) => j !== i && Number(p.host) === Number(port.host) && (!p.hostIp || !port.hostIp || p.hostIp === '0.0.0.0' || port.hostIp === '0.0.0.0' || p.hostIp === port.hostIp))) {
+          errors[key] = 'This port is used by another mapping.'; continue;
+        }
+        const poolKey = `${port.hostIp}/${protocol}`;
+        try {
+          if (!pools[poolKey]) {
+            const result = await apiClient.getAvailableServerPorts(serverId!, port.hostIp || '0.0.0.0', protocol);
+            if (!Array.isArray(result.ports)) throw new Error('Cannot check available ports.');
+            pools[poolKey] = result.ports;
+          }
+          if (!unchanged && !pools[poolKey].includes(Number(port.host))) errors[key] = 'Port unavailable. Choose an available port.';
+        } catch { if (!unchanged) errors[key] = 'Cannot check available ports. Retry before saving.'; }
+      }
+    }
+    return { signature: portSignature, errors, pools };
+  };
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(() => { void checkPorts().then(result => { if (active) setPortCheck(result); }); }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [portSignature, isRoot, savedTcpPorts, savedUdpPorts]);
+  const portsReady = portCheck?.signature === portSignature && Object.keys(portCheck.errors).length === 0;
+  let startupError = '';
+  let startupCommand = '';
+  let startupArgv: string[] | undefined;
+  try {
+    if (startupText && nativeSnapshot?.document.lifecycle) {
+      startupArgv = parseStartup(startupText);
+      applyStartupOverride(nativeSnapshot.document.lifecycle.startup, startupArgv, [...nativeSnapshot.document.variables.map(v => v.key), ...nativeSnapshot.document.ports.map(p => p.env)]);
+      startupCommand = formatStartup(startupArgv.map(arg => arg.replace(/\{\{([A-Za-z][A-Za-z0-9_]*)\}\}/g, (placeholder, key) => {
+        const variable = nativeSnapshot.document.variables.find(v => v.key === key);
+        if (variable?.secret || !canManageEnv) return '[hidden]';
+        return envEntries.find(e => e.key === key)?.value ?? variable?.default ?? placeholder;
+      })));
+    }
+  } catch (e) { startupError = (e as Error).message; }
+
   const handleSave = async () => {
-    if (!serverId || !canEdit) return;
+    if (!serverId || !canEdit || startupError) return;
     setSaving(true);
     setError(null);
     setSuccess(false);
@@ -261,12 +321,17 @@ export function ContainerConfigTab({
       resourceLimits: (cpuVal > 0 || memVal > 0) ? { cpu: cpuVal > 0 ? cpuVal : 0, memoryMb: memVal > 0 ? memVal : 0 } : null,
     };
 
+    if (startupText !== savedStartupText) payload.startupCommand = startupArgv;
     if (canManageEnv) {
       payload.env = entriesToEnv(envEntries);
     }
 
     try {
+      const checked = await checkPorts();
+      setPortCheck(checked);
+      if (Object.keys(checked.errors).length) throw new Error(Object.values(checked.errors)[0]);
       await apiClient.updateServer(serverId, payload);
+      setSavedStartupText(startupText);
       setSavedTcpPorts(tcpPorts);
       setSavedUdpPorts(udpPorts);
       setSavedEnvEntries(envEntries);
@@ -285,7 +350,7 @@ export function ContainerConfigTab({
   };
 
   const addPort = (protocol: 'tcp' | 'udp') => {
-    const entry: PortEntry = { host: '', container: '', label: '' };
+    const entry: PortEntry = { host: '', container: '', label: '', hostIp: savedTcpPorts[0]?.hostIp || savedUdpPorts[0]?.hostIp || '' };
     if (protocol === 'tcp') setTcpPorts(p => [...p, entry]);
     else setUdpPorts(p => [...p, entry]);
   };
@@ -323,138 +388,48 @@ export function ContainerConfigTab({
 
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="gp-server-settings-body max-w-4xl mx-auto space-y-6">
+      <div className="gp-server-settings-body gp-settings">
         <div>
           <h3 className={`gp-section-title ${textPrimary} mb-1`}>Settings</h3>
-          <p className={`text-sm ${textSecondary}`}>
-            Ports, environment variables, mounts and healthcheck. Saving will recreate the Docker container.
-          </p>
+
         </div>
 
-        {nativeSnapshot && serverId && <NativeRuntimeCard template={nativeSnapshot.document} version={nativeSnapshot.version} serverId={serverId} status={serverStatus} isRoot={isRoot} />}
-        {dockerImage && (
-          <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
-            <h4 className={`text-base font-semibold ${textPrimary} mb-3`}>Docker Image</h4>
-            <code className="block w-full rounded bg-[#1f2937] text-gray-400 text-sm px-3 py-2 font-mono break-all select-all">
-              {dockerImage}
-            </code>
-          </div>
-        )}
-
-        <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
-          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Ports</h4>
-
-          <div className="space-y-5">
-            <PortsSection
-              label="TCP"
-              ports={tcpPorts}
-              protocol="tcp"
-              lockedStructure={!!nativeSnapshot}
-              textPrimary={textPrimary}
-              textSecondary={textSecondary}
-              canEdit={canEdit}
-              onAdd={() => addPort('tcp')}
-              onUpdate={(idx, field, val) => updatePort('tcp', idx, field, val)}
-              onRemove={idx => removePort('tcp', idx)}
-            />
-            <PortsSection
-              label="UDP"
-              ports={udpPorts}
-              protocol="udp"
-              lockedStructure={!!nativeSnapshot}
-              textPrimary={textPrimary}
-              textSecondary={textSecondary}
-              canEdit={canEdit}
-              onAdd={() => addPort('udp')}
-              onUpdate={(idx, field, val) => updatePort('udp', idx, field, val)}
-              onRemove={idx => removePort('udp', idx)}
-            />
-          </div>
-        </div>
-
-        <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
-          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Volumes</h4>
-          <div className={sectionClass}>
-            {mounts.length === 0 && (
-              <p className={`text-sm ${textSecondary}`}>No mounts configured.</p>
-            )}
-            {mounts.length > 0 && (
-              <div className="flex gap-2 items-center">
-                <span className={`flex-1 text-xs font-medium ${textSecondary}`}>Name</span>
-                <span className="text-sm flex-shrink-0 invisible">→</span>
-                <span className={`flex-[2] text-xs font-medium ${textSecondary}`}>Container path</span>
-                {canEdit && (
-                  <span className="p-1.5 flex-shrink-0 invisible" aria-hidden><Trash2 className="w-4 h-4" /></span>
-                )}
-              </div>
-            )}
-            {mounts.map((mount, idx) => (
-              <div key={idx} className="flex gap-2 items-center">
-                <input
-                  className={`${inputClass} flex-1`}
-                  placeholder="key (e.g. data)"
-                  value={mount.key}
-                  onChange={e => updateMount(idx, 'key', e.target.value)}
-                  disabled={!canEdit || !!nativeSnapshot}
-                />
-                <span className={`text-sm ${textSecondary} flex-shrink-0`}>→</span>
-                <input
-                  className={`${inputClass} flex-[2]`}
-                  placeholder="containerPath (e.g. /data)"
-                  value={mount.containerPath}
-                  onChange={e => updateMount(idx, 'containerPath', e.target.value)}
-                  disabled={!canEdit || !!nativeSnapshot}
-                />
-                {canEdit && !nativeSnapshot && (
-                  <AppButton
-                    tone="ghost"
-                    onClick={() => removeMount(idx)}
-                    className="p-1.5 rounded text-gray-400 hover:text-red-400 hover:bg-gray-700 flex-shrink-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </AppButton>
-                )}
-              </div>
-            ))}
-            {canEdit && !nativeSnapshot && (
-              <AppButton
-                tone="ghost"
-                onClick={addMount}
-                className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded border border-dashed ${borderColor} text-gray-400 hover:text-white hover:bg-gray-700 transition-colors`}
-              >
-                <Plus className="w-4 h-4" />
-                Add volume
-              </AppButton>
-            )}
-          </div>
+        <div className="gp-settings-runtime">
+          <section className="gp-settings-card gp-settings-startup">
+            <div className="gp-settings-section-head"><h4>Startup command</h4>{startupText && canEdit && canManageEnv && <AppButton tone="ghost" onClick={() => setEditingStartup(v => !v)}>{editingStartup ? 'Close editor' : 'Edit startup parameters'}</AppButton>}</div>
+            <pre>{startupCommand || (startupError ? 'Fix the parameters below to preview the command.' : 'Default image entrypoint')}</pre>
+            {editingStartup && <div className="gp-settings-startup-editor"><textarea aria-label="Startup parameters" rows={4} spellCheck={false} value={startupText} disabled={saving} onChange={e => setStartupText(e.target.value)} /><small>Use template variables, for example {'{{MAP}}'}. Changes apply when you save.</small>{startupError && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
+          </section>
+          <section className="gp-settings-card"><h4>Docker image</h4><code>{dockerImage || '—'}</code></section>
         </div>
 
         {canManageEnv && (
-        <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
+        <div className="gp-settings-card">
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>{nativeSnapshot ? 'Template Variables' : 'Environment Variables'}</h4>
-          {nativeSnapshot && <p className={`text-sm ${textSecondary} mb-4`}>Variable names and internal ports are defined by the installed template. Saving values recreates the container without reinstalling game files.</p>}
-          <div className={sectionClass}>
+          <div className={nativeSnapshot ? "gp-settings-variables" : sectionClass}>
             {envEntries.length === 0 && (
               <p className={`text-sm ${textSecondary}`}>No variables configured.</p>
             )}
-            {envEntries.map((entry, idx) => (
-              <div key={idx} className="flex gap-2 items-center">
-                <input
+            {envEntries.map((entry, idx) => nativeSnapshot?.document.ports.some(p => p.env === entry.key) ? null : (
+              <div key={idx} className={nativeSnapshot ? "gp-settings-variable" : "flex gap-2 items-center"}>
+                {nativeSnapshot && <label htmlFor={`setting-env-${idx}`}>{nativeSnapshot.document.variables.find(v => v.key === entry.key)?.label || entry.key}</label>}
+                {!nativeSnapshot && <input
                   className={`${inputClass} flex-1`}
                   placeholder="KEY"
                   value={entry.key}
                   onChange={e => updateEnv(idx, 'key', e.target.value)}
-                  disabled={!canEdit || !!nativeSnapshot}
-                />
-                <span className={`text-sm ${textSecondary} flex-shrink-0`}>=</span>
+                  disabled={saving || !canEdit}
+                />}
+                {!nativeSnapshot && <span className={`text-sm ${textSecondary} flex-shrink-0`}>=</span>}
                 <input
+                  id={`setting-env-${idx}`}
                   className={`${inputClass} flex-[2]`}
                   placeholder="value"
                   aria-label={nativeSnapshot?.document.variables.find(v => v.key === entry.key)?.label || entry.key}
                   type={nativeSnapshot?.document.variables.find(v => v.key === entry.key)?.secret ? 'password' : 'text'}
                   value={entry.value}
                   onChange={e => updateEnv(idx, 'value', e.target.value)}
-                  disabled={!canEdit || !!nativeSnapshot?.document.ports.some(p => p.env === entry.key)}
+                  disabled={saving || !canEdit || !!nativeSnapshot?.document.ports.some(p => p.env === entry.key)}
                 />
                 {canEdit && !nativeSnapshot && (
                   <AppButton
@@ -481,10 +456,43 @@ export function ContainerConfigTab({
         </div>
         )}
 
-        <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
-          <h4 className={`text-base font-semibold ${textPrimary} mb-1`}>Resource Limits</h4>
+        <div className="gp-settings-card">
+          <div className="gp-settings-section-head"><h4>Ports</h4><AppButton tone="ghost" onClick={() => setPortRefresh(n => n + 1)} aria-label="Refresh available ports"><RefreshCw size={16} /></AppButton></div>
+
+          <div className="space-y-5">
+            <PortsSection
+              label="TCP"
+              ports={tcpPorts}
+              errors={portCheck?.signature === portSignature ? portCheck.errors : {}} pools={portCheck?.pools || {}} checking={portCheck?.signature !== portSignature}
+              protocol="tcp"
+              lockedStructure={!!nativeSnapshot}
+              textPrimary={textPrimary}
+              textSecondary={textSecondary}
+              canEdit={canEdit && !saving}
+              onAdd={() => addPort('tcp')}
+              onUpdate={(idx, field, val) => updatePort('tcp', idx, field, val)}
+              onRemove={idx => removePort('tcp', idx)}
+            />
+            <PortsSection
+              label="UDP"
+              ports={udpPorts}
+              errors={portCheck?.signature === portSignature ? portCheck.errors : {}} pools={portCheck?.pools || {}} checking={portCheck?.signature !== portSignature}
+              protocol="udp"
+              lockedStructure={!!nativeSnapshot}
+              textPrimary={textPrimary}
+              textSecondary={textSecondary}
+              canEdit={canEdit && !saving}
+              onAdd={() => addPort('udp')}
+              onUpdate={(idx, field, val) => updatePort('udp', idx, field, val)}
+              onRemove={idx => removePort('udp', idx)}
+            />
+          </div>
+        </div>
+
+        <div className="gp-settings-card">
+          <h4 className={`text-base font-semibold ${textPrimary} mb-1`}>Resources &amp; Volumes</h4>
           <p className={`text-xs ${textSecondary} mb-4`}>
-            Leave blank for no limit. Changes apply immediately without restarting the server.
+            Leave blank for unlimited resources.
           </p>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -497,7 +505,7 @@ export function ContainerConfigTab({
                 placeholder="e.g. 2"
                 value={cpuLimit}
                 onChange={e => setCpuLimit(e.target.value)}
-                disabled={!canEdit}
+                disabled={saving || !canEdit}
               />
               {canEdit && cpuLimit && (
                 <AppButton
@@ -520,7 +528,7 @@ export function ContainerConfigTab({
                 placeholder="e.g. 4096"
                 value={memoryLimitMb}
                 onChange={e => setMemoryLimitMb(e.target.value)}
-                disabled={!canEdit}
+                disabled={saving || !canEdit}
               />
               {memoryLimitMb && !isNaN(Number(memoryLimitMb)) && Number(memoryLimitMb) > 0 && (
                 <span className={`text-xs flex-shrink-0 ${textSecondary}`}>≈ {(Number(memoryLimitMb) / 1024).toFixed(1)} GB</span>
@@ -537,14 +545,69 @@ export function ContainerConfigTab({
               )}
             </div>
           </div>
+        <div className="gp-settings-volumes">          <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Volumes</h4>
+          <div className={sectionClass}>
+            {mounts.length === 0 && (
+              <p className={`text-sm ${textSecondary}`}>No mounts configured.</p>
+            )}
+            {mounts.length > 0 && (
+              <div className="flex gap-2 items-center">
+                <span className={`flex-1 text-xs font-medium ${textSecondary}`}>Name</span>
+                <span className="text-sm flex-shrink-0 invisible">→</span>
+                <span className={`flex-[2] text-xs font-medium ${textSecondary}`}>Container path</span>
+                {canEdit && (
+                  <span className="p-1.5 flex-shrink-0 invisible" aria-hidden><Trash2 className="w-4 h-4" /></span>
+                )}
+              </div>
+            )}
+            {mounts.map((mount, idx) => (
+              <div key={idx} className="flex gap-2 items-center">
+                <input
+                  className={`${inputClass} flex-1`}
+                  placeholder="key (e.g. data)"
+                  value={mount.key}
+                  onChange={e => updateMount(idx, 'key', e.target.value)}
+                  disabled={saving || !canEdit || !!nativeSnapshot}
+                />
+                <span className={`text-sm ${textSecondary} flex-shrink-0`}>→</span>
+                <input
+                  className={`${inputClass} flex-[2]`}
+                  placeholder="containerPath (e.g. /data)"
+                  value={mount.containerPath}
+                  onChange={e => updateMount(idx, 'containerPath', e.target.value)}
+                  disabled={saving || !canEdit || !!nativeSnapshot}
+                />
+                {canEdit && !nativeSnapshot && (
+                  <AppButton
+                    tone="ghost"
+                    onClick={() => removeMount(idx)}
+                    className="p-1.5 rounded text-gray-400 hover:text-red-400 hover:bg-gray-700 flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </AppButton>
+                )}
+              </div>
+            ))}
+            {canEdit && !nativeSnapshot && (
+              <AppButton
+                tone="ghost"
+                onClick={addMount}
+                className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded border border-dashed ${borderColor} text-gray-400 hover:text-white hover:bg-gray-700 transition-colors`}
+              >
+                <Plus className="w-4 h-4" />
+                Add volume
+              </AppButton>
+            )}
+          </div>
+</div>
         </div>
 
-        <div className={`${contentBg} border ${borderColor} rounded-lg p-4 sm:p-6`}>
+        <details className="gp-settings-advanced"><summary>Advanced settings <span>Healthcheck &amp; maintenance</span></summary><div className="gp-settings-advanced-body">
           <h4 className={`text-base font-semibold ${textPrimary} mb-4`}>Healthcheck</h4>
           <div className="space-y-4">
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-600 dark:text-amber-300">
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>A wrong probe can leave the server stuck as <strong>unhealthy</strong> or never finish starting. Keep <strong>Image default</strong> unless you know the image&apos;s listening port or main process.</span>
+              <span>Use the image default unless a custom healthcheck is required.</span>
             </div>
             <div>
               <label className={`block text-sm ${textSecondary} mb-1`}>Mode</label>
@@ -552,7 +615,7 @@ export function ContainerConfigTab({
                 className={`${inputClass}`}
                 value={healthcheck.mode}
                 onChange={e => setHc({ mode: e.target.value as HealthcheckMode })}
-                disabled={!canEdit}
+                disabled={saving || !canEdit}
               >
                 <option value="image_default">Image default</option>
                 <option value="disabled">Disabled</option>
@@ -568,7 +631,7 @@ export function ContainerConfigTab({
                     className={`${inputClass}`}
                     value={healthcheck.overrideType}
                     onChange={e => setHc({ overrideType: e.target.value as HealthcheckOverrideType })}
-                    disabled={!canEdit}
+                    disabled={saving || !canEdit}
                   >
                     <option value="tcp_connect">TCP connect</option>
                     <option value="process">Process</option>
@@ -585,7 +648,7 @@ export function ContainerConfigTab({
                       placeholder="e.g. 25565"
                       value={healthcheck.port}
                       onChange={e => setHc({ port: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                 )}
@@ -598,7 +661,7 @@ export function ContainerConfigTab({
                       placeholder="e.g. srcds"
                       value={healthcheck.processName}
                       onChange={e => setHc({ processName: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                 )}
@@ -611,7 +674,7 @@ export function ContainerConfigTab({
                       placeholder='e.g. curl -f http://localhost:8080/health'
                       value={healthcheck.command}
                       onChange={e => setHc({ command: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                 )}
@@ -624,7 +687,7 @@ export function ContainerConfigTab({
                       className={inputClass}
                       value={healthcheck.intervalSeconds}
                       onChange={e => setHc({ intervalSeconds: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                   <div>
@@ -634,7 +697,7 @@ export function ContainerConfigTab({
                       className={inputClass}
                       value={healthcheck.timeoutSeconds}
                       onChange={e => setHc({ timeoutSeconds: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                   <div>
@@ -644,7 +707,7 @@ export function ContainerConfigTab({
                       className={inputClass}
                       value={healthcheck.startPeriodSeconds}
                       onChange={e => setHc({ startPeriodSeconds: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                   <div>
@@ -654,15 +717,15 @@ export function ContainerConfigTab({
                       className={inputClass}
                       value={healthcheck.retries}
                       onChange={e => setHc({ retries: e.target.value })}
-                      disabled={!canEdit}
+                      disabled={saving || !canEdit}
                     />
                   </div>
                 </div>
               </div>
             )}
           </div>
-        </div>
-
+        {nativeSnapshot && serverId && <NativeRuntimeCard template={nativeSnapshot.document} version={nativeSnapshot.version} serverId={serverId} status={serverStatus} isRoot={isRoot} />}
+        </div></details>
         {error && (
           <div className="flex items-center gap-2 text-sm text-red-400 bg-red-400/10 border border-red-400/30 rounded-lg px-4 py-3">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -671,7 +734,7 @@ export function ContainerConfigTab({
         )}
         {success && (
           <div className="text-sm text-green-400 bg-green-400/10 border border-green-400/30 rounded-lg px-4 py-3">
-            Container config saved. The container will be recreated.
+            Settings saved.
           </div>
         )}
         {canEdit && (
@@ -679,11 +742,11 @@ export function ContainerConfigTab({
             <AppButton
               tone="primary"
               onClick={() => RUNNING_STATUSES.has(serverStatus ?? '') ? setShowRestartConfirm(true) : void handleSave()}
-              disabled={saving || !hasChanges}
+              disabled={saving || !hasChanges || !portsReady || !!startupError}
               className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium disabled:opacity-60"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Saving…' : 'Save container config'}
+              {saving ? 'Saving…' : 'Save changes'}
             </AppButton>
           </div>
         )}
@@ -742,96 +805,28 @@ export function ContainerConfigTab({
 }
 
 interface PortsSectionProps {
-  lockedStructure?: boolean;
-  label: string;
-  ports: PortEntry[];
-  protocol: 'tcp' | 'udp';
-  textPrimary: string;
-  textSecondary: string;
-  canEdit: boolean;
-  onAdd: () => void;
-  onUpdate: (idx: number, field: keyof PortEntry, val: string) => void;
-  onRemove: (idx: number) => void;
+  lockedStructure?: boolean; label: string; ports: PortEntry[]; protocol: 'tcp' | 'udp';
+  textPrimary: string; textSecondary: string; canEdit: boolean;
+  errors: Record<string, string>; pools: Record<string, number[]>; checking: boolean;
+  onAdd: () => void; onUpdate: (idx: number, field: keyof PortEntry, val: string) => void; onRemove: (idx: number) => void;
 }
-
-function PortsSection({
-  lockedStructure = false,
-  label,
-  ports,
-  textPrimary,
-  textSecondary,
-  canEdit,
-  onAdd,
-  onUpdate,
-  onRemove,
-}: PortsSectionProps) {
-  return (
-    <div>
-      <p className={`text-sm font-medium ${textPrimary} mb-2`}>{label}</p>
-      <div className="space-y-2">
-        {ports.length === 0 && (
-          <p className={`text-sm ${textSecondary}`}>No {label} ports.</p>
-        )}
-        {ports.length > 0 && (
-          <div className="flex gap-2 items-center">
-            <span className={`flex-1 text-xs font-medium ${textSecondary}`}>Host port</span>
-            <span className="text-sm flex-shrink-0 invisible">:</span>
-            <span className={`flex-1 text-xs font-medium ${textSecondary}`}>Container port</span>
-            <span className={`flex-1 text-xs font-medium ${textSecondary}`}>Name</span>
-            {canEdit && (
-              <span className="p-1.5 flex-shrink-0 invisible" aria-hidden><Trash2 className="w-4 h-4" /></span>
-            )}
-          </div>
-        )}
-        {ports.map((port, idx) => (
-          <div key={idx} className="flex flex-wrap gap-2 items-center">
-            <div className="w-full"><HostIpSelect value={port.hostIp} protocol={label.startsWith('UDP') ? 'udp' : 'tcp'} hostPort={port.host} disabled={!canEdit} onChange={(value) => onUpdate(idx, 'hostIp', value)} /></div>
-            <input
-              type="number"
-              className={`${inputClass} flex-1`}
-              placeholder="Host port"
-              value={port.host}
-              onChange={e => onUpdate(idx, 'host', e.target.value)}
-              disabled={!canEdit}
-            />
-            <span className={`text-sm ${textSecondary} flex-shrink-0`}>:</span>
-            <input
-              type="number"
-              className={`${inputClass} flex-1`}
-              placeholder="Container port"
-              value={port.container}
-              onChange={e => onUpdate(idx, 'container', e.target.value)}
-              disabled={!canEdit || lockedStructure}
-            />
-            <input
-              className={`${inputClass} flex-1`}
-              placeholder="label"
-              value={port.label}
-              onChange={e => onUpdate(idx, 'label', e.target.value)}
-              disabled={!canEdit}
-            />
-            {canEdit && !lockedStructure && (
-              <AppButton
-                tone="ghost"
-                onClick={() => onRemove(idx)}
-                className="p-1.5 rounded text-gray-400 hover:text-red-400 hover:bg-gray-700 flex-shrink-0"
-              >
-                <Trash2 className="w-4 h-4" />
-              </AppButton>
-            )}
-          </div>
-        ))}
-        {canEdit && !lockedStructure && (
-          <AppButton
-            tone="ghost"
-            onClick={onAdd}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors px-1"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add {label} port
-          </AppButton>
-        )}
-      </div>
-    </div>
-  );
+function PortsSection({ lockedStructure, label, ports, protocol, canEdit, errors, pools, checking, onAdd, onUpdate, onRemove }: PortsSectionProps) {
+  if (!ports.length && lockedStructure) return null;
+  return <div className="gp-settings-ports">
+    {ports.map((port, idx) => {
+      const error = errors[`${protocol}-${idx}`];
+      const listId = `ports-${protocol}-${idx}`;
+      return <div key={idx} className="gp-settings-port">
+        <div className="gp-settings-address"><span className="gp-settings-protocol">{label}</span><span>IP address</span><code>{port.hostIp || '0.0.0.0'}</code></div>
+        <label>Public port<input type="number" min="1025" max="65535" list={listId} className={inputClass} aria-label={`${label} public port ${idx + 1}`} aria-invalid={!!error} value={port.host} disabled={!canEdit} onChange={e => onUpdate(idx, 'host', e.target.value)} />
+          <datalist id={listId}>{(pools[`${port.hostIp}/${protocol}`] || []).slice(0, 256).map(p => <option key={p} value={p} />)}</datalist>
+        </label>
+        <label>Container port<input type="number" min="1" max="65535" className={inputClass} value={port.container} disabled={!canEdit || lockedStructure} onChange={e => onUpdate(idx, 'container', e.target.value)} /></label>
+        <label className="gp-settings-port-name">Name<input className={inputClass} value={port.label} disabled={!canEdit} onChange={e => onUpdate(idx, 'label', e.target.value)} /></label>
+        {canEdit && !lockedStructure && <AppButton tone="ghost" aria-label={`Remove ${label} port ${idx + 1}`} onClick={() => onRemove(idx)}><Trash2 size={16} /></AppButton>}
+        {(checking || error) && <p className={error ? 'gp-settings-port-error' : 'gp-settings-port-check'} role="status">{error || 'Checking ports…'}</p>}
+      </div>;
+    })}
+    {canEdit && !lockedStructure && <AppButton tone="ghost" onClick={onAdd}><Plus size={16} /> Add {label} port</AppButton>}
+  </div>;
 }

@@ -35,6 +35,8 @@ import {
 } from './serverActionPolicy.js';
 
 type ReconfigureInput = {
+    startupCommand?: string[] | null;
+    hasStartupPatch?: boolean;
     name?: string;
     ports?: NormalizedPorts;
     mounts?: NormalizedMount[];
@@ -165,13 +167,25 @@ export async function reconfigureServerContainer(
     const currentResourceLimits = parseStoredResourceLimits(server);
 
     const nextPorts = input.ports ?? currentPorts;
+    for (const protocol of ['tcp', 'udp'] as const) for (const binding of nextPorts[protocol]) {
+        const existing = currentPorts[protocol].find(p => p.container === binding.container);
+        const assigned = [...currentPorts.tcp, ...currentPorts.udp].map(p => p.hostIp || '0.0.0.0');
+        if ((existing && (existing.hostIp || '0.0.0.0') !== (binding.hostIp || '0.0.0.0')) || (!existing && assigned.length && !assigned.includes(binding.hostIp || '0.0.0.0'))) throw Object.assign(new Error('The assigned host IP cannot be changed.'), { statusCode: 400 });
+    }
     assertPortPolicy(nextPorts); // Validate before stopping the existing container.
     const nextMounts = input.mounts ?? currentMounts;
     const nextEnv = validateEnvForServer(server, input.env ?? currentEnv);
     const nextHealthcheck = input.hasHealthcheckPatch ? input.healthcheck ?? null : currentHealthcheck;
     const nextResourceLimits = input.hasResourceLimitsPatch ? input.resourceLimits ?? null : currentResourceLimits;
-    const native = nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'));
-    const nativeOptions = native ? nativeContainerOptions(native, nextEnv, nextPorts) : undefined;
+    const metadata = JSON.parse(server.provider_metadata_json || '{}');
+    const native = nativeTemplate(metadata);
+    if (input.hasStartupPatch) {
+        if (!native) throw Object.assign(new Error('Startup parameters require a native template.'), { statusCode: 400 });
+        metadata.startupCommand = input.startupCommand;
+    }
+    let nativeOptions;
+    try { nativeOptions = native ? nativeContainerOptions(native, nextEnv, nextPorts, metadata.startupCommand) : undefined; }
+    catch (error) { throw Object.assign(error as Error, { statusCode: 400 }); }
     if (native && JSON.stringify(nextMounts) !== JSON.stringify(native.mounts)) throw Object.assign(new Error('Native data mounts are fixed by the installed template'), { statusCode: 400 });
 
     const wasRunning = currentContainerStatus === 'running' || currentContainerStatus === 'restarting';
@@ -270,6 +284,7 @@ export async function reconfigureServerContainer(
 
         await serverRepository.updateDockerInfo(serverId, containerInfo.id, containerInfo.name);
         await serverRepository.update(serverId, {
+            ...(input.hasStartupPatch ? { provider_metadata_json: JSON.stringify(metadata) } : {}),
             name: displayName,
             ports_json: JSON.stringify(nextPorts),
             mounts_json: JSON.stringify(nextMounts),

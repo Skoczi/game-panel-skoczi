@@ -24,10 +24,10 @@ function requestedHostPorts(ports: NormalizedPorts): HostBinding[] {
     ];
 }
 
-export async function reservedHostBindings(): Promise<HostBinding[]> {
+export async function reservedHostBindings(excludeServerId?: number, excludeContainerIds?: string[]): Promise<HostBinding[]> {
     const servers = await serverRepository.listAll();
-    const docker = await dockerUtils.listPublishedHostPorts();
-    return [...servers.flatMap(server => requestedHostPorts(parseStoredPorts(server))), ...docker];
+    const docker = await dockerUtils.listPublishedHostPorts({ excludeServerIds: excludeServerId ? [excludeServerId] : [], excludeContainerIds });
+    return [...servers.filter(s => s.id !== excludeServerId).flatMap(server => requestedHostPorts(parseStoredPorts(server))), ...docker];
 }
 
 function matchesRequestedPort(

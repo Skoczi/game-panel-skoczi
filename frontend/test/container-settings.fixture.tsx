@@ -1,0 +1,10 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { ContainerConfigTab } from '../components/serverSettings/ContainerConfigTab';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import '@ovhcloud/ods-react/normalize-css';
+import '@ovhcloud/ods-themes/default/css';
+import '../src/ui/theme/ods-dark.css';
+import '../src/ui/theme/ods-light.css';
+import '../styles/globals.css';
+createRoot(document.getElementById('root')!).render(<ThemeProvider><ContainerConfigTab serverId={7} serverName="ReHLDS" serverStatus="stopped" canEdit canManageEnv canDelete isRoot borderColor="border-slate-700" contentBg="bg-slate-900" inputBg="" inputBorder="" textPrimary="text-slate-100" textSecondary="text-slate-400" hoverBg="" /></ThemeProvider>);

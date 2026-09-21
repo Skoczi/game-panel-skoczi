@@ -116,8 +116,10 @@ export function serializeInstallationProgress(
     };
 }
 
-export function redactServerEnv<T extends { env: Record<string, string> }>(server: T): T {
-    return { ...server, env: {} };
+export function redactServerEnv<T extends { env: Record<string, string>; providerMetadata?: JsonObject }>(server: T): T {
+    if (!server.providerMetadata) return { ...server, env: {} };
+    const { startupCommand: _startup, ...metadata } = server.providerMetadata;
+    return { ...server, env: {}, providerMetadata: metadata };
 }
 
 export function serializeGameServer(server: GameServerRow): SerializedGameServer {

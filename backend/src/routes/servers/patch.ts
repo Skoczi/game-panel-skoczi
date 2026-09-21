@@ -82,6 +82,8 @@ export function createServerPatchRoutes(): Router {
                     return canSeeEnv ? serialized : redactServerEnv(serialized);
                 };
 
+                const hasStartupPatch = hasOwn(body, 'startupCommand');
+                if (hasStartupPatch && !canSeeEnv) return res.status(403).json({ error: 'Environment permission is required to edit startup parameters' });
                 const hasNamePatch = hasOwn(body, 'name');
                 const hasPortsPatch = hasOwn(body, 'ports');
                 if (hasPortsPatch) releaseAllocation = enterPortAllocationMutation();
@@ -89,7 +91,7 @@ export function createServerPatchRoutes(): Router {
                 const hasEnvPatch = hasOwn(body, 'env') && canSeeEnv;
                 const hasHealthcheckPatch = hasOwn(body, 'healthcheck');
                 const hasResourceLimitsPatch = hasOwn(body, 'resourceLimits');
-                const hasContainerPatch = hasPortsPatch || hasMountsPatch || hasEnvPatch || hasHealthcheckPatch;
+                const hasContainerPatch = hasStartupPatch || hasPortsPatch || hasMountsPatch || hasEnvPatch || hasHealthcheckPatch;
 
                 if (!hasNamePatch && !hasContainerPatch && !hasResourceLimitsPatch) {
                     return res.status(400).json({ error: 'No supported server fields provided' });
@@ -197,6 +199,8 @@ export function createServerPatchRoutes(): Router {
                     }
 
                     const reconfigure = await reconfigureServerContainer(serverId, {
+                        startupCommand: body.startupCommand as string[] | null,
+                        hasStartupPatch,
                         name: nextName,
                         ports: normalizedPorts,
                         mounts: normalizedMounts,

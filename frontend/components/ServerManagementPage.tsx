@@ -1,4 +1,5 @@
 import { OperationNotice } from './OperationNotice';
+import { ServerActivityTimeline } from './ServerActivityTimeline';
 import { resourceLabel, resourceBytes } from '../utils/resourceMetrics';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import {
@@ -498,14 +499,7 @@ export function ServerManagementPage({
               {!canLogs ? (
                 <p>No access to server activity.</p>
               ) : history.length ? (
-                <ol className="gp-server-activity">
-                  {[...history].reverse().map((entry) => (
-                    <li key={entry.id}>
-                      <time>{new Date(entry.timestamp).toLocaleString()}</time>
-                      <span>{entry.message}</span>
-                    </li>
-                  ))}
-                </ol>
+                <ServerActivityTimeline entries={history} />
               ) : (
                 <p>No events recorded yet.</p>
               )}

@@ -370,6 +370,11 @@ test('managed update requires confirmation and stays single-submit while queued'
   await page.goto('/test/settings.fixture.html');
   await page.getByTestId('panel-revision').click();
   await page.getByRole('button', { name: 'Check GitHub' }).click();
+  await expect(page.locator('.gp-panel-update .gp-app-modal-body')).toHaveCSS('padding-left', '24px');
+  if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') {
+    await page.locator('.gp-panel-update .gp-app-modal-body').evaluate(el => { el.scrollTop = 0; });
+    await page.screenshot({ path: 'test-results/managed-update.png', animations: 'disabled' });
+  }
   await page.getByRole('button', { name: 'Update to 2.0.51' }).click();
   const confirm = page.getByRole('dialog', { name: 'Update Game Panel PRO?' });
   await confirm.getByRole('button', { name: 'Cancel' }).click();

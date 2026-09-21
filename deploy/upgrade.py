@@ -114,6 +114,9 @@ class Upgrade:
             if not info['State']['Running']:
                 raise ValueError(name + ' is not running')
             images[name] = info['Image']
+        running_version = self.compose('exec', '-T', 'backend', 'node', '-p', "require('./package.json').version")
+        if running_version != current:
+            raise ValueError('Running backend version differs from installed source; reconcile the installation first')
         return {'fromVersion': current, 'root': str(self.root), 'project': self.project, 'images': images}
 
     def healthy(self, expected):

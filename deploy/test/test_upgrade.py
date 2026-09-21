@@ -64,6 +64,15 @@ class UpgradeTests(unittest.TestCase):
             inspect.assert_not_called()
         self.assertTrue((self.root / 'data/.panel-upgrade').exists())
 
+    def test_preflight_rejects_a_different_running_version(self):
+        def compose(*args, **kwargs):
+            if args[0] == 'config': return json.dumps(self.config())
+            if args[0] == 'ps': return 'container'
+            return '1.4.0'
+        with patch.object(self.app, 'compose', side_effect=compose), patch.object(upgrade, 'run', return_value=json.dumps([{'State': {'Running': True}, 'Image': 'sha256:old'}])):
+            with self.assertRaisesRegex(ValueError, 'differs from installed source'):
+                self.app.inspect()
+
     def test_preflight_refuses_custom_mounts_without_changes(self):
         config = self.config(); config['services']['backend']['volumes'].append({'type':'bind','source':'/private','target':'/private'})
         with patch.object(self.app,'compose',return_value=json.dumps(config)):

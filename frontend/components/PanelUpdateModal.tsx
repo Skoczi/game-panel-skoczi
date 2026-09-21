@@ -1,3 +1,4 @@
+import './panel-update.css';
 import localReleaseNotes from '../../docs/pro/RELEASE-2.0.50.md?raw';
 import { getAppVersion } from '../utils/appInfo';
 import { useState, useEffect } from 'react';
@@ -110,7 +111,7 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
   return (
     <>
     <AppModal open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <AppModalContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-hidden">
+      <AppModalContent className="gp-panel-update max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-hidden">
         <AppModalHeader>
           <AppModalTitle>Game Panel PRO · Version & changelog</AppModalTitle>
         </AppModalHeader>

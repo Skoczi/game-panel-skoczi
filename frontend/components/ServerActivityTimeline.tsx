@@ -1,4 +1,4 @@
-import { Activity, Check, CircleAlert, RotateCw, Terminal, UserRound } from 'lucide-react';
+import { Activity, Check, AlertCircle, RotateCw, Terminal, UserRound } from 'lucide-react';
 import type { ServerHistoryEntry } from '../utils/serverRuntime';
 import './serverSettings/server-activity.css';
 
@@ -11,7 +11,7 @@ function presentEntry(entry: ServerHistoryEntry) {
   const failed = entry.level === 'error' || title.startsWith('Console command failed');
   const warning = entry.level === 'warning';
   const success = entry.level === 'success' || /^(Server installed successfully|Container is running)/.test(message);
-  const Icon = failed || warning ? CircleAlert : command || title === 'Console command sent' ? Terminal : /^(Restarting|Starting|Stopping) server/.test(message) ? RotateCw : success ? Check : Activity;
+  const Icon = failed || warning ? AlertCircle : command || title === 'Console command sent' ? Terminal : /^(Restarting|Starting|Stopping) server/.test(message) ? RotateCw : success ? Check : Activity;
   return { actor, title, command: command?.[2], Icon, tone: failed ? 'error' : warning ? 'warning' : success ? 'success' : command ? 'command' : 'neutral' };
 }
 

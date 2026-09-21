@@ -54,6 +54,7 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
   };
   const server = { id: 8, status: "running", docker_container_id: "test" };
   const commands: string[] = [];
+  let transferActive = false;
   const module = loadWithMocks(
     "../src/services/fastDownload.ts",
     {
@@ -76,6 +77,7 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
           listAll: async () => [server],
         },
         actionsRepository: { create: async () => {} },
+        fileTransferJobRepository: {hasActiveForServer:async()=>transferActive},
       },
       "../utils/storage.js": {
         getServerStoragePaths: () => ({ dataDir: data }),
@@ -153,6 +155,10 @@ test("publishes originals/compression; preserves manual updates; deletes linked 
     );
     await fs.rename(source + "-offline", source);
     await fs.unlink(path.join(source, "maps/test.bsp"));
+    transferActive = true;
+    await module.synchronizeFastDownload(8);
+    assert.equal(await fs.readFile(path.join(target,"maps/test.bsp"),"utf8"),"manual override");
+    transferActive = false;
     await module.synchronizeFastDownload(8);
     await assert.rejects(fs.stat(path.join(target, "maps/test.bsp")));
     await assert.rejects(fs.stat(path.join(target, "maps/test.bsp.bz2")));

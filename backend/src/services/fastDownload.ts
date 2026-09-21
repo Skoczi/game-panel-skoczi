@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { getConfig } from "../config.js";
-import { serverRepository, actionsRepository } from "../database/index.js";
+import { serverRepository, actionsRepository, fileTransferJobRepository } from "../database/index.js";
 import { getServerStoragePaths } from "../utils/storage.js";
 import { nativeServerTemplate } from "./nativeBackups.js";
 import { enterServerMutation } from "./nativeOperationLock.js";
@@ -305,6 +305,13 @@ export async function synchronizeFastDownload(id: number, requestHeld = false) {
       return;
     state = await readState(id, profile.compression);
     if (!state.enabled) return;
+    // Async URL imports/uploads may outlive their initiating HTTP request.
+    // The server mutation lock prevents new transfers while this scan runs.
+    if (await fileTransferJobRepository.hasActiveForServer(id)) {
+      state.error = "Waiting for active file transfers to finish";
+      await saveState(id, state);
+      return;
+    }
     const data = getServerStoragePaths(id).dataDir,
       sourceRoot = path.join(data, profile.source),
       targetRoot = path.join(data, "fastdownload", profile.game);

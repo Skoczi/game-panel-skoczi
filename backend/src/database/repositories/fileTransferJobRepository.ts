@@ -63,6 +63,11 @@ export class FileTransferJobRepository extends BaseRepository {
     );
   }
 
+  async hasActiveForServer(serverId: number): Promise<boolean> {
+    const db = await this.ensureDb();
+    return !!await db.get("SELECT 1 FROM file_transfer_jobs WHERE server_id = ? AND status IN ('pending','running') LIMIT 1", [serverId]);
+  }
+
   async listRecentForServer(serverId: number, limit = 20): Promise<FileTransferJobRow[]> {
     const db = await this.ensureDb();
     return db.all<FileTransferJobRow[]>(

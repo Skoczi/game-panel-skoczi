@@ -1,3 +1,5 @@
+import { isPanelMaintenance, activePanelRequests, trackPanelMutation } from './services/panelMaintenance.js';
+import { activeServerOperations } from './services/nativeOperationLock.js';
 import { runtimeCapabilities } from './utils/runtimeCapabilities.js';
 import { initializePublicApi, apiTokenRoutes, publicApiRoutes } from './services/publicApiControl.js';
 import { publicApiErrorHandler } from './routes/publicApi.js';
@@ -116,6 +118,13 @@ app.set('trust proxy', trustProxy);
 
 app.use(requestContext);
 app.use(helmet());
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (isPanelMaintenance()) return res.status(503).json({ error: 'Panel update in progress. Wait for it to finish before making changes.' });
+  const release = trackPanelMutation();
+  res.once('finish', release); res.once('close', release);
+  next();
+});
 
 // Agent gate and remote proxy precede parsers so uploads remain streaming.
 if (isAgent()) app.use(agentGate);
@@ -164,7 +173,7 @@ app.use('/api/system', authMiddleware, systemRoutes);
 
 // GET /api/health
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ ...getRuntimeBuild(), capabilities: runtimeCapabilities, status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, portAllocationProtocol: 1 });
+  res.json({ updateDrain: { maintenance: isPanelMaintenance(), busy: activePanelRequests() + activeServerOperations() }, ...getRuntimeBuild(), capabilities: runtimeCapabilities, status: 'healthy', timestamp: nowIso(), templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, portAllocationProtocol: 1 });
 });
 
 // GET /api/version

@@ -35,6 +35,7 @@ jobs:
       - name: Validate deployment shell syntax
         run: find deploy -name '*.sh' -exec bash -n {} \;
       - run: python3 -B deploy/agent/test_agent.py
+      - run: python3 -B -m unittest discover -s deploy/test -v
   nodes:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -49,6 +50,14 @@ jobs:
         working-directory: backend
       - name: Build actual agent runtime
         run: docker build -f backend/Dockerfile -t gamepanel-agent:ci .
+      - name: Build standalone frontend and updater
+        run: |
+          docker build -f frontend/Dockerfile -t gamepanel-frontend:ci .
+          docker build -f deploy/updater/Dockerfile -t gamepanel-pro-updater:ci .
+      - name: Verify standard migration and rollback with real Compose
+        run: python3 deploy/test/docker_smoke.py
+        env:
+          GP_DEPLOY_DOCKER_TEST: '1'
       - name: Test two independent runtimes on real Docker
         working-directory: backend
         run: npx tsx --test test/integration/nodes.test.ts

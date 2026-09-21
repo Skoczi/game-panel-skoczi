@@ -1,5 +1,18 @@
 # Game Panel PRO — Changelog
 
+## 2.0.50 — Game Panel PRO
+
+First published Game Panel PRO release, based on the expanded OVHcloud Game Panel 1.5.0 fork. Includes the backup, editor, resources, API and UI work recorded in the 2.0.49 development candidate below.
+
+- Standalone Linux installer: complete build inputs, our own panel/updater images, non-empty destination protection and HTTP readiness check.
+- Standard 1.5.0 migration: preflight, preserved accounts/configuration, stopped database snapshot, pinned rollback images and recovery on failed startup.
+- Updates from the panel for supported standalone installations, with explicit confirmation, stable releases from our GitHub and verified source archives. Multi-node/custom installations remain manual.
+- Maintenance barrier for PRO updates: block new writes, pause scheduled work and drain active operations before switching.
+- Bundled 2.0.50 changelog, available offline; version checks use `Skoczi/game-panel-skoczi` only.
+- Expanded README, API/compatibility documentation, installation guide and reserved screenshot slots.
+
+[Full release notes](docs/pro/RELEASE-2.0.50.md) · [Install or migrate](docs/pro/INSTALL.md).
+
 ## 2.0.49 — local release candidate
 
 Renamed the project from the Skoczi edition to Game Panel PRO. Continues `1.5.0-skoczi.49` (Revision 49). Not deployed or published as a stable release.

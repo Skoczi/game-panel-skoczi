@@ -1,3 +1,4 @@
+import { isPanelMaintenance } from './panelMaintenance.js';
 import { nativeServerTemplate } from './nativeBackups.js';
 import { scheduledTaskRepository, serverRepository, actionsRepository } from '../database/index.js';
 import { enterServerMutation } from './nativeOperationLock.js';
@@ -468,7 +469,7 @@ async function finishTask(row: ScheduledTaskRow, status: ScheduledTaskLastStatus
 }
 
 async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
-    if (runningTasks.has(row.id)) return;
+    if (isPanelMaintenance() || runningTasks.has(row.id)) return;
     runningTasks.add(row.id);
     let releaseMutation: (() => void) | undefined;
 
@@ -522,7 +523,7 @@ async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
 }
 
 export async function runDueScheduledTasks(): Promise<void> {
-    if (runnerTickRunning) return;
+    if (isPanelMaintenance() || runnerTickRunning) return;
     runnerTickRunning = true;
 
     try {

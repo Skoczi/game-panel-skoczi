@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadWithMocks } from './loadWithMocks.js';
 function updater(releases: any[], ok = true) {
  return loadWithMocks('../src/services/panelUpdates.ts', {
-  '../database/index.js': {}, '../utils/appInfo.js': { getAppVersion: () => '2.0.49' }, '../utils/docker/client.js': {}, '../utils/docker/containers.js': {}, '../config.js': {}, '../utils/logger.js': {}, '../utils/time.js': {},
+  './managedUpdates.js': { managedUpdateCapability: async () => ({ enabled: false, reason: 'Manual installation' }) }, '../database/index.js': {}, '../utils/appInfo.js': { getAppVersion: () => '2.0.49' }, '../utils/docker/client.js': {}, '../utils/docker/containers.js': {}, '../config.js': {}, '../utils/logger.js': {}, '../utils/time.js': {},
  }, { AbortSignal, fetch: async () => ({ ok, status: ok ? 200 : 503, json: async () => releases }) });
 }
 test('release checks compare the fork semver and exclude drafts and preview releases', async () => {

@@ -14,7 +14,7 @@ escape_env_value() {
   printf '"%s"' "$value"
 }
 
-INSTALL_LOG_FILE="${GP_INSTALL_LOG_FILE:-/var/log/ovh-gamepanel-install.log}"
+INSTALL_LOG_FILE="${GP_INSTALL_LOG_FILE:-/var/log/game-panel-pro-install.log}"
 INSTALL_LOG_ACTIVE=0
 INSTALL_FAIL_LINE=""
 INSTALL_FAIL_CMD=""
@@ -418,25 +418,7 @@ create_runtime_dirs() {
   install -d -m 0755 -o root -g "$APP_GROUP" "$SERVERS_DIR"
 }
 
-sync_project_sources() {
-  log "Syncing project sources to $APP_SOURCE_DIR..."
-  rm -rf \
-    "$APP_SOURCE_DIR/backend" \
-    "$APP_SOURCE_DIR/frontend" \
-    "$APP_SOURCE_DIR/deploy"
-
-  tar -C "$SOURCE_ROOT" -cf - \
-    --exclude='.git' \
-    --exclude='backend/node_modules' \
-    --exclude='backend/dist' \
-    --exclude='backend/.env' \
-    --exclude='frontend/node_modules' \
-    --exclude='frontend/dist' \
-    backend \
-    frontend \
-    deploy \
-    | tar -C "$APP_SOURCE_DIR" -xf -
-}
+. "$SCRIPT_DIR/lib/source-tree.sh"
 
 write_env_file() {
   local jwt_secret="$1"
@@ -453,6 +435,8 @@ ADMIN_USERNAME=$(escape_env_value "$ADMIN_USERNAME")
 ADMIN_PASSWORD=$(escape_env_value "$ADMIN_PASSWORD")
 GAMEPANEL_APP_ROOT=$(escape_env_value "$APP_ROOT")
 GAMEPANEL_REPOSITORY_URL=https://github.com/Skoczi/game-panel-skoczi.git
+GAMEPANEL_MANAGED_UPDATES=true
+GAMEPANEL_PRO_UPDATER_IMAGE=gamepanel-pro-updater:${APP_VERSION}
 GAMEPANEL_BIND_IPS=
 GAMEPANEL_IP_PORTS=
 DOCKER_SOCKET=/var/run/docker.sock
@@ -601,6 +585,11 @@ main() {
   ENV_FILE="${DEPLOY_DIR}/.env"
   COMPOSE_FILE="${DEPLOY_DIR}/compose.yml"
 
+  [[ "$APP_ROOT" = /* && "$APP_ROOT" != / ]] || die "Use an absolute installation directory other than /."
+  [[ ! -L "$APP_ROOT" ]] || die "The installation root must not be a symlink."
+  if [[ -d "$APP_ROOT" && -n "$(find "$APP_ROOT" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    die "Installation directory is not empty. Use deploy/update.sh for an existing panel; no files were changed."
+  fi
   DOMAIN="$(prompt_required "${GP_DOMAIN:-}" 'Domain (example: panel.example.com)')"
   ADMIN_USERNAME="$(prompt_optional "${GP_ADMIN_USERNAME:-}" 'Admin username' 'admin')"
   prompt_secret_required "${GP_ADMIN_PASSWORD:-}" 'Admin password'
@@ -640,9 +629,10 @@ main() {
   write_env_file "$JWT_SECRET" "$APP_INSTANCE_ID" "$APP_INSTANCE_SECRET" "$TELEMETRY_ENABLED"
   write_compose_file
 
-  log "Skoczi preview: built-in automatic updater is disabled; use reviewed manual releases."
+  log "Game Panel PRO: confirmed updates are available from the panel with a rollback snapshot."
 
-  log "Starting GamePanel stack..."
+  log "Starting Game Panel PRO..."
+  docker build -f "$APP_SOURCE_DIR/deploy/updater/Dockerfile" -t "gamepanel-pro-updater:${APP_VERSION}" "$APP_SOURCE_DIR"
   compose_cmd up -d --build
   local stack_ready="true"
   wait_for_stack || stack_ready="false"
@@ -652,13 +642,14 @@ main() {
   if [[ "$stack_ready" == "true" ]]; then
     log "Installation complete."
   else
-    warn "Installation finished, but the panel did not answer yet."
+    warn "Installation failed its HTTP health check. Files are retained for diagnosis."
     warn "Check the backend logs: docker logs ${COMPOSE_PROJECT_NAME}-backend-1"
   fi
   printf 'URL: https://%s\n' "$DOMAIN"
   printf 'Admin username: %s\n' "$ADMIN_USERNAME"
   printf 'Compose file: %s\n' "$COMPOSE_FILE"
   printf 'Environment file: %s\n' "$ENV_FILE"
+  [[ "$stack_ready" == "true" ]]
 }
 
 main "$@"

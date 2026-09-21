@@ -341,22 +341,41 @@ test('settings stays within a narrow viewport', async ({ page }) => {
   await expect(page.getByLabel('IP address', { exact: true })).toHaveCount(0);
 });
 
-test('version dialog shows the bundled changelog offline and never offers an automatic deployment', async ({ page }) => {
+test('version dialog keeps bundled notes offline and disables updates on unmanaged installations', async ({ page }) => {
   await mock(page);
   let unavailable = false;
   await page.route('**/api/system/update/check', route => unavailable
     ? route.fulfill({ status: 503, json: { error: 'offline' } })
-    : route.fulfill({ json: { currentVersion: '2.0.49', latestVersion: null, updateAvailable: false, currentRelease: null, newerReleases: [] } }));
+    : route.fulfill({ json: { currentVersion: '2.0.50', latestVersion: null, updateAvailable: false, currentRelease: null, newerReleases: [] } }));
   await page.goto('/test/settings.fixture.html');
   await page.getByTestId('panel-revision').click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Game Panel PRO · Version & changelog' })).toBeVisible();
-  await expect(dialog.getByText('Installed changelog · 2.0.49')).toBeVisible();
+  await expect(dialog.getByText('Installed changelog · 2.0.50')).toBeVisible();
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('No published stable release');
   unavailable = true;
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('Version status is unknown');
-  await expect(dialog.getByText(/Native backups run for stopped and running servers/)).toBeVisible();
+  await expect(dialog.getByText(/Native backups work with a running or stopped game/)).toBeVisible();
   await expect(dialog.getByRole('button', { name: /Update to/ })).toHaveCount(0);
+});
+
+test('managed update requires confirmation and stays single-submit while queued', async ({ page }) => {
+  await mock(page);
+  let posts = 0;
+  await page.route('**/api/system/update/check', route => route.fulfill({ json: { currentVersion: '2.0.50', latestVersion: '2.0.51', updateAvailable: true, currentRelease: null, newerReleases: [], managedUpdates: { enabled: true, reason: 'A rollback snapshot is created first.' } } }));
+  await page.route('**/api/system/update/status', route => route.fulfill({ json: { running: posts > 0, job: posts ? { id: 1, status: 'pending', message: 'Update queued', targetVersion: '2.0.51' } : null } }));
+  await page.route('**/api/system/update', route => { posts++; expect(route.request().postDataJSON()).toEqual({ version: '2.0.51' }); return route.fulfill({ status: 202, json: { started: true, jobId: 1, targetVersion: '2.0.51' } }); });
+  await page.goto('/test/settings.fixture.html');
+  await page.getByTestId('panel-revision').click();
+  await page.getByRole('button', { name: 'Check GitHub' }).click();
+  await page.getByRole('button', { name: 'Update to 2.0.51' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Update Game Panel PRO?' });
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  expect(posts).toBe(0);
+  await page.getByRole('button', { name: 'Update to 2.0.51' }).click();
+  await confirm.getByRole('button', { name: 'Install update' }).click();
+  await expect(page.getByRole('button', { name: 'Update to 2.0.51' })).toBeDisabled();
+  expect(posts).toBe(1);
 });

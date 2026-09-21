@@ -67,6 +67,7 @@ export interface ReleaseNotes {
 }
 
 export interface PanelUpdateCheck {
+  managedUpdates?: { enabled: boolean; reason: string };
   currentVersion: string;
   latestVersion: string | null;
   updateAvailable: boolean;
@@ -1145,6 +1146,10 @@ class ApiClient {
   async checkPanelUpdate(): Promise<PanelUpdateCheck> {
     const response = await this.client.get('/api/system/update/check');
     return response.data as PanelUpdateCheck;
+  }
+
+  async getPanelUpdateStatus(): Promise<{ running: boolean; job: null | { id: number; status: string; message: string | null; errorMessage: string | null; targetVersion: string } }> {
+    return (await this.client.get('/api/system/update/status')).data;
   }
 
   async startPanelUpdate(version: string): Promise<{

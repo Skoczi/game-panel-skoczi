@@ -6,6 +6,11 @@ COPY backend/package*.json ./
 RUN npm ci
 WORKDIR /workspace
 COPY backend ./backend
+COPY frontend ./frontend
+COPY docs ./docs
+COPY deploy ./deploy
+COPY docker-images ./docker-images
+COPY LICENSE LICENSE-2.0.txt NOTICE CHANGELOG.md README.md ./
 COPY examples ./examples
 COPY runtime ./runtime
 COPY .dockerignore ./.dockerignore

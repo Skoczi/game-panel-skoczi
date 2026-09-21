@@ -24,6 +24,10 @@ docker exec "$name" sh -ec '
     sleep 1
   done
   docker build -f backend/Dockerfile -t gamepanel-agent:ci .
+  python3 -B -m unittest discover -s deploy/test -v
+  GP_DEPLOY_DOCKER_TEST=1 python3 deploy/test/docker_smoke.py
+  docker build -f frontend/Dockerfile -t gamepanel-frontend:ci .
+  docker build -f deploy/updater/Dockerfile -t gamepanel-pro-updater:ci .
   cd backend
   npm test
   npm run build

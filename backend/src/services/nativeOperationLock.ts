@@ -22,3 +22,5 @@ export function enterServerMutation(id: number): () => void {
     return () => { if (!released) { released = true; mutations.delete(id); } };
 }
 export const nativeOperationRunning = (id: number) => operations.has(id) || blocked.has(id);
+
+export const activeServerOperations = () => operations.size + mutations.size;

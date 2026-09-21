@@ -1,5 +1,7 @@
 # Deployment and rollback — preparation only
 
+For the published 2.0.50 standalone installer and migration from upstream 1.5.0, use [INSTALL.md](INSTALL.md). The WAW-specific notes below describe a custom deployment and its separate rollout gate.
+
 No deployment is part of this change. The last confirmed live version is `1.5.0-skoczi.49`, commit `679c161f5637f83da356f3943e23a0ef6e40b15c`. The development identity becomes Game Panel PRO `2.0.49`.
 
 ## Existing WAW2 process

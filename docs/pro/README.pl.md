@@ -1,8 +1,10 @@
-# Game Panel PRO 2.0.49
+# Game Panel PRO 2.0.50
 
-Niezależny fork OVH Game Panel, rozwijany przez Skoczi. Zachowujemy oryginalne prawa autorskie OVH i licencję Apache 2.0. `2.0.49` kontynuuje dawną Revision 49; nie jest wersją upstream 2.0.
+Niezależny fork OVH Game Panel, rozwijany przez Skoczi. Zachowujemy oryginalne prawa autorskie OVH i licencję Apache 2.0. Projekt bazuje na OVHcloud Game Panel 1.5.0 i kontynuuje rozwój własnego forka.
 
-To lokalny kandydat do dużej aktualizacji. Nie wdrożono go na eserv.pl ani WAW1.
+Wydanie można zainstalować samodzielnie — bez wcześniejszej instalacji OVH Game Panel. Publikacja na GitHubie nie oznacza wdrożenia na eserv.pl ani WAW1.
+
+[Nowa instalacja, migracja z 1.5.0 i rollback](INSTALL.md). Standardowa instalacja pozwala uruchamiać kolejne aktualizacje z panelu; wydania i changelog pochodzą wyłącznie z naszego GitHuba. Instalacje z agentami zdalnymi wymagają skoordynowanej aktualizacji.
 
 ## Najważniejsze zmiany
 

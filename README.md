@@ -1,70 +1,155 @@
+<div align="center">
+
 # Game Panel PRO
 
-A self-hosted game server panel for a trusted group. Manage servers across nodes, edit configuration, use the console, schedule tasks and recover game files from backups.
+**Servers, console, files and recovery in one workspace.**
 
-**Independent fork of [OVHcloud Game Panel](https://github.com/ovh/game-panel), developed by Skoczi.** The upstream copyright and Apache 2.0 notices remain in [LICENSE](LICENSE), [LICENSE-2.0.txt](LICENSE-2.0.txt) and [NOTICE](NOTICE).
+[![Release](https://img.shields.io/github/v/release/Skoczi/game-panel-skoczi?color=0891b2)](https://github.com/Skoczi/game-panel-skoczi/releases)
+[![CI](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml/badge.svg?branch=main)](https://github.com/Skoczi/game-panel-skoczi/actions/workflows/skoczi-ci.yml)
+[![License](https://img.shields.io/badge/license-Apache_2.0-64748b)](LICENSE)
 
-Current development version: **2.0.49**. This is a local release candidate, not a statement about the version deployed at eserv.pl.
+[Features](#features) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Changelog](CHANGELOG.md) · [Polski](docs/pro/README.pl.md)
 
-## Interface
+</div>
 
-A compact workspace with a server fleet, console and file editor. Dark and light themes, responsive layouts and shared controls.
+Game Panel PRO is a self-hosted panel for managing game servers across multiple nodes. It is built for a trusted group of operators who need direct access to the console, configuration, schedules and backups.
 
-Screenshots will be added after release review. See [the screenshot slots](docs/screenshots/README.md); this repository does not use placeholder images presented as real product screenshots.
+Developed by **Skoczi**, it extends **[OVHcloud Game Panel 1.5.0](https://github.com/ovh/game-panel/tree/v1.5.0)** with a multi-node workspace, Native runtime, recovery tools and a scoped integration API. It is an independent project, not an official OVHcloud release.
 
-## What it does
+**Current release: 2.0.50.** [Release notes](docs/pro/RELEASE-2.0.50.md) · [Compatibility](docs/pro/FEATURES.md)
 
-| Area | Available behavior |
-| --- | --- |
-| Fleet and nodes | Multi-node inventory, per-server access, console and activity |
-| Native runtime | Versioned template snapshot, explicit installation and update recipes |
-| LinuxGSM / OVH adapters | Existing provider-specific installation and game configuration |
-| Files | Multiple editor tabs, previews, uploads, archive tools and conditional text saves |
-| Native backups | Online or offline `serverfiles` archive, download, restore while stopped and retained recovery data |
-| Scheduling | Restart, backup and custom tasks, strict five-field cron, pre/post steps |
-| Resources | Absolute CPU/RAM measurements, assigned limits, game data size and network rate |
-| Project updates | GitHub release checks and in-panel changelog; managed deployment stays manual |
+## Screenshots
 
-Provider capabilities differ. A catalog entry is not proof that a game has passed a full installation and recovery test. [Feature and compatibility matrix](docs/pro/FEATURES.md).
+Reserved for real panel captures. Each view has a defined slot in the [screenshot guide](docs/screenshots/README.md); no mockups are presented as working screens.
+
+| Fleet overview | Server workspace |
+|:---:|:---:|
+| *Desktop · dark theme — screenshot to follow* | *Console and resource measurements — screenshot to follow* |
+| File editor | Backups & recovery |
+| *Tabs, comparison and conflict handling — screenshot to follow* | *Named copies, job status and restore — screenshot to follow* |
+
+<!-- Replace the slots above with real captures using these paths:
+![Fleet overview](docs/screenshots/fleet-dark.webp)
+![Server console](docs/screenshots/server-console.webp)
+![File conflict comparison](docs/screenshots/files-conflict.webp)
+![Native backups](docs/screenshots/native-backups.webp)
+![Mobile server workspace](docs/screenshots/server-mobile.webp)
+-->
+
+## Features
+
+### Fleet and server workspace
+
+- Manage local and remote runtime nodes from a single panel, with per-server access controls.
+- Use fleet cards or a list, personal ordering, game filters and groups.
+- Keep console, files, configuration, backups, schedules, network, startup settings and activity within the selected server.
+- Read connection addresses and copy identifiers without leaving the workspace. Configure per-IP port allocations and ranges.
+- Use dark or light themes, responsive layouts, a resizable side console and shared confirmation dialogs.
+
+### Console and resources
+
+- Send commands, search command history, copy output and switch to full screen.
+- Follow incoming logs or pause scrolling to read earlier output. The rolling buffer retains up to 5000 server log entries.
+- Read CPU in vCPU, memory in bytes and usage against assigned limits. Game data size, free node storage and network rates are separate measurements.
+- Missing or stale information stays visibly unavailable rather than appearing as zero usage or a successful operation.
+
+### Files and configuration
+
+- Browse files, upload, preview, rename and use archive tools. Edit configuration in a tabbed Monaco editor.
+- Save text with a content-version check and atomic replacement. If another operator changed the file, compare versions while keeping your draft.
+- Recover bounded local editor drafts and review server-side file history with timestamps and operator information.
+- Restore a historical text version into the editor first; the usual conflict check still applies when saving.
+- Archive extraction stages changes and keeps rollback data while the operation runs.
+
+### Native backups and recovery
+
+- Create an optionally named backup while the server is running or stopped. Online copies are marked as live; game-specific save consistency is not guaranteed.
+- Store archives in `data/backups`, beside `serverfiles` and `log`. Archives contain only `serverfiles`, excluding logs, installers and older backups.
+- Download archives, inspect operation status after reload and review backup protection information.
+- Restore while the game is stopped. The runtime validates and stages the archive before replacing `serverfiles`; previous files are retained for recovery.
+- Use a free-space guard and preview manual retention before deleting copies. Incomplete recovery data is protected from cleanup.
+- Keep legacy archives available for download without silently converting their format.
+
+### Schedules and integrations
+
+- Schedule backups, restarts and custom tasks using validated five-field cron expressions, node timezone information and next-run previews.
+- Define pre/post commands and cleanup steps that can run after a task fails.
+- Create expiring API tokens scoped to selected servers and operations. Secrets are shown once; access also depends on the owner's current permissions.
+- Use API v1 to list servers, read resources and backup metadata, create Native backups and follow operation status.
+- Retry backup requests with an idempotency key. Interrupted or uncertain outcomes are reported explicitly.
+- Read the installed changelog and check releases from this GitHub repository. Standard standalone installations can update from the panel, with a snapshot and automatic rollback on failed startup.
+
+[API guide and curl examples](docs/pro/API-PROGRESS.md) · [OpenAPI contract](docs/pro/openapi-v1.json)
+
+## Runtime support
+
+| Runtime | Scope |
+|---|---|
+| **Native** | Versioned template definitions, explicit install/update recipes, resource limits and the backup/recovery workflow described above |
+| **LinuxGSM** | Existing adapter, game configuration and provider-specific operations |
+| **OVH adapter** | Existing provider behavior and supported configuration/backup operations |
+
+Capabilities differ by provider. A listed template is not a certification that every game has passed installation, live backup and recovery testing. This release adds no games or Egg importer. [Full compatibility notes](docs/pro/FEATURES.md).
+
+## Install or upgrade
+
+Install Game Panel PRO directly; no existing OVH panel is required:
+
+```sh
+git clone --branch v2.0.50 --depth 1 https://github.com/Skoczi/game-panel-skoczi.git
+cd game-panel-skoczi
+sudo bash deploy/install.sh
+```
+
+For an existing standard OVHcloud Game Panel 1.5.0 installation, use the separate migration path:
+
+```sh
+sudo python3 deploy/upgrade.py check --app-root /opt/gamepanel --project-name gamepanel
+sudo bash deploy/update.sh --app-root /opt/gamepanel --project-name gamepanel
+```
+
+Run these commands from the new release checkout outside the installed panel directory. The fresh installer refuses a non-empty destination. [Requirements, migration, panel updates and rollback](docs/pro/INSTALL.md).
+
+## Deployment
+
+**Update the panel and runtime agents together.** An old agent cannot provide the new file protections, Native recovery or resource measurements. Preserve databases, environment, image references, game data and recovery journals before an upgrade.
+
+Native backup support requires the `data/serverfiles` layout. Existing installations using another layout need a reviewed migration. A backup on the same disk is a local recovery point; download important copies to separate storage.
+
+Start with the [deployment and rollback guide](docs/pro/DEPLOYMENT.md). Source archives are not a snapshot of an existing installation. Docker integration tests cover Linux behavior; target-host acceptance and a real game-client check remain part of deployment.
 
 ## Documentation
 
-[Dokumentacja po polsku](docs/pro/README.pl.md).
+| Guide | Contents |
+|---|---|
+| [Install & upgrade](docs/pro/INSTALL.md) | Standalone installation, 1.5.0 migration and managed updates |
+| [Operations](docs/pro/OPERATIONS.md) | Backups, restore, file protection and limits |
+| [Compatibility](docs/pro/FEATURES.md) | Native layout and provider differences |
+| [API v1](docs/pro/API-PROGRESS.md) | Authentication, scopes, errors and examples |
+| [Development](docs/pro/DEVELOPMENT.md) | Local setup and test commands |
+| [Validation](docs/pro/VALIDATION-2.0.50.md) | What was tested and what still needs target-host acceptance |
+| [Performance](docs/pro/PERFORMANCE-PROGRESS.md) | Reproducible local measurements and regression budgets |
+| [Changelog](CHANGELOG.md) | Current release and development history |
 
-- [Daily operation and data protection](docs/pro/OPERATIONS.md)
-- [Local development and tests](docs/pro/DEVELOPMENT.md)
-- [Deployment, agent compatibility and rollback](docs/pro/DEPLOYMENT.md)
-- [Stage A implementation status (PL)](docs/pro/STAGE-A.md)
-- [Local validation report](docs/pro/VALIDATION-2.0.49.md)
-- [Changelog](CHANGELOG.md) and [2.0.49 release notes](docs/pro/RELEASE-2.0.49.md)
-- [Historical fork documentation](docs/skoczi/README.md)
+### Local development
 
-## Scope
-
-Game Panel PRO is designed for trusted operators. Docker access gives the runtime substantial control over its host. This release focuses on predictable operations and protecting game data. Billing, an Egg importer and additional game profiles are outside this update.
-
-A backup on the game server's disk is a local recovery point. Download important archives to another machine or storage system.
-
-## Development
-
-Node.js 22 or 24 LTS, npm and Git are required. Docker integration tests additionally need a Linux Docker daemon.
+Use Node.js 22 or 24 LTS, npm and Git. Docker integration tests need a Linux Docker runtime.
 
 ```sh
-cd backend
-npm ci
-npm test
-npm run build
-cd ../frontend
-npm ci
-npm run build
+git clone https://github.com/Skoczi/game-panel-skoczi.git
+cd game-panel-skoczi
+npm ci --prefix backend
+npm test --prefix backend
+npm run build --prefix backend
+npm ci --prefix frontend
+npm run build --prefix frontend
+cd frontend
 npx playwright install chromium
 npm run test:ui
 ```
 
-UI tests run headlessly. Screenshot capture is opt-in via `PLAYWRIGHT_SCREENSHOTS=1`.
+See the development guide for service configuration and the isolated Linux acceptance runner. UI screenshots are opt-in with `PLAYWRIGHT_SCREENSHOTS=1`.
 
-## Releases and attribution
+## License and origin
 
-Release tags use `v2.0.X`. `2.0.49` continues the former Revision 49; the original base version is recorded in the changelog. Published GitHub releases are used for update detection. Missing or failed release checks do not prove the installation is current.
-
-Repository: [Skoczi/game-panel-skoczi](https://github.com/Skoczi/game-panel-skoczi). The existing URL is kept so remotes and update checks remain valid. Product name: **Game Panel PRO**. Origin: **fork of OVH Game Panel**. This is not an official OVHcloud release.
+Apache License 2.0. Original OVH copyright and notices are preserved in [LICENSE](LICENSE), [LICENSE-2.0.txt](LICENSE-2.0.txt) and [NOTICE](NOTICE). Skoczi maintains the modifications and continued development. The repository URL remains `Skoczi/game-panel-skoczi` for continuity; the product name is **Game Panel PRO**.

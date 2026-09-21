@@ -1,6 +1,7 @@
-import localReleaseNotes from '../../docs/pro/RELEASE-2.0.49.md?raw';
+import localReleaseNotes from '../../docs/pro/RELEASE-2.0.50.md?raw';
 import { getAppVersion } from '../utils/appInfo';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ConfirmationModal } from './ConfirmationModal';
 import { RefreshCw } from 'lucide-react';
 import {
   AppButton,
@@ -63,7 +64,38 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
   const [checked, setChecked] = useState<PanelUpdateCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState('');
+  const [updateRunning, setUpdateRunning] = useState(false);
+  const [uncertainStart, setUncertainStart] = useState(false);
   const info = checked ?? updateInfo;
+  useEffect(() => {
+    if (!isOpen) return;
+    let disposed = false;
+    const poll = async () => {
+      try {
+        const result = await apiClient.getPanelUpdateStatus();
+        if (disposed) return;
+        setUpdateRunning(result.running);
+        if (result.job) setUpdateStatus(result.job.errorMessage || result.job.message || result.job.status);
+      } catch { if (!disposed && updateRunning) setUpdateStatus('Panel reconnecting. Do not submit the update again.'); }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 5000);
+    return () => { disposed = true; clearInterval(timer); };
+  }, [isOpen, updateRunning]);
+  const startUpdate = async () => {
+    if (!info?.latestVersion || starting || uncertainStart) return;
+    setConfirmUpdate(false); setStarting(true); setError('');
+    try {
+      await apiClient.startPanelUpdate(info.latestVersion);
+      setUpdateRunning(true); setUpdateStatus('Update queued. This page reconnects after the panel restarts.');
+    } catch {
+      setUncertainStart(true);
+      setError('The update request was not confirmed. Check operation status or reload before trying again.');
+    } finally { setStarting(false); }
+  };
   const check = async () => {
     setChecking(true); setError('');
     try { setChecked(await apiClient.checkPanelUpdate()); }
@@ -76,6 +108,7 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
     : !info.currentRelease ? `Installed version is not a published GitHub release. Latest stable: ${info.latestVersion}.`
     : `Your panel is up to date — ${info.currentVersion}.`;
   return (
+    <>
     <AppModal open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <AppModalContent className="max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl overflow-hidden">
         <AppModalHeader>
@@ -88,13 +121,17 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
             <RefreshCw size={16} className={checking ? 'animate-spin' : ''} />
             {checking ? 'Checking…' : 'Check GitHub'}
           </AppButton>
-          <p className="text-xs opacity-70">Updates are deployed manually with an agent compatibility check and a rollback copy. Checking GitHub does not change this installation.</p>
-          {getAppVersion() === '2.0.49' && <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · 2.0.49</summary><Markdown>{localReleaseNotes}</Markdown></details>}
+          <p className="text-xs opacity-70">{info?.managedUpdates?.reason || 'Checking GitHub does not change this installation. Managed updates require the standalone installer.'}</p>
+          {info?.updateAvailable && info.managedUpdates?.enabled && <AppButton disabled={starting || updateRunning || uncertainStart} onClick={() => setConfirmUpdate(true)}>Update to {info.latestVersion}</AppButton>}
+          {updateStatus && <p role="status" className="text-sm">{updateStatus}</p>}
+          {getAppVersion() === '2.0.50' && <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · 2.0.50</summary><Markdown>{localReleaseNotes}</Markdown></details>}
           {info?.newerReleases?.map(release => <ReleaseNotesBlock key={release.version} release={release} isDark={isDark} heading={release.version} />)}
-          {info?.currentRelease && getAppVersion() !== '2.0.49' && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
+          {info?.currentRelease && getAppVersion() !== '2.0.50' && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
           <AppButton onClick={onClose}>Close</AppButton>
         </AppModalBody>
       </AppModalContent>
     </AppModal>
+    {confirmUpdate && <ConfirmationModal isOpen title="Update Game Panel PRO?" message={`Install ${info?.latestVersion} from Skoczi/game-panel-skoczi? The panel will restart. A rollback snapshot is created first; running game containers are left alone.`} confirmText="Install update" onClose={() => setConfirmUpdate(false)} onConfirm={startUpdate} />}
+    </>
   );
 }

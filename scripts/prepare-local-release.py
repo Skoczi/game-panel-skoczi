@@ -40,7 +40,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate', required=True)
     parser.add_argument('--rollback', required=True)
-    parser.add_argument('--version', default='2.0.49')
+    parser.add_argument('--version', default='2.0.50')
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     if git('status', '--porcelain').strip():
@@ -60,7 +60,7 @@ def main():
                                     'Preserve game data, backup archives and recovery journals.',
                                     'Disposable-server acceptance on WAW, including a real game client.']}
     for name, data, metadata in [('candidate', candidate, candidate_meta), ('rollback', rollback, rollback_meta)]:
-        filename = name + '-' + metadata['commit'][:12] + '.tar.gz'
+        filename = f'game-panel-pro-{args.version}.tar.gz' if name == 'candidate' else name + '-' + metadata['commit'][:12] + '.tar.gz'
         (output / filename).write_bytes(data)
         metadata['file'] = filename
     (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

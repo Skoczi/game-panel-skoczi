@@ -1,3 +1,5 @@
+import { recoverRestartAttempts } from './services/monitoringRecovery.js';
+import { startAlertWorker } from './services/alerts.js';
 import { startGameMonitoringWorker } from './services/gameMonitoring.js';
 import { fastDownloadPublic } from './routes/fastDownload.js';
 import { startFastDownloadWorker } from './services/fastDownload.js';
@@ -97,6 +99,7 @@ let periodicHealthReconcile: { stop: () => void } | null = null;
 let linuxGsmRefreshJob: { stop: () => void } | null = null;
 let fileTransferCleanupJob: { stop: () => void } | null = null;
 let downloadTokenCleanupJob: { stop: () => void } | null = null;
+let alertWorker: ReturnType<typeof startAlertWorker> | undefined;
 let gameMonitoringWorker: { stop: () => void } | null = null;
 let fastDownloadWorker: { stop: () => void } | null = null;
 let scheduledTaskRunner: { stop: () => void } | null = null;
@@ -244,7 +247,9 @@ async function startServer(): Promise<void> {
     downloadTokenCleanupJob = startDownloadTokenCleanupJob();
     scheduledTaskRunner = startScheduledTaskRunner();
     fastDownloadWorker = startFastDownloadWorker();
+    await recoverRestartAttempts();
     gameMonitoringWorker = startGameMonitoringWorker();
+    alertWorker = startAlertWorker();
 
     httpServer.listen(port, () => {
       logInfo('APP', 'Game Panel backend listening on port ' + port);
@@ -275,6 +280,7 @@ function setupGracefulShutdown(): void {
       scheduledTaskRunner?.stop();
       fastDownloadWorker?.stop();
       gameMonitoringWorker?.stop();
+      alertWorker?.stop();
       agentHeartbeat?.stop();
       closeNodeSockets();
 

@@ -1,3 +1,4 @@
+import { restartServer } from '../../services/restartServer.js';
 import { applyPendingServerConfiguration } from '../../services/serverReconfiguration.js';
 import { Router, type Response } from 'express';
 import {
@@ -13,7 +14,6 @@ import { assertHostPortsAvailableForServer } from '../../services/hostPortAvaila
 import {
     afterOvhcloudServerStopped,
     getServerStopTimeoutSeconds,
-    restartOvhcloudServerIfHandled,
     startOvhcloudServerIfHandled,
 } from '../../services/ovhcloudLifecycle.js';
 import { parseStoredPorts } from '../../providers/runtimeConfig.js';
@@ -21,7 +21,6 @@ import {
     beginServerTransition,
     clearServerTransition,
     POWER_TRANSITION_TIMEOUT_MS,
-    RESTART_HEALTH_POLL_DELAY_MS,
     reconcileServerStatus,
 } from '../../services/serverTransitions.js';
 import { logError } from '../../utils/logger.js';
@@ -181,50 +180,10 @@ export function createServerPowerRoutes(): Router {
                 serverId = parseServerId(req.params.id);
                 if (!serverId) return res.status(400).json({ error: 'Invalid server id' });
 
-                let server = await getServerForPowerAction(serverId);
-                const applied = await applyPendingServerConfiguration(serverId);
-                if (applied?.wasRunning) {
-                    await actionsRepository.create(serverId, 'info', 'Saved settings applied; server restarted', req.user?.username || '');
-                    return res.json({ success: true, message: 'Saved settings applied; server restarted' });
-                }
-                if (applied) server = await getServerForPowerAction(serverId);
-                const currentStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);
-                if (currentStatus !== 'running') {
-                    await assertHostPortsAvailableForServer({
-                        ports: parseStoredPorts(server),
-                        excludeServerId: serverId,
-                        excludeContainerIds: [server.docker_container_id],
-                    });
-                }
-
-                await serverRepository.updateDesiredState(serverId, 'running');
-                await beginServerTransition(serverId, 'restarting', {
-                    timeoutMs: POWER_TRANSITION_TIMEOUT_MS,
-                    timeoutBehavior: 'reconcile',
-                    pollDockerHealth: true,
-                    healthPollDelayMs: RESTART_HEALTH_POLL_DELAY_MS,
-                });
-
-                const handled = await restartOvhcloudServerIfHandled(serverId, server);
-                if (!handled && currentStatus === 'running') {
-                    await dockerUtils.restartContainer(
-                        server.docker_container_id,
-                        getServerStopTimeoutSeconds(server)
-                    );
-                } else if (!handled) {
-                    await dockerUtils.startContainer(server.docker_container_id);
-                }
-
-                await completeDockerPowerTransition(serverId);
-
-                await actionsRepository.create(
-                    serverId,
-                    'info',
-                    'Server restart initiated',
-                    req.user?.username || ''
-                );
-
-                return res.json({ success: true, message: 'Server restart initiated' });
+                const applied = await restartServer(serverId);
+                const message = applied ? 'Saved settings applied; server restarted' : 'Server restart initiated';
+                await actionsRepository.create(serverId, 'info', message, req.user?.username || '');
+                return res.json({ success: true, message });
             } catch (error) {
                 return sendRouteError(res, error, {
                     route: 'ROUTE:SERVERS:RESTART',

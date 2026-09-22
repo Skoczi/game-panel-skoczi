@@ -1,3 +1,5 @@
+import { alertStore } from '../services/alerts.js';
+import { validateAlertBatch } from '../services/alertStore.js';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -203,7 +205,8 @@ export function mountNodeControl(app: express.Application) {
             );
             if (typeof req.body?.version !== 'string') throw new Error();
             await store.heartbeat(node.id, req.body.version);
-            res.json({ ok: true, protocol: 1 });
+            const alertAck = req.body.alerts === undefined ? [] : await (await alertStore()).receive(node.id, node.name, validateAlertBatch(req.body.alerts));
+            res.json({ ok: true, protocol: 1, alertAck });
         } catch {
             res.status(401).json({ error: 'Heartbeat rejected' });
         }

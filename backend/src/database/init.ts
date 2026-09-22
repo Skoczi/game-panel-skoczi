@@ -1,3 +1,4 @@
+import { MONITORING_ALERTS_SQL } from './migrations/0007_monitoring_alerts.js';
 import { GAME_MONITORING_SQL } from './migrations/0006_game_monitoring.js';
 import sqlite3 from 'sqlite3';
 import { open, type Database } from 'sqlite';
@@ -440,6 +441,7 @@ async function createSchema(database: Database): Promise<void> {
     `);
 
     await database.exec(GAME_MONITORING_SQL);
+    await database.exec(MONITORING_ALERTS_SQL);
     await database.exec('COMMIT');
     logInfo('DATABASE', 'Database schema ready');
   } catch (err) {

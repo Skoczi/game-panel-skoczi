@@ -31,7 +31,9 @@ export type NativeStep = { name: string; timeoutSeconds: number } & (
     { argv: string[]; script?: never } | { script: string; argv?: never }
 );
 
+export type AutoRestartConfig = { enabled: boolean; cooldownSeconds: number; maxAttempts: number; windowSeconds: number };
 export type GameMonitoringConfig = {
+    autoRestart?: AutoRestartConfig;
     enabled: boolean; protocol: 'a2s'; queryPort: number | null;
     intervalSeconds: number; startupGraceSeconds: number; failureThreshold: number;
 };
@@ -47,4 +49,5 @@ export type GameMonitoringSettings = {
     config: GameMonitoringConfig; summary: GameMonitoringSummary;
     ports: Array<{ container: number; host: number; label: string }>;
     templateProfile: boolean;
+    recovery?: { supported: true; attemptsInWindow: number; nextAttemptAt: string | null; lastResult: string | null };
 };

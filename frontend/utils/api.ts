@@ -1143,6 +1143,10 @@ class ApiClient {
     return (await this.client.get('/api/system/appearance')).data;
   }
 
+  async getNotifications() { return (await this.client.get('/api/system/notifications')).data; }
+  async saveNotifications(settings: { revision: number; enabled: boolean; categories: string[]; webhook?: string }) { return (await this.client.put('/api/system/notifications', settings)).data; }
+  async testNotifications() { return (await this.client.post('/api/system/notifications/test', {})).data; }
+
   async getGlobalSettings(): Promise<GlobalSettings & { assignments: Assignment[] }> {
     return (await this.client.get('/api/system/settings')).data;
   }

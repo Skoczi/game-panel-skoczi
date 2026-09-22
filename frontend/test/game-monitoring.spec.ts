@@ -49,3 +49,13 @@ test('template monitoring can be enabled with a declared UDP port', async ({ pag
     await page.getByRole('switch', { name: 'Enable monitoring by default' }).click();
     await expect(page.getByRole('combobox', { name: 'Template query port' })).toHaveCount(0);
 });
+test('automatic restart is opt-in, persists limits and is disabled together with monitoring',async({page})=>{
+    let value:any={...settings(),config:{...settings().config,autoRestart:{enabled:false,cooldownSeconds:300,maxAttempts:2,windowSeconds:3600}},recovery:{supported:true,attemptsInWindow:0,nextAttemptAt:null,lastResult:null}};let saved:any;
+    await page.route('**/api/servers/7/monitoring',r=>{if(r.request().method()==='PATCH'){saved=r.request().postDataJSON();value={...value,config:saved};}return r.fulfill({json:value});});
+    await page.setViewportSize({width:390,height:844});await page.goto('/test/game-monitoring.fixture.html');
+    const toggle=page.getByRole('switch',{name:'Automatically restart an unresponsive game'});await expect(toggle).not.toBeChecked();await toggle.click();
+    await page.getByLabel('Maximum attempts in window').fill('3');await page.getByRole('button',{name:'Save monitoring settings'}).click();await expect(page.getByRole('status')).toHaveText('Monitoring settings saved.');expect(saved.autoRestart.maxAttempts).toBe(3);
+    await page.getByRole('switch',{name:'Enable game monitoring',exact:true}).click();await expect(toggle).not.toBeChecked();await expect(toggle).toBeDisabled();await page.getByRole('button',{name:'Save monitoring settings'}).click();await expect(page.getByRole('status')).toHaveText('Monitoring settings saved.');expect(saved.autoRestart.enabled).toBe(false);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:'/tmp/gamepanel-recovery-mobile.png',fullPage:true});
+});

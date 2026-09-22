@@ -4,6 +4,8 @@ export const runtimeCapabilities = Object.freeze({
     cpuBinding: 1,
     gameMonitoring: 1,
     templateIcons: 1,
+    monitoringRecovery: 1,
+    alertRelay: 1,
     fastDownload: 1,
     versionedFiles: 1,
     backupJobs: 1,

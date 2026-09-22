@@ -1,3 +1,4 @@
+import { MONITORING_ALERTS_SQL } from '../src/database/migrations/0007_monitoring_alerts.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSocket } from 'node:dgram';
@@ -147,11 +148,14 @@ test('fresh runtime initialization creates monitoring before marking migrations 
         './migrations/index.js': { DATABASE_MIGRATIONS },
         './migrations/0002_server_runtime_identity.js': { RUNTIME_IDENTITY_SQL },
         './migrations/0006_game_monitoring.js': { GAME_MONITORING_SQL },
+        './migrations/0007_monitoring_alerts.js': { MONITORING_ALERTS_SQL },
         '../utils/time.js': { nowIso: () => new Date().toISOString() },
         '../utils/logger.js': { logInfo() {} },
     });
     await init.initializeDatabase();
     assert.deepEqual(db.prepare('SELECT * FROM game_monitoring').all(), []);
+    assert.deepEqual(db.prepare('SELECT * FROM monitoring_restarts').all(), []);
+    assert.deepEqual(db.prepare('SELECT * FROM alert_events').all(), []);
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE id='0006_game_monitoring'").get()!.count, 1);
     assert.equal(await init.initializeDatabase(), adapter);
 });
@@ -180,6 +184,7 @@ function workerFixture(total = 1) {
         './nativeOperationLock.js': { nativeOperationRunning: (id: number) => maintenance.has(id) },
         './panelMaintenance.js': { isPanelMaintenance: () => false },
         './gameMonitoringState.js': monitoringState,
+        './monitoringRecovery.js': { validateAutoRestart: () => ({ enabled: false, cooldownSeconds: 300, maxAttempts: 2, windowSeconds: 3600 }), maybeRestartGame: async () => {} },
         './gameQuery.js': { queryGame: async (host: string, port: number) => { queries.push({ host, port }); return query(); } },
     }, { setInterval: (fn: () => void) => { tick = fn; return 1; }, clearInterval: () => { tick = null; } });
     return { service, servers, records, observed, queries, maintenance, tick: () => tick?.(), onQuery: (fn: typeof query) => { query = fn; }, onInspect: (fn: typeof inspect) => { inspect = fn; } };

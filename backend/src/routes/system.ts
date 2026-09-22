@@ -1,3 +1,4 @@
+import { alertStore } from '../services/alerts.js';
 // Modified by Skoczi: expose the configured IPv4 allowlist to authenticated UI clients.
 import { configuredBindAddresses } from '../utils/bindAddresses.js';
 import { configuredPortPolicy } from '../utils/portPolicy.js';
@@ -11,6 +12,26 @@ import { nowIso } from '../utils/time.js';
 import { isAgent } from '../agent/identity.js';
 
 const router = Router();
+
+router.get('/notifications', rootOnly, async (_req, res) => {
+  try { res.setHeader('Cache-Control', 'no-store'); res.json(await (await alertStore()).view()); }
+  catch (error) { sendRouteError(res, error, { route: 'ALERT:READ', fallbackMessage: 'Cannot load notifications' }); }
+});
+router.put('/notifications', rootOnly, async (req, res) => {
+  try { res.json(await (await alertStore()).save(req.body)); }
+  catch (error) { sendRouteError(res, error, { route: 'ALERT:SAVE', fallbackMessage: 'Cannot save notifications' }); }
+});
+router.post('/notifications/test', rootOnly, async (_req, res) => {
+  try {
+    if (isAgent()) return res.status(409).json({ error: 'Configure notifications on the central panel' });
+    const store = await alertStore(), config = await store.config();
+    if (!config.enabled || !config.webhook) return res.status(409).json({ error: 'Save and enable a webhook first' });
+    const category = config.categories[0];
+    if (!category) return res.status(409).json({ error: 'Select at least one notification category' });
+    const event = await store.create(category, 'Game Panel PRO · test notification', 'Discord notifications are connected. This is a test, not a game outage.');
+    res.status(202).json({ id: event.id });
+  } catch (error) { sendRouteError(res, error, { route: 'ALERT:TEST', fallbackMessage: 'Cannot queue test notification' }); }
+});
 
 // Appearance only: authenticated users do not receive global allocations or server names.
 router.get('/appearance', (_req, res) => res.json(globalSettings().snapshot().appearance));

@@ -1,3 +1,4 @@
+import { DEFAULT_AUTO_RESTART, validateAutoRestart, recoverySummary, maybeRestartGame } from './monitoringRecovery.js';
 import { bus } from '../realtime/bus.js';
 import Docker from 'dockerode';
 import { getConfig } from '../config.js';
@@ -30,13 +31,15 @@ export function validateMonitoringConfig(input: unknown, server: GameServerRow):
     const fail = (message: string): never => { throw Object.assign(new Error(message), { statusCode: 400 }); };
     if (!input || typeof input !== 'object' || Array.isArray(input)) return fail('Invalid monitoring configuration');
     const c = input as GameMonitoringConfig;
-    if (Object.keys(c).some(k => !['enabled', 'protocol', 'queryPort', 'intervalSeconds', 'startupGraceSeconds', 'failureThreshold'].includes(k))) return fail('Unknown monitoring field');
+    if (Object.keys(c).some(k => !['enabled', 'protocol', 'queryPort', 'intervalSeconds', 'startupGraceSeconds', 'failureThreshold', 'autoRestart'].includes(k))) return fail('Unknown monitoring field');
     if (typeof c.enabled !== 'boolean' || c.protocol !== 'a2s') return fail('Choose the A2S game query protocol');
     for (const [key, min, max] of [['intervalSeconds', 10, 300], ['startupGraceSeconds', 0, 900], ['failureThreshold', 1, 10]] as const) {
         if (!Number.isInteger(c[key]) || c[key] < min || c[key] > max) return fail(`${key} must be an integer from ${min} to ${max}`);
     }
     if ((c.enabled || c.queryPort !== null) && !parseStoredPorts(server).udp.some(p => p.container === c.queryPort)) return fail('Select an allocated UDP query port');
-    return { enabled: c.enabled, protocol: 'a2s', queryPort: c.queryPort, intervalSeconds: c.intervalSeconds, startupGraceSeconds: c.startupGraceSeconds, failureThreshold: c.failureThreshold };
+    const autoRestart = validateAutoRestart(c.autoRestart);
+    if (autoRestart.enabled && !c.enabled) return fail('Enable monitoring before automatic restart');
+    return { autoRestart, enabled: c.enabled, protocol: 'a2s', queryPort: c.queryPort, intervalSeconds: c.intervalSeconds, startupGraceSeconds: c.startupGraceSeconds, failureThreshold: c.failureThreshold };
 }
 export function monitoringSummary(record: MonitoringRecord, now = Date.now()): GameMonitoringSummary {
     const { config, snapshot } = record;
@@ -50,7 +53,7 @@ export async function getMonitoringSettings(id: number): Promise<GameMonitoringS
     const server = await serverRepository.findById(id);
     if (!server) throw Object.assign(new Error('Server not found'), { statusCode: 404 });
     const record = await gameMonitoringRepository.get(id) || { config: monitoringDefaults(server), snapshot: emptySnapshot(), revision: 0 };
-    return { config: record.config, summary: monitoringSummary(record), ports: parseStoredPorts(server).udp, templateProfile: Boolean(profile(server)) };
+    return { config: { ...record.config, autoRestart: record.config.autoRestart || { ...DEFAULT_AUTO_RESTART } }, recovery: await recoverySummary(id, record.config), summary: monitoringSummary(record), ports: parseStoredPorts(server).udp, templateProfile: Boolean(profile(server)) };
 }
 export async function getMonitoringSummary(server: GameServerRow) {
     const record = await gameMonitoringRepository.get(server.id) || { config: monitoringDefaults(server), snapshot: emptySnapshot(), revision: 0 };
@@ -71,8 +74,9 @@ export async function configureMonitoring(id: number, input: unknown, actor: str
 
 export async function observeGame(server: GameServerRow, record: MonitoringRecord): Promise<Observation> {
     const base = { now: Date.now(), runtimeKey: record.snapshot.runtimeKey };
-    if (isPanelMaintenance() || nativeOperationRunning(server.id) || ['creating', 'installing', 'stopping', 'restarting'].includes(server.status)) return { ...base, state: 'maintenance' };
+    if (isPanelMaintenance() || nativeOperationRunning(server.id) || ['creating', 'installing', 'stopping'].includes(server.status)) return { ...base, state: 'maintenance' };
     if (server.desired_state === 'stopped') return { ...base, state: 'stopped' };
+    if (['starting', 'restarting'].includes(server.status)) return { ...base, state: 'starting' };
     if (!server.docker_container_id) return { ...base, state: server.status === 'starting' ? 'starting' : 'result', error: 'Game container is missing' };
     const port = parseStoredPorts(server).udp.find(p => p.container === record.config.queryPort);
     if (!port) return { ...base, state: 'unavailable', error: 'The configured UDP port is no longer allocated' };
@@ -124,6 +128,7 @@ export function startGameMonitoringWorker() {
                         if (await gameMonitoringRepository.observe(server.id, record.revision, snapshot)) {
                             bus.emit('server.monitoring', { serverId: server.id });
                             if (event) await actionsRepository.create(server.id, event.level, event.message, 'monitor');
+                            if (snapshot.state === 'offline') await maybeRestartGame(server.id, record.revision, snapshot.runtimeKey);
                         }
                     } catch (error) { logError('GAME:MONITOR', error, { serverId: server.id }); due.set(server.id, Date.now() + 30000); }
                     finally { active.delete(server.id); }

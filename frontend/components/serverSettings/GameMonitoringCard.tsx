@@ -37,7 +37,7 @@ export function GameMonitoringCard({ serverId }: { serverId: number }) {
     return <section className="gp-settings-card gp-monitor-card" aria-label="Game monitoring">
         <div className="gp-fdl-heading">
             <div className="gp-fdl-title"><span className="gp-fdl-icon"><Activity size={21} /></span><div><h4>Game monitoring</h4><p>Game response, map and players</p></div></div>
-            {draft && <AppToggle label="Enable game monitoring" checked={draft.enabled} disabled={busy || (!data?.ports.length && !draft.enabled)} onChange={enabled => change({ enabled, queryPort: data?.ports.some(p => p.container === draft.queryPort) ? draft.queryPort : data?.ports[0]?.container ?? null })} />}
+            {draft && <AppToggle label="Enable game monitoring" checked={draft.enabled} disabled={busy || (!data?.ports.length && !draft.enabled)} onChange={enabled => change({ enabled, ...(!enabled && draft.autoRestart ? { autoRestart: { ...draft.autoRestart, enabled: false } } : {}), queryPort: data?.ports.some(p => p.container === draft.queryPort) ? draft.queryPort : data?.ports[0]?.container ?? null })} />}
         </div>
         {!data && !error && <p role="status">Loading game monitoring…</p>}
         {data && draft && <>
@@ -52,6 +52,17 @@ export function GameMonitoringCard({ serverId }: { serverId: number }) {
                 </div>
             </>}
             <p>Outages and recoveries appear in Activity. Checks use the node’s internal game network; they do not test the public connection from a player’s location.</p>
+            {data.recovery && <div className="mt-4 space-y-3 rounded-xl border border-gray-300 p-4 dark:border-gray-700">
+                <h4>Automatic recovery</h4>
+                <AppToggle label="Automatically restart an unresponsive game" checked={draft.autoRestart?.enabled || false} disabled={busy || !draft.enabled} onChange={enabled => change({ autoRestart: { cooldownSeconds: 300, maxAttempts: 2, windowSeconds: 3600, ...draft.autoRestart, enabled } })} />
+                <p>Uses the incident threshold above. Planned stops, maintenance and unavailable observations never trigger a restart. Attempts remain counted after an agent restart.</p>
+                {draft.autoRestart?.enabled && <div className="gp-monitor-fields">
+                    {([{ key: 'cooldownSeconds', label: 'Minimum time between attempts (seconds)', min: 60, max: 3600 }, { key: 'maxAttempts', label: 'Maximum attempts in window', min: 1, max: 5 }, { key: 'windowSeconds', label: 'Restart limit window (seconds)', min: 900, max: 86400 }] as const).map(f => <label key={f.key}>{f.label}<input type="number" min={f.min} max={f.max} value={Number.isNaN(draft.autoRestart![f.key]) ? '' : draft.autoRestart![f.key]} disabled={busy} onChange={e => change({ autoRestart: { ...draft.autoRestart!, [f.key]: e.target.value === '' ? NaN : Number(e.target.value) } })}/></label>)}
+                </div>}
+                <p>Attempts in window: {data.recovery.attemptsInWindow}{data.recovery.nextAttemptAt ? ` · Next eligible attempt: ${new Date(data.recovery.nextAttemptAt).toLocaleString()}` : ''}</p>
+                {data.recovery.lastResult && <p>{data.recovery.lastResult}</p>}
+                <p>Discord alerts are configured in Panel Settings → Discord notifications.</p>
+            </div>}
             <AppButton onClick={() => void save()} disabled={busy || !Number.isInteger(draft.intervalSeconds) || !Number.isInteger(draft.startupGraceSeconds) || !Number.isInteger(draft.failureThreshold) || (draft.enabled && !draft.queryPort)}><Save size={16} />{busy ? 'Saving…' : 'Save monitoring settings'}</AppButton>
         </>}
         {saved && <p role="status">Monitoring settings saved.</p>}

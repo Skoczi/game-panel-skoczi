@@ -9,7 +9,10 @@ gameMonitoringRoutes.get('/', async (req: AuthenticatedRequest, res) => {
     try { res.json(await getMonitoringSettings(Number(req.params.id))); }
     catch (error) { sendRouteError(res, error, { route: 'MONITOR:READ', fallbackMessage: 'Cannot load game monitoring' }); }
 });
-gameMonitoringRoutes.patch('/', requireServerPermission(PERMISSIONS.server.edit), async (req: AuthenticatedRequest, res) => {
+gameMonitoringRoutes.patch('/', requireServerPermission(PERMISSIONS.server.edit), (req, res, next) => {
+    if (req.body?.autoRestart?.enabled) return requireServerPermission(PERMISSIONS.server.power)(req, res, next);
+    next();
+}, async (req: AuthenticatedRequest, res) => {
     try { res.json(await configureMonitoring(Number(req.params.id), req.body, req.user?.username || 'Unknown')); }
     catch (error) { sendRouteError(res, error, { route: 'MONITOR:CONFIGURE', fallbackMessage: 'Cannot save game monitoring' }); }
 });

@@ -1,3 +1,5 @@
+import { alertForAction } from '../../services/alerts.js';
+import { logError } from '../../utils/logger.js';
 import { bus } from '../../realtime/bus.js';
 import type { ServerActionRow } from '../../types/database.js';
 import { nowIso } from '../../utils/time.js';
@@ -37,6 +39,7 @@ export class ServerActionsRepository extends BaseRepository {
       timestamp,
     });
 
+    await alertForAction(serverId, level, message, actorUsername).catch(error => logError('ALERT:QUEUE', error));
     return id;
   }
 

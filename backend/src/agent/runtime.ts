@@ -1,3 +1,4 @@
+import { alertStore } from '../services/alerts.js';
 import { runtimeCapabilities } from '../utils/runtimeCapabilities.js';
 import type { Request, Response, NextFunction } from 'express';
 import type { IncomingMessage } from 'node:http';
@@ -199,12 +200,14 @@ export async function agentIdempotency(req: Request, res: Response, next: NextFu
 export function startAgentHeartbeat() {
     const identity = agentIdentity();
     let busy = false;
-    const tick = () => {
+    const tick = async () => {
         if (busy) return;
         busy = true;
         const path = `/api/nodes/${identity.nodeId}/heartbeat`;
         const url = new URL(path, identity.panel);
-        const data = JSON.stringify({ version: getAppVersion() });
+        let alerts = [];
+        try { alerts = await (await alertStore()).outbox(); } catch { busy = false; return; }
+        const data = JSON.stringify({ version: getAppVersion(), alerts });
         const req = (url.protocol === 'https:' ? https : http).request(
             url,
             {
@@ -223,7 +226,16 @@ export function startAgentHeartbeat() {
                 },
             },
             (res) => {
-                res.resume();
+                let body = '';
+                res.on('data', chunk => { if (body.length < 65536) body += chunk.toString(); });
+                res.on('end', () => {
+                    if (res.statusCode !== 200) return;
+                    try {
+                        const ack = JSON.parse(body).alertAck;
+                        const sent = new Set(alerts.map(e => e.id));
+                        if (Array.isArray(ack)) void alertStore().then(s => s.acknowledge(ack.filter(id => sent.has(id)))).catch(() => {});
+                    } catch { /* Old panels do not acknowledge alert events. */ }
+                });
                 // Authentication failures do not stop games; they only sever central management.
                 if (res.statusCode !== 200)
                     console.warn(

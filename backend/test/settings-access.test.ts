@@ -23,6 +23,8 @@ test('settings routes require root; appearance exposes no allocations', async ()
         network: { restrictPorts: true, allocations: [] },
     };
     const { default: router } = loadWithMocks('../src/routes/system.ts', {
+        '../services/alerts.js': { alertStore: async () => ({ view: async () => ({ enabled: false }), save: async () => ({ enabled: false }) }) },
+        '../services/alertStore.js': { validateAlertBatch: () => [] },
         express,
         '../utils/bindAddresses.js': {},
         '../utils/portPolicy.js': {},
@@ -52,6 +54,8 @@ test('settings routes require root; appearance exposes no allocations', async ()
     const app = express();
     app.use(express.json());
     const { default: branding } = loadWithMocks('../src/routes/branding.ts', {
+        '../services/alerts.js': { alertStore: async () => ({ view: async () => ({ enabled: false }), save: async () => ({ enabled: false }) }) },
+        '../services/alertStore.js': { validateAlertBatch: () => [] },
         express,
         '../services/globalSettings.js': {
             globalSettings: () => ({ snapshot: () => snapshot }),
@@ -96,6 +100,10 @@ test('settings routes require root; appearance exposes no allocations', async ()
                 ).status,
                 403,
             );
+        for (const [path, method] of [['notifications', 'GET'], ['notifications', 'PUT'], ['notifications/test', 'POST']]) {
+            assert.equal((await fetch(`${url}/${path}`, { method, headers: { 'x-test-role': 'user' } })).status, 403);
+        }
+        assert.equal((await fetch(`${url}/notifications`, { headers: { 'x-test-role': 'root' } })).status, 200);
         assert.equal(saves + assignmentReads, 0);
         assert.deepEqual(
             await (await fetch(`${url}/appearance`, { headers: { 'x-test-role': 'user' } })).json(),

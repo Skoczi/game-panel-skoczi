@@ -11,6 +11,10 @@ test('display revisions remain separate from technical package versions', () => 
   expect(formatDisplayVersion('0.0.0-dev')).toBe('0.0.0-dev');
 });
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/system/notifications', route => route.fulfill({ json: { revision: 0, enabled: false, webhookConfigured: false, categories: ['game','node','backup','schedule','recovery'], recent: [] } }));
+});
+
 const initial = () => ({
   revision: 1,
   appearance: { ...DEFAULT_APPEARANCE },

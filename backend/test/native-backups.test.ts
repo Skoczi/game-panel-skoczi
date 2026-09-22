@@ -16,6 +16,8 @@ test('native backups include game files and FastDownload uploads without followi
     let status = 'running'; let released = 0;
     const module = loadWithMocks('../src/services/nativeBackups.ts', {
         './nativeProtection.js': { recordNativeBackup: async () => ({}) },
+        './nativeBackupPolicy.js': { readNativeBackupPolicy: async () => ({ automaticRetention: false, externalCopy: false }) },
+        './finishNativeBackup.js': { finishNativeBackup: async () => '' },
         './storageReserve.js': { withStorageReserve },
         './nativeRestoreJournal.js': { syncDirectory: async () => {} },
         './nativeArchive.js': { validateNativeArchive },
@@ -70,6 +72,8 @@ test('failed native backup removes partial output and releases its operation loc
     let released = 0; let fail = true;
     const module = loadWithMocks('../src/services/nativeBackups.ts', {
         './nativeProtection.js': { recordNativeBackup: async () => ({}) },
+        './nativeBackupPolicy.js': { readNativeBackupPolicy: async () => ({ automaticRetention: false, externalCopy: false }) },
+        './finishNativeBackup.js': { finishNativeBackup: async () => '' },
         './storageReserve.js': { withStorageReserve },
         './nativeRestoreJournal.js': { syncDirectory: async () => {} },
         './nativeArchive.js': { validateNativeArchive: async () => {} },
@@ -101,6 +105,8 @@ test('native backups reject symlinked archive directories and mount roots', asyn
     let released = 0;
     const module = loadWithMocks('../src/services/nativeBackups.ts', {
         './nativeProtection.js': { recordNativeBackup: async () => ({}) },
+        './nativeBackupPolicy.js': { readNativeBackupPolicy: async () => ({ automaticRetention: false, externalCopy: false }) },
+        './finishNativeBackup.js': { finishNativeBackup: async () => '' },
         './storageReserve.js': { withStorageReserve },
         './nativeRestoreJournal.js': { syncDirectory: async () => {} },
         './nativeArchive.js': { validateNativeArchive },

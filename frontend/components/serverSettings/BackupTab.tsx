@@ -1,4 +1,5 @@
 import { NativeRetentionPanel } from './NativeRetentionPanel';
+import { NativeBackupPolicyCard } from './NativeBackupPolicyCard';
 import { NativeProtectionCard } from './NativeProtectionCard';
 import { AppSectionHeader } from '../../src/ui/layout';
 import { OperationList } from './OperationList';
@@ -420,9 +421,10 @@ export function BackupTab({
         )}
         {native && jobs.length > 0 && <div className={`rounded-xl border ${borderColor} p-4`}>
           <OperationList label="Backup operations" secondaryClass={textSecondary} operations={jobs.slice(0, 5).map(job => ({
-            ...job, name: job.kind === 'restore' ? 'Restore' : 'Backup',
+            ...job, name: job.kind === 'restore' ? 'Restore' : job.kind === 'import' ? 'Import external backup' : 'Backup',
           }))} />
         </div>}
+        {native && compatibility?.capabilities?.nativeBackupPolicy === 1 && <NativeBackupPolicyCard key={`policy-${serverId}`} serverId={serverId} canEdit={canEditBackupSettings && canDeleteBackups} canImport={canCreateBackups && canDownloadBackups} busy={Boolean(operationReason)} localNames={backups.map(b => b.name)} onImported={() => { void loadBackups(); }} />}
         {native && canDeleteBackups && compatibility?.capabilities?.nativeRetention === 1 && <NativeRetentionPanel key={serverId} serverId={serverId} onChanged={() => { void loadBackups(); }} />}
 
         {native && <NativeProtectionCard serverId={serverId} supported={compatibility?.capabilities?.nativeProtection === 1} checking={!compatibility && !compatibilityError} />}

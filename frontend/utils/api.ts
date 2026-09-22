@@ -104,10 +104,16 @@ export interface NativeProtectionSummary {
   warnings: string[];
 }
 export interface BackupJob {
-  id: string; kind: 'backup' | 'restore'; status: 'running' | 'completed' | 'failed' | 'interrupted';
+  id: string; kind: 'backup' | 'restore' | 'import'; status: 'running' | 'completed' | 'failed' | 'interrupted';
   actor?: string;
   startedAt: string; completedAt?: string; error?: string;
   result?: { ok: boolean; exitCode: number; stdout?: string; stderr?: string };
+}
+export interface NativeBackupPolicy {
+  revision: number; automaticRetention: boolean; keepLocal: number; externalCopy: boolean; keepExternal: number;
+}
+export interface ExternalBackup {
+  name: string; sizeBytes: number; sha256: string; createdAt: string; mode: 'live' | 'offline';
 }
 export interface FileTransferJob {
   createdAt?: string;
@@ -553,10 +559,26 @@ class ApiClient {
     return response.data;
   }
 
+  async nativeBackupPolicy(serverId: number): Promise<{ policy: NativeBackupPolicy; destination: { configured: boolean; label: string | null } }> {
+    return (await this.client.get(`/api/servers/${serverId}/backups/policy`)).data;
+  }
+  async saveNativeBackupPolicy(serverId: number, policy: NativeBackupPolicy): Promise<Awaited<ReturnType<ApiClient['nativeBackupPolicy']>>> {
+    return (await this.client.patch(`/api/servers/${serverId}/backups/policy`, policy)).data;
+  }
+  async externalBackups(serverId: number): Promise<ExternalBackup[]> {
+    const response = await this.client.get(`/api/servers/${serverId}/backups/external`);
+    if (!Array.isArray(response.data.backups)) throw new Error('External backup list is unavailable');
+    return response.data.backups;
+  }
+  async importExternalBackup(serverId: number, name: string) {
+    const response = await this.client.post(`/api/servers/${serverId}/backups/external/import`, { name });
+    return this.backupResult(serverId, response.data);
+  }
+
   async backupCompatibility(serverId: number) {
     const response = await this.client.get(`/api/servers/${serverId}/backups/compatibility`);
     if (!Array.isArray(response.data.legacy)) throw new Error('Backup compatibility information is unavailable');
-    return response.data as { capabilities?: { backupJobs?: number; nativeRestoreRecovery?: number; versionedFiles?: number; absoluteResources?: number; nativeProtection?: number; nativeRetention?: number }; native: boolean; layoutReady: boolean; legacy: Array<{name:string;size:number;modifiedAt:string}>; recoveryCount:number };
+    return response.data as { capabilities?: { backupJobs?: number; nativeRestoreRecovery?: number; versionedFiles?: number; absoluteResources?: number; nativeProtection?: number; nativeRetention?: number; nativeBackupPolicy?: number }; native: boolean; layoutReady: boolean; legacy: Array<{name:string;size:number;modifiedAt:string}>; recoveryCount:number };
   }
   async downloadLegacyBackup(serverId: number, name: string) {
     const response = await this.client.get(`/api/servers/${serverId}/backups/legacy/file`, {params:{name},responseType:'blob',timeout:LONG_TIMEOUT_MS});

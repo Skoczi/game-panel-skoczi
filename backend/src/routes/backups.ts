@@ -1,4 +1,6 @@
 import { listServerBackups } from '../services/backupListing.js';
+import { readNativeBackupPolicy, saveNativeBackupPolicy, validateBackupPolicy } from '../services/nativeBackupPolicy.js';
+import { externalBackupDestination, listExternalBackups, importExternalBackup } from '../services/externalBackups.js';
 import { planNativeRetention, applyNativeRetention } from '../services/nativeRetention.js';
 import { inspectNativeProtection, readNativeBackupRecord, moveNativeBackupRecord } from '../services/nativeProtection.js';
 import { getServerStoragePaths } from '../utils/storage.js';
@@ -36,6 +38,43 @@ import { resolveDownloadTarget, streamDirectoryZip, streamFilesZip } from '../se
 import { PERMISSIONS } from '../permissions.js';
 
 const router = Router({ mergeParams: true });
+
+router.get('/policy', requireServerPermission(PERMISSIONS.backups.read), async (req, res) => {
+    try {
+        const id = requirePositiveInt(req.params.id, 'Invalid server id');
+        if (!nativeServerTemplate(await getServerOrThrow(id))) return res.status(400).json({ error: 'Backup policies require a Native server' });
+        res.json({ policy: await readNativeBackupPolicy(id), destination: externalBackupDestination() });
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:POLICY', fallbackMessage: 'Unable to read backup settings' }); }
+});
+router.patch('/policy', requireServerPermission(PERMISSIONS.backups.settingsWrite), requireServerPermission(PERMISSIONS.backups.delete), async (req: AuthenticatedRequest, res) => {
+    try {
+        const id = requirePositiveInt(req.params.id, 'Invalid server id');
+        const server = await getServerOrThrow(id);
+        if (!nativeServerTemplate(server)) return res.status(400).json({ error: 'Backup policies require a Native server' });
+        const input = validateBackupPolicy(req.body);
+        if (input.externalCopy) await listExternalBackups(server); // Confirm destination before enabling it.
+        const policy = await saveNativeBackupPolicy(id, input);
+        await actionsRepository.create(id, 'info', `Backup policy updated: automatic retention ${policy.automaticRetention ? 'on' : 'off'}, external copy ${policy.externalCopy ? 'on' : 'off'}.`, req.user?.username || '');
+        res.json({ policy, destination: externalBackupDestination() });
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:POLICY:SAVE', fallbackMessage: 'Unable to save backup settings' }); }
+});
+router.get('/external', requireServerPermission(PERMISSIONS.backups.read), async (req, res) => {
+    try {
+        const server = await getServerOrThrow(requirePositiveInt(req.params.id, 'Invalid server id'));
+        if (!nativeServerTemplate(server)) return res.status(400).json({ error: 'External copies require a Native server' });
+        res.json({ backups: await listExternalBackups(server) });
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:EXTERNAL:LIST', fallbackMessage: 'Unable to read external copies' }); }
+});
+router.post('/external/import', requireServerPermission(PERMISSIONS.backups.create), requireServerPermission(PERMISSIONS.backups.download), async (req: AuthenticatedRequest, res) => {
+    try {
+        const server = await getServerOrThrow(requirePositiveInt(req.params.id, 'Invalid server id'));
+        if (!nativeServerTemplate(server)) return res.status(400).json({ error: 'External copies require a Native server' });
+        const name = requireBodyObject(req.body).name;
+        if (typeof name !== 'string' || path.basename(name) !== name || !name.startsWith('native-') || !name.endsWith('.tar.gz') || /[\\\x00-\x1f]/.test(name)) return res.status(400).json({ error: 'Invalid external backup name' });
+        const job = await startBackupJob(server.id, 'import', req.user?.username || '', () => importExternalBackup(server, name));
+        res.status(202).json({ job });
+    } catch (error) { sendRouteError(res, error, { route: 'BACKUP:EXTERNAL:IMPORT', fallbackMessage: 'Unable to import external backup' }); }
+});
 
 router.get('/jobs', requireServerPermission(PERMISSIONS.backups.read), async (req, res) => {
     try { res.json({ jobs: await listBackupJobs(requirePositiveInt(req.params.id, 'Invalid server id')) }); }

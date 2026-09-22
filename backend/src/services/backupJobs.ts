@@ -7,7 +7,7 @@ import { syncDirectory } from './nativeRestoreJournal.js';
 import { actionsRepository } from '../database/index.js';
 export type BackupJob = {
   id: string;
-  kind: 'backup' | 'restore';
+  kind: 'backup' | 'restore' | 'import';
   status: 'running' | 'completed' | 'failed' | 'interrupted';
   actor?: string;
   startedAt: string;

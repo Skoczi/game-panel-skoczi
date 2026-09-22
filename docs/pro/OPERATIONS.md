@@ -67,6 +67,12 @@ In a globally identified server workspace, the text editor retains local drafts 
 
 Podsumowanie miejsca, rekordy kontroli archiwów, ręczne sprzątanie z podglądem oraz limity historii edytora opisuje [raport etapu 3](DATA-PROTECTION-PROGRESS.md). Te funkcje wymagają aktualnego agenta. Kontrola struktury kopii nie zastępuje próby odtworzenia i uruchomienia gry.
 
+## Backup protection
+
+Opt-in automatic retention and NFS/SMB external copies for Native servers are
+documented in [Backup protection](BACKUP-PROTECTION.md), including deployment
+requirements, failure behavior, import and the isolated WAW2 recovery rehearsal.
+
 ## Integration API
 
 Manage scoped tokens from the account menu. Read [API operation and retry rules](API-PROGRESS.md) before enabling automation. The [OpenAPI contract](openapi-v1.json) describes available endpoints. Keep one idempotency key per logical backup request and preserve it across lost responses. A 202 response is not a completed backup.

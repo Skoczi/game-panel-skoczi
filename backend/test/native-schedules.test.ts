@@ -17,6 +17,8 @@ test('scheduler executes the real Native backup for stopped and running servers'
  const server = { id: 1, docker_container_id: 'game', provider_metadata_json: '{}' };
  const native = loadWithMocks('../src/services/nativeBackups.ts', {
   './nativeProtection.js': { recordNativeBackup: async () => ({}) },
+        './nativeBackupPolicy.js': { readNativeBackupPolicy: async () => ({ automaticRetention: false, externalCopy: false }) },
+        './finishNativeBackup.js': { finishNativeBackup: async () => '' },
         './storageReserve.js': { withStorageReserve },
         './nativeRestoreJournal.js': { syncDirectory: async () => {} },
         './nativeArchive.js': { validateNativeArchive },

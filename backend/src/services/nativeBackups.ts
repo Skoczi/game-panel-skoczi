@@ -12,6 +12,8 @@ import { getServerStoragePaths } from '../utils/storage.js';
 import { checkContainerStatus } from '../utils/docker.js';
 import type { GameServerRow } from '../types/gameServer.js';
 import { acquireNativeOperation } from './nativeOperationLock.js';
+import { readNativeBackupPolicy } from './nativeBackupPolicy.js';
+import { finishNativeBackup } from './finishNativeBackup.js';
 
 export function nativeServerTemplate(server: GameServerRow) {
     return nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'));
@@ -50,6 +52,7 @@ export async function createNativeBackup(server: GameServerRow & { docker_contai
     try {
         // Live backups do not run game-specific save commands or stop the process.
         release = (operationHeld ? () => {} : acquireNativeOperation(server.id, true));
+        const policy = await readNativeBackupPolicy(server.id);
         const status = await checkContainerStatus(server.docker_container_id);
         const live = status === 'running';
         if (!['running', 'exited', 'created', 'dead'].includes(status)) {
@@ -81,7 +84,9 @@ export async function createNativeBackup(server: GameServerRow & { docker_contai
         await syncDirectory(directory);
         temporary = undefined;
         const recordWarning = await recordNativeBackup(path.join(directory, filename), live).then(() => '', () => 'Archive created and checked, but its protection record could not be saved.');
-        return { ok: true, exitCode: 0, stdout: `Native ${live ? 'live ' : ''}backup created: ${filename}${live ? '. Files may have changed during backup; game consistency is not guaranteed.' : ''}`, stderr: recordWarning };
+        const protection = await finishNativeBackup(server, path.join(directory, filename), live,
+            recordWarning ? { ...policy, automaticRetention: false } : policy);
+        return { ok: true, exitCode: 0, stdout: `Native ${live ? 'live ' : ''}backup created: ${filename}${live ? '. Files may have changed during backup; game consistency is not guaranteed.' : ''} ${protection}`.trim(), stderr: recordWarning };
     } finally {
         if (temporary) await fs.unlink(temporary).catch(() => {});
         busy.delete(server.id);

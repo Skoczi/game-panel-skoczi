@@ -14,5 +14,6 @@ export const runtimeCapabilities = Object.freeze({
     absoluteResources: 1,
     nativeProtection: 1,
     nativeRetention: 1,
+    nativeBackupPolicy: 1,
     fileHistory: 1,
 });

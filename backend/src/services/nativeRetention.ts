@@ -14,7 +14,7 @@ async function inspectDirectory(name: string, missing = false) {
   if (stat && !stat.isDirectory()) throw error('Storage path is not a real directory.');
   return stat;
 }
-export async function planNativeRetention(dataDir: string, policy: RetentionPolicy) {
+export async function planNativeRetention(dataDir: string, policy: RetentionPolicy, automaticArchivesOnly = false, protectedArchive?: string) {
   validateRetentionPolicy(policy);
   await inspectDirectory(dataDir);
   const journal = await fs.lstat(path.join(dataDir, '..', '.native-restore.json')).catch(cause => { if (cause.code === 'ENOENT') return null; throw cause; });
@@ -30,8 +30,8 @@ export async function planNativeRetention(dataDir: string, policy: RetentionPoli
     const stat = await fs.lstat(filename);
     if (stat.isFile() && name.endsWith('.tar.gz')) {
       const record = await readNativeBackupRecord(filename);
-      if (record && (!latestRecord || record.createdAt > latestRecord.createdAt)) latestRecord = record;
-      entries.push({ name, kind: 'archive', sizeBytes: stat.size, modifiedAt: stat.mtime.toISOString(), protectedReason: null, identity: identity(stat) });
+      if (record && (!latestRecord || record.createdAt > latestRecord.createdAt || (record.createdAt === latestRecord.createdAt && record.name > latestRecord.name))) latestRecord = record;
+      entries.push({ name, kind: 'archive', sizeBytes: stat.size, modifiedAt: stat.mtime.toISOString(), protectedReason: automaticArchivesOnly && !record ? 'Automatic retention keeps archives without a matching validation record' : null, identity: identity(stat) });
     } else if (stat.isDirectory() && /^recovery-[0-9a-f-]+$/.test(name)) {
       let completed = false; let manifestIdentity = 'unknown';
       try {
@@ -44,12 +44,15 @@ export async function planNativeRetention(dataDir: string, policy: RetentionPoli
           completed = record.state === 'completed' && Array.isArray(record.mounts) && record.mounts.includes('serverfiles') && tree.isDirectory();
         }
       } catch { /* unknown recovery data is always retained */ }
-      entries.push({ name, kind: 'recovery', sizeBytes: null, modifiedAt: stat.mtime.toISOString(), protectedReason: completed ? null : 'Incomplete or unrecognized recovery', identity: identity(stat) + ':' + manifestIdentity });
+      entries.push({ name, kind: 'recovery', sizeBytes: null, modifiedAt: stat.mtime.toISOString(), protectedReason: automaticArchivesOnly ? 'Recovery copies require manual cleanup' : completed ? null : 'Incomplete or unrecognized recovery', identity: identity(stat) + ':' + manifestIdentity });
     }
   }
+  const current = entries.find(entry => entry.kind === 'archive' && entry.name === protectedArchive);
+  if (protectedArchive && (!current || current.protectedReason)) throw error('New backup has no matching validation record. Automatic cleanup was cancelled.');
+  if (current) current.protectedReason = 'Newly created backup';
   for (const kind of ['archive', 'recovery'] as const) {
     const sorted = entries.filter(entry => entry.kind === kind).sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt) || b.name.localeCompare(a.name));
-    const keep = kind === 'archive' ? policy.keepArchives : policy.keepRecovery;
+    const keep = kind === 'archive' ? policy.keepArchives - (current ? 1 : 0) : policy.keepRecovery;
     sorted.filter(entry => !entry.protectedReason).slice(0, keep).forEach(entry => { entry.protectedReason ||= 'Kept by retention policy'; });
   }
   const verified = entries.find(entry => entry.name === latestRecord?.name && entry.kind === 'archive');
@@ -59,9 +62,9 @@ export async function planNativeRetention(dataDir: string, policy: RetentionPoli
   const visible = entries.map(({ identity: _, ...entry }) => entry);
   return { fingerprint, policy, remove: visible.filter(entry => !entry.protectedReason), keep: visible.filter(entry => entry.protectedReason) };
 }
-export async function applyNativeRetention(dataDir: string, policy: RetentionPolicy, fingerprint: string) {
+export async function applyNativeRetention(dataDir: string, policy: RetentionPolicy, fingerprint: string, automaticArchivesOnly = false, protectedArchive?: string) {
   if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw error('Preview the cleanup plan first.', 400);
-  const fresh = await planNativeRetention(dataDir, policy);
+  const fresh = await planNativeRetention(dataDir, policy, automaticArchivesOnly, protectedArchive);
   if (fresh.fingerprint !== fingerprint) throw error('Backup storage changed since the preview. Refresh the cleanup plan.');
   const removed: string[] = [];
   try {

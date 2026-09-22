@@ -1,3 +1,4 @@
+import { GameMonitoringStatus } from '../GameMonitoringStatus';
 import { resourceLabel } from '../../utils/resourceMetrics';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -390,7 +391,7 @@ export function GameServersDesktopTable({
                     </div>
                   )}
                 </td>
-                <td className={`${textSecondary} py-4 px-4`}>{getGameLabel(server)}</td>
+                <td className={`${textSecondary} py-4 px-4`}>{getGameLabel(server)}<GameMonitoringStatus summary={server.monitoring} runtimeStatus={server.status} /></td>
                 <td className="py-4 px-4">
                   {server.port ? (
                     <div className="flex items-center gap-2 group">

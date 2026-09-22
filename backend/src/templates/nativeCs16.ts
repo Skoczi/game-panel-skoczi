@@ -8,6 +8,7 @@ export const NATIVE_CS16_TEMPLATE: GameTemplate = {
     author: 'Skoczi', source: 'Valve HLDS / SteamCMD; native orchestration maintained in this fork',
     runtime: { provider: 'external', image: 'gamepanel-runtime:steamcmd-v1', catalogId: '', gameServerName: '', architectures: ['x64'], identity: { user: '1000', uid: 1000, gid: 1000 } },
     ports: [{ key: 'game', label: 'Game / Query / RCON', protocol: 'udp', container: 27015, suggested: 27015, env: 'SERVER_PORT', linuxgsmKey: '' }],
+    monitoring: { protocol: 'a2s', queryPort: 'game' },
     variables: [
         { key: 'MAP', label: 'Starting map', type: 'string', required: true, secret: false, default: 'de_dust2' },
         { key: 'MAX_PLAYERS', label: 'Maximum players', type: 'integer', required: true, secret: false, default: '16' },

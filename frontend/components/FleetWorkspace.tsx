@@ -1,3 +1,4 @@
+import { GameMonitoringStatus } from './GameMonitoringStatus';
 import { withoutDeletedServers } from '../utils/deletedFleetServers';
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
@@ -494,7 +495,7 @@ export function FleetWorkspace({
                     {items.map((server) => (
                       <tr key={server.id}>
                         <td>{serverName(server)}</td>
-                        <td>{game(server).label}</td>
+                        <td>{game(server).label}<GameMonitoringStatus summary={runtimes[server.id]?.server.monitoring} runtimeStatus={server.available ? server.status : "unknown"} /></td>
                         <td>{connection(server)}</td>
                         <td>
                           <FleetStatus
@@ -567,6 +568,7 @@ export function FleetWorkspace({
                               {serverName(server)}
                             </h3>
                             <p>{game(server).label}</p>
+                            <GameMonitoringStatus summary={runtimes[server.id]?.server.monitoring} runtimeStatus={server.available ? server.status : "unknown"} />
                           </div>
                           <FleetStatus
                             status={server.status}

@@ -2,14 +2,18 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
-## Unreleased — Scheduler reliability
+## Unreleased — Game monitoring and scheduler reliability
 
 - Dispatch scheduled tasks independently across servers with a runtime-wide limit of 20 concurrent tasks; queue due tasks for the same server.
 - Resolve the current container again before cleanup, including when a restart recreates it or fails after recreation.
 - After agent startup, atomically mark unfinished tasks as interrupted and disable their schedules. Some commands may already have run; inspect the server before explicitly re-enabling. Re-enabling schedules a future run, without replaying the interrupted occurrence.
 - Keep tasks due while another operation owns the server. Reject edits/deletion of running tasks and preserve their execution state.
 - Display interrupted-task details and disable controls while a task is running. Existing unlocked overdue tasks keep their previous catch-up behavior.
-- No database migration or version bump. These changes are local and have not been published or deployed.
+- Add node-side A2S monitoring independent of browser sessions: separate game response state, current map, players/capacity and query latency, with stale-data handling.
+- Configure a UDP query-port profile in game templates, or enable monitoring on existing servers in Settings without reinstalling. Default checks run every 30 seconds, allow 90 seconds for startup, and confirm an incident after 3 failures.
+- Record confirmed incidents/recoveries in Activity, suppress planned maintenance, and distinguish Docker observation errors from game failures. Monitoring configuration and current incident state persist in migration `0006_game_monitoring`.
+- Limit concurrent probes, expire UDP/Docker requests, and discard observations after configuration changes, container changes or worker shutdown.
+- No version bump. These changes are local and have not been published or deployed. See [monitoring behavior and validation](docs/pro/GAME-MONITORING.md).
 
 ## 2.0.55 — Server management, CPU binding and FastDownload — 2026-09-22
 

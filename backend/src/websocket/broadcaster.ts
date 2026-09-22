@@ -1,3 +1,4 @@
+import { getMonitoringSummary } from '../services/gameMonitoring.js';
 import { CONSOLE_PREFIX, recordConsoleStatus } from '../services/consoleLifecycle.js';
 import type { WebSocketServer } from 'ws';
 import { bus } from '../realtime/bus.js';
@@ -57,7 +58,7 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
 
         const installProgress = await installProgressRepository.getByServerId(serverId);
 
-        const fullServer = serializeGameServerWithInstallProgress(server, installProgress);
+        const fullServer = { ...serializeGameServerWithInstallProgress(server, installProgress), monitoring: await getMonitoringSummary(server) };
         const redactedServer = redactServerEnv(fullServer);
         const envVisibilityByUser = new Map<number, boolean>();
 
@@ -251,6 +252,10 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
         }
     };
 
+    const onMonitoring = (event: { serverId: number }) => {
+        void broadcastToServersSubscribers(event.serverId, 'servers:updated').catch(error => logError('WS:MONITORING', error));
+    };
+    bus.on('server.monitoring', onMonitoring);
     bus.on('server.updated', onServerUpdated);
     bus.on('server.status', onServerStatus);
     bus.on('server.action', onServerAction);
@@ -264,6 +269,7 @@ export function attachBroadcaster(wss: WebSocketServer): BroadcasterCleanup {
     return {
         shutdown() {
             try {
+                bus.off('server.monitoring', onMonitoring);
                 bus.off('server.updated', onServerUpdated);
                 bus.off('server.status', onServerStatus);
                 bus.off('server.action', onServerAction);

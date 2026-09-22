@@ -1,3 +1,4 @@
+import { migration as gameMonitoring } from './0006_game_monitoring.js';
 import { migration as scheduledGameCommands } from './0005_scheduled_game_commands.js';
 import { migration as resourceMetrics } from './0004_resource_metrics.js';
 import type { DatabaseMigration } from './types.js';
@@ -11,4 +12,5 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
   nativeInstallProgress,
   resourceMetrics,
   scheduledGameCommands,
+  gameMonitoring,
 ];

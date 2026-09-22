@@ -32,6 +32,22 @@ const servers = [
     node: { name: 'North-02', location: 'Helsinki, FI' },
   },
 ];
+test('game monitoring appears in fleet cards and list using the selected node runtime', async ({ page }) => {
+  await page.route(`**/api/nodes/${nodeId}/runtime/api/servers/1`, route => route.fulfill({ json: { server: {
+    id: 1, name: 'Community Arena', status: 'running', provider: 'external',
+    monitoring: { enabled: true, state: 'online', checkedAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), failures: 0, incidentStartedAt: null, error: null, latencyMs: 3, runtimeKey: 'one', staleAfterSeconds: 100, info: { name: 'Community Arena', map: 'de_dust2', players: 7, maxPlayers: 16, bots: 0 } },
+  } } }));
+  await page.route('**/api/servers/1/metrics?limit=1', route => route.fulfill({ json: { metrics: [] } }));
+  await page.goto('/test/fleet.fixture.html');
+  const card = page.getByRole('article').filter({ hasText: 'Community Arena' });
+  await expect(card.getByText('Game responding')).toBeVisible();
+  await expect(card.getByText('de_dust2')).toBeVisible();
+  await expect(card.getByText('7 / 16')).toBeVisible();
+  await page.getByRole('button', { name: 'List view' }).click();
+  const row = page.getByRole('row').filter({ hasText: 'Community Arena' });
+  await expect(row.getByText('Game responding')).toBeVisible();
+  await expect(row.getByText('7 / 16')).toBeVisible();
+});
 test('fleet metric modals and action history are scoped to the selected server', async ({
   page,
 }) => {

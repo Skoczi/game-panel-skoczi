@@ -1,3 +1,4 @@
+import { GameMonitoringStatus } from '../GameMonitoringStatus';
 import { resourceLabel } from '../../utils/resourceMetrics';
 import { useState } from 'react';
 import {
@@ -194,6 +195,7 @@ export function GameServerCard({
             </div>
           )}
           <p className={`text-sm ${TEXT_SECONDARY} mt-1 truncate`} title={getGameLabel(server)}>{getGameLabel(server)}</p>
+          <GameMonitoringStatus summary={server.monitoring} runtimeStatus={server.status} />
           <div className="mt-2">
             {server.port ? (
               <div className="flex items-center gap-1 -ml-2">

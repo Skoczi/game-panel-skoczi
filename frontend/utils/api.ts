@@ -1,3 +1,4 @@
+import type { GameMonitoringConfig, GameMonitoringSettings } from '../../backend/src/templates/types';
 import type { FastDownloadStatus } from '../components/serverSettings/FastDownloadCard';
 import { nodesRequest } from './nodesApi';
 import type { CpuTopology } from '../components/resources/CpuBindingPicker';
@@ -451,6 +452,8 @@ class ApiClient {
     return response.data;
   }
 
+  async getMonitoring(id: number): Promise<GameMonitoringSettings> { return (await this.client.get(`/api/servers/${id}/monitoring`)).data; }
+  async updateMonitoring(id: number, config: GameMonitoringConfig): Promise<GameMonitoringSettings> { return (await this.client.patch(`/api/servers/${id}/monitoring`, config)).data; }
   async getFastDownload(id: number): Promise<FastDownloadStatus> { return (await this.client.get(`/api/servers/${id}/fastdownload`)).data; }
   async updateFastDownload(id: number, patch: {enabled?:boolean;compression?:boolean}) { return (await this.client.patch(`/api/servers/${id}/fastdownload`,patch)).data; }
   async syncFastDownload(id: number) { return (await this.client.post(`/api/servers/${id}/fastdownload/sync`,{}, {timeout:300000})).data; }

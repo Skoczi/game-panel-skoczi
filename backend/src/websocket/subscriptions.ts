@@ -1,3 +1,4 @@
+import { getMonitoringSummary } from '../services/gameMonitoring.js';
 import { consoleLogHistory } from '../services/consoleLifecycle.js';
 import WebSocket, { type WebSocketServer } from 'ws';
 import type {
@@ -186,7 +187,8 @@ export async function handleSubscribeServers(
                     installProgress as InstallationProgressRow | undefined
                 );
 
-                return canSeeEnv(server.id) ? serialized : redactServerEnv(serialized);
+                const withMonitoring = { ...serialized, monitoring: await getMonitoringSummary(server) };
+                return canSeeEnv(server.id) ? withMonitoring : redactServerEnv(withMonitoring);
             })
         );
 

@@ -1,3 +1,4 @@
+import type { GameMonitoringSummary } from '../../backend/src/templates/types';
 import type { ResourceUsage } from '../utils/resourceMetrics';
 // Modified by Skoczi: retain complete host bindings alongside legacy port summaries.
 export interface PortBinding { host: number; container: number; label: string; hostIp?: string }
@@ -31,6 +32,7 @@ export type GameServerStatus =
   | 'failed';
 
 export interface GameServer {
+  monitoring?: GameMonitoringSummary;
   id: string;
   name: string;
   game: string;

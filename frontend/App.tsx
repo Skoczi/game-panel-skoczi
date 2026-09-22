@@ -505,6 +505,7 @@ function AppContent() {
       desiredState: server.desiredState,
       containerStatus: server.containerStatus,
       healthStatus: server.healthStatus,
+      monitoring: server.monitoring ?? existing?.monitoring,
       lastError: server.lastError ?? null,
       providerMetadataJson: server.providerMetadata
         ? JSON.stringify(server.providerMetadata)

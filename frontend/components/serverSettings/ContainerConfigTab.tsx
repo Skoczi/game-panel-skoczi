@@ -1,3 +1,4 @@
+import { GameMonitoringCard } from './GameMonitoringCard';
 import { FastDownloadCard } from './FastDownloadCard';
 import { CpuBindingPicker } from '../resources/CpuBindingPicker';
 import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
@@ -634,6 +635,7 @@ export function ContainerConfigTab({
 
         </div>
 
+        {serverId && canEdit && <GameMonitoringCard serverId={serverId} />}
         {serverId && canEdit && <FastDownloadCard serverId={serverId} onOpenFiles={onOpenFileManagerDirectory} canConfigure={canWriteFiles} />}
 
         <details className="gp-settings-advanced"><summary>Advanced settings <span>Healthcheck &amp; maintenance</span></summary><div className="gp-settings-advanced-body">

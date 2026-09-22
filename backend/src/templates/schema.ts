@@ -37,7 +37,7 @@ function unique(values: string[]) {
 }
 export function validateTemplate(input: unknown): GameTemplate {
     if (JSON.stringify(input)?.length > 32768) throw new TemplateError('Template exceeds 32 KiB');
-    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload']);
+    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload', 'monitoring']);
     if (v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new TemplateError('Unsupported template schema (expected 1 or 2; egg files require conversion)');
     if (v.schemaVersion === 1 && v.lifecycle !== undefined) throw new TemplateError('Native lifecycle requires schemaVersion 2');
     const r = object(v.runtime, ['provider', 'image', 'catalogId', 'gameServerName', 'architectures', 'identity']);
@@ -94,6 +94,14 @@ export function validateTemplate(input: unknown): GameTemplate {
             return { root, path: filePath, label: text(file.label, 80) };
         });
         unique(configFiles.map(f => `${f.root}:${f.path}`));
+    }
+    let monitoring: GameTemplate['monitoring'];
+    if (v.monitoring !== undefined) {
+        const m = object(v.monitoring, ['protocol', 'queryPort']);
+        const protocol = choice(m.protocol, ['a2s'] as const);
+        const queryPort = identifier(m.queryPort);
+        if (!ports.some(p => p.key === queryPort && p.protocol === 'udp')) throw new TemplateError('Monitoring query port must reference a declared UDP port key');
+        monitoring = { protocol, queryPort };
     }
     let fastDownload: GameTemplate['fastDownload'];
     if (v.fastDownload !== undefined) {
@@ -172,7 +180,7 @@ export function validateTemplate(input: unknown): GameTemplate {
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
         lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}), ...(stopCommand ? { stopCommand } : {}) };
     }
-    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}) };
+    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}), ...(monitoring !== undefined ? { monitoring } : {}) };
 }
 export function validateVariable(v: GameTemplate['variables'][number], value: unknown): string {
     const s = text(value, 2048, !v.required);
@@ -185,5 +193,6 @@ export const CS16_TEMPLATE: GameTemplate = {
     schemaVersion: 1, name: 'Counter-Strike 1.6', description: 'Dedicated GoldSrc server. Game, query and RCON share one UDP port. No client-port publication.', author: 'Skoczi', source: 'LinuxGSM / GameServerManagers; network profile maintained by Skoczi',
     runtime: { provider: 'linuxgsm', image: 'gameservermanagers/gameserver:cs', catalogId: 'cs', gameServerName: 'csserver', architectures: ['x64'] },
     ports: [{ key: 'game', label: 'Game / Query / RCON', protocol: 'udp', container: 27015, suggested: 27015, env: '', linuxgsmKey: 'port' }],
+    monitoring: { protocol: 'a2s', queryPort: 'game' },
     variables: [], mounts: [{ key: 'data', containerPath: '/data' }, { key: 'backup', containerPath: '/app/lgsm/backup' }],
 };

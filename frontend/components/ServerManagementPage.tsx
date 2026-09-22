@@ -1,3 +1,4 @@
+import { GameMonitoringStatus } from './GameMonitoringStatus';
 import { OperationNotice } from './OperationNotice';
 import { ServerActivityTimeline } from './ServerActivityTimeline';
 import { resourceLabel, resourceBytes } from '../utils/resourceMetrics';
@@ -378,6 +379,7 @@ export function ServerManagementPage({
                     <small>Server status <span className="gp-runtime-id">{ACTIVE_SERVER?.displayId}</span></small>
                     <span className={`gp-server-status ${status.className}`}><span className="gp-runtime-dot" aria-hidden="true" />{status.label}</span>
                   </div>
+                  {server.monitoring?.enabled && <div className="gp-server-stat"><small>Game response</small><GameMonitoringStatus summary={server.monitoring} runtimeStatus={server.status} detailed /></div>}
                   <div className="gp-server-stat" title={uptime === null ? 'Uptime unavailable from this runtime' : 'Time since the server container started'}>
                     <Clock className="gp-stat-icon" size={19} aria-hidden="true" />
                     <small>Uptime</small>

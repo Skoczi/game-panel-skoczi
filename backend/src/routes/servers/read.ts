@@ -1,3 +1,4 @@
+import { getMonitoringSummary } from '../../services/gameMonitoring.js';
 import { Router, type Response } from 'express';
 import type { AuthenticatedRequest } from '../../middleware/auth.js';
 import {
@@ -37,7 +38,8 @@ export function createServerReadRoutes(): Router {
                             server,
                             installProgress,
                         );
-                        return canSeeEnv(server.id) ? serialized : redactServerEnv(serialized);
+                        const withMonitoring = { ...serialized, monitoring: await getMonitoringSummary(server) };
+                        return canSeeEnv(server.id) ? withMonitoring : redactServerEnv(withMonitoring);
                     }),
             );
 
@@ -76,7 +78,7 @@ export function createServerReadRoutes(): Router {
             const uptimeSeconds = Number.isFinite(started) ? Math.max(0, Math.floor((Date.now() - started) / 1000)) : null;
 
             return res.json({
-                server: { ...(canSeeEnv ? serialized : redactServerEnv(serialized)), uptimeSeconds },
+                server: { ...(canSeeEnv ? serialized : redactServerEnv(serialized)), uptimeSeconds, monitoring: await getMonitoringSummary(server) },
             });
         } catch (error) {
             return sendRouteError(res, error, {

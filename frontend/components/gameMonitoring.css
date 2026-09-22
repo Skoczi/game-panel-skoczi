@@ -1,0 +1,16 @@
+.gp-game-monitor { display: flex; flex-direction: column; gap: 6px; font-size: 12px; margin-top: 8px; min-width: 0; color: var(--text-secondary, #94a3b8); }
+.gp-game-monitor-state, .gp-game-monitor-info, .gp-game-monitor-info > span { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gp-game-monitor-state { font-weight: 600; }
+.gp-game-monitor[data-state="online"] .gp-game-monitor-state { color: #059669; }
+.dark .gp-game-monitor[data-state="online"] .gp-game-monitor-state { color: #34d399; }
+.gp-game-monitor[data-state="offline"] .gp-game-monitor-state { color: #ef4444; }
+.gp-game-monitor[data-state="degraded"] .gp-game-monitor-state { color: #d97706; }
+.gp-game-monitor-info { flex-wrap: wrap; gap: 6px 14px; }
+.gp-game-monitor-info > span > span { overflow-wrap: anywhere; }
+.gp-game-monitor svg { flex-shrink: 0; }
+.gp-game-monitor-detailed { gap: 12px; font-size: 14px; }
+.gp-game-monitor-detailed small { font-size: 12px; overflow-wrap: anywhere; }
+.gp-monitor-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.gp-monitor-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.gp-monitor-fields input { width: 100%; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid #64748b80; background: transparent; color: inherit; }
+@media (max-width: 640px) { .gp-monitor-fields { grid-template-columns: 1fr; } }

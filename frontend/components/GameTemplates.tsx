@@ -1,3 +1,4 @@
+import { TemplateMonitoringEditor } from './TemplateMonitoringEditor';
 import { TemplateFastDownloadEditor } from './TemplateFastDownloadEditor';
 import { CpuBindingPicker } from './resources/CpuBindingPicker';
 import { confirmDialog } from '../utils/confirmDialog';
@@ -297,6 +298,7 @@ export function GameTemplates() {
               'variables',
               'storage',
               'fastdownload',
+              'monitoring',
               'versions',
               'json',
             ].map((t) => (
@@ -562,6 +564,7 @@ export function GameTemplates() {
                 </p>
               </>
             )}
+            {tab === 'monitoring' && <TemplateMonitoringEditor draft={draft} change={change} />}
             {tab === 'fastdownload' && <TemplateFastDownloadEditor draft={draft} change={change} />}
             {tab === 'lifecycle' && <NativeLifecycleEditor draft={draft} change={change} />}
             {tab === 'network' && (
@@ -1099,7 +1102,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         nativeRuntimeProtocol?: number;
         templateScriptsProtocol?: number;
         nativeSettingsProtocol?: number;
-        capabilities?: {fastDownload?:number};
+        capabilities?: {fastDownload?:number;gameMonitoring?:number};
       }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
@@ -1109,6 +1112,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         throw new Error(
           'This node does not support Native Runtime. Update its agent first. No installation was sent.'
         );
+      if(row.document.monitoring && health.capabilities?.gameMonitoring !== 1) throw new Error('Update this node to support game monitoring templates.');
       if(row.document.fastDownload?.enabled && health.capabilities?.fastDownload !== 1) throw new Error('Update this node to support FastDownload templates.');
       const lifecycle = row.document.lifecycle;
       if (row.document.configFiles !== undefined && health.nativeSettingsProtocol !== 1)

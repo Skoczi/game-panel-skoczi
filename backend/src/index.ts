@@ -1,3 +1,4 @@
+import { startGameMonitoringWorker } from './services/gameMonitoring.js';
 import { fastDownloadPublic } from './routes/fastDownload.js';
 import { startFastDownloadWorker } from './services/fastDownload.js';
 import { isPanelMaintenance, activePanelRequests, trackPanelMutation } from './services/panelMaintenance.js';
@@ -96,6 +97,7 @@ let periodicHealthReconcile: { stop: () => void } | null = null;
 let linuxGsmRefreshJob: { stop: () => void } | null = null;
 let fileTransferCleanupJob: { stop: () => void } | null = null;
 let downloadTokenCleanupJob: { stop: () => void } | null = null;
+let gameMonitoringWorker: { stop: () => void } | null = null;
 let fastDownloadWorker: { stop: () => void } | null = null;
 let scheduledTaskRunner: { stop: () => void } | null = null;
 let agentHeartbeat: { stop: () => void } | null = null;
@@ -242,6 +244,7 @@ async function startServer(): Promise<void> {
     downloadTokenCleanupJob = startDownloadTokenCleanupJob();
     scheduledTaskRunner = startScheduledTaskRunner();
     fastDownloadWorker = startFastDownloadWorker();
+    gameMonitoringWorker = startGameMonitoringWorker();
 
     httpServer.listen(port, () => {
       logInfo('APP', 'Game Panel backend listening on port ' + port);
@@ -271,6 +274,7 @@ function setupGracefulShutdown(): void {
       downloadTokenCleanupJob?.stop();
       scheduledTaskRunner?.stop();
       fastDownloadWorker?.stop();
+      gameMonitoringWorker?.stop();
       agentHeartbeat?.stop();
       closeNodeSockets();
 

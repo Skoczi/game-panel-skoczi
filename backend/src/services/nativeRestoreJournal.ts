@@ -3,7 +3,7 @@ import path from 'node:path';
 import { getServerStoragePaths } from '../utils/storage.js';
 import { blockNativeServer, unblockNativeServer } from './nativeOperationLock.js';
 
-export type RestoreJournal = { recovery: string; staging: string };
+export type RestoreJournal = { recovery: string; staging: string; keys?: string[] };
 const journalPath = (id: number) =>
   path.join(getServerStoragePaths(id).serverRoot, '.native-restore.json');
 export async function syncDirectory(directory: string) {
@@ -53,8 +53,11 @@ export async function rollbackInterruptedRestore(id: number) {
     throw new Error('Invalid restore recovery journal');
   const data = path.join(getServerStoragePaths(id).serverRoot, 'data');
   const backups = path.join(data, 'backups');
-  const previous = path.join(backups, journal.recovery, 'serverfiles');
-  const current = path.join(data, 'serverfiles');
+  const keys = journal.keys ?? ['serverfiles'];
+  if (!Array.isArray(keys) || !keys.includes('serverfiles') || keys.some(k => !['serverfiles','fastdownload'].includes(k)) || new Set(keys).size !== keys.length) throw new Error('Invalid restore mount list');
+  for (const key of keys) {
+  const previous = path.join(backups, journal.recovery, key);
+  const current = path.join(data, key);
   const old = await fs.lstat(previous).catch((error) => {
     if (error.code === 'ENOENT') return null;
     throw error;
@@ -66,10 +69,11 @@ export async function rollbackInterruptedRestore(id: number) {
       throw error;
     });
     if (existing)
-      await fs.rename(current, path.join(backups, journal.recovery, `interrupted-${Date.now()}`));
+      await fs.rename(current, path.join(backups, journal.recovery, `interrupted-${key}-${Date.now()}`));
     await fs.rename(previous, current);
   } else if (!(await fs.lstat(current)).isDirectory())
     throw new Error('Original game files are missing');
+  }
   await syncDirectory(data);
   await syncDirectory(path.join(backups, journal.recovery));
   await finishRestoreJournal(id);

@@ -71,6 +71,9 @@ async function monitorTransitionHealth(serverId: number, expectedStatus: Transit
     }
 
     if (runtime.containerStatus !== 'running') {
+        // Initial polling can finish before Docker has received the start request.
+        // Actual exits are handled by Docker events; failed starts reconcile in the route.
+        if (transition.status === 'starting') return;
         await completeServerTransition(serverId, 'stopped');
         return;
     }

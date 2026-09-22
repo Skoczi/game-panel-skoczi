@@ -1,3 +1,4 @@
+import { SessionLoading } from './components/SessionLoading';
 import {
   useState,
   useEffect,
@@ -591,7 +592,7 @@ function AppContent() {
   if (authChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0e1a] text-gray-300">
-        <div className="text-sm">Checking session...</div>
+        <SessionLoading />
       </div>
     );
   }

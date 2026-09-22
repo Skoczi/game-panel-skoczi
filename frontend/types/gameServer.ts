@@ -62,5 +62,5 @@ export interface GameServer {
   healthStatus?: string;
   lastError?: string | null;
   providerMetadataJson?: string | null;
-  resourceLimits?: { memoryMb: number; cpu: number } | null;
+  resourceLimits?: { memoryMb?: number; cpu?: number; cpuSet?: number[] } | null;
 }

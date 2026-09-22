@@ -1,3 +1,6 @@
+import { CpuBindingPicker } from './resources/CpuBindingPicker';
+import { AppOptionSelect } from '../src/ui/components/AppOptionSelect';
+import { InstallTargetContext } from '../contexts/InstallTargetContext';
 // Modified by Skoczi: explicit host IPv4 selection for every port binding.
 import { HostIpSelect } from './HostIpSelect';
 import { NativeTemplatePicker } from './NativeTemplatePicker';
@@ -26,6 +29,12 @@ interface MountRow { key: string; containerPath: string }
 const NativeTemplateInstall = React.lazy(() => import('./GameTemplates').then(module => ({ default: module.TemplateInstall })));
 
 interface InstallGameServerProps {
+  catalogMode?: 'linuxgsm' | 'custom';
+  targetNodeId?: string;
+  nodeSelector?: React.ReactNode;
+  onProgressClose?: () => void;
+  onRespondToInteraction?: (id: number, response: Record<string, unknown>) => Promise<void>;
+  connectionWarning?: string;
   isOpen: boolean;
   onClose: () => void;
   onInstall: (payload: InstallGameHandlerPayload) => Promise<void>;
@@ -290,11 +299,11 @@ function HealthcheckEditor({ initial, onChange }: { initial: Record<string, unkn
         <div className="space-y-3 pt-1">
           <div>
             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Type</label>
-            <select value={state.type} onChange={e => update({ type: e.target.value as HCType })} className={fieldCls}>
+            <AppOptionSelect controlLabel="Type" value={state.type} onChange={selectedValue => update({ type: selectedValue as HCType })} className={fieldCls}>
               <option value="tcp_connect">TCP Connect</option>
               <option value="process">Process</option>
               <option value="command">Command</option>
-            </select>
+            </AppOptionSelect>
           </div>
           {state.type === 'tcp_connect' && (
             <div>
@@ -377,6 +386,9 @@ interface ConfigModalProps {
   steamPassword?: string;
   setSteamPassword?: (v: string) => void;
   requireGameCopy?: boolean;
+  cpuSet: number[];
+  setCpuSet: (ids: number[]) => void;
+  cpuNodeId: string;
   cpuLimit: string;
   setCpuLimit: (v: string) => void;
   memoryLimitMb: string;
@@ -411,7 +423,7 @@ function ConfigModal({
   usedServerNames,
   requireSteamCredentials, steamUsername, setSteamUsername, steamPassword, setSteamPassword,
   requireGameCopy,
-  cpuLimit, setCpuLimit, memoryLimitMb, setMemoryLimitMb,
+  cpuLimit, setCpuLimit, memoryLimitMb, setMemoryLimitMb, cpuSet, setCpuSet, cpuNodeId,
   error, loading, onConfirm, onCancel,
   mcServerType, pickerInitialEnv, onPickerEnvChange, pickerJavaImages, onPickerJavaImageChange, requireEula,
 }: ConfigModalProps) {
@@ -933,6 +945,7 @@ function ConfigModal({
                         )}
                       </div>
                     </div>
+                    <div className="mt-4"><CpuBindingPicker value={cpuSet} onChange={setCpuSet} nodeId={cpuNodeId} disabled={loading} /></div>
                     <p className="mt-2 text-xs text-gray-400">Leave blank for no limit.</p>
                   </CollapsibleSection>
                 {catalogHealthcheck !== undefined && (
@@ -987,7 +1000,7 @@ export function InstallGameServer({
   installStatus, installServerId, installInteraction, setInstallInteraction, installPlan = [],
   installPermissionsSyncing = false,
   canOpenInstallLog = false, usedPorts, usedServerNames, canInstall = true,
-  onClearError, onOpenConsole, onReopen,
+  onClearError, onOpenConsole, onReopen, catalogMode, targetNodeId, nodeSelector, onProgressClose, onRespondToInteraction, connectionWarning,
 }: InstallGameServerProps) {
   useBodyScrollLock(isOpen);
 
@@ -995,8 +1008,8 @@ export function InstallGameServer({
   const [installingName, setInstallingName] = useState('');
 
   const [unifiedSearch, setUnifiedSearch] = useState('');
-  const [showExternal, setShowExternal] = useState(false);
-  const [showCommunity, setShowCommunity] = useState(false);
+  const [showExternal, setShowExternal] = useState(catalogMode === 'custom');
+  const [showCommunity, setShowCommunity] = useState(catalogMode === 'linuxgsm');
   const [nativeTemplate, setNativeTemplate] = useState<TemplateVersion | null>(null);
   const [nativeInstallationStarted, setNativeInstallationStarted] = useState(false);
   useEffect(() => {
@@ -1049,6 +1062,9 @@ export function InstallGameServer({
   const [extHealthcheck, setExtHealthcheck] = useState<Record<string, unknown> | null>(null);
   const [extError, setExtError] = useState<string | null>(null);
 
+  const [cpuSet, setCpuSet] = useState<number[]>([]);
+  const [extCpuSet, setExtCpuSet] = useState<number[]>([]);
+  useEffect(() => { setCpuSet([]); setExtCpuSet([]); }, [targetNodeId]);
   const [cpuLimit, setCpuLimit] = useState('');
   const [memoryLimitMb, setMemoryLimitMb] = useState('');
   const [extCpuLimit, setExtCpuLimit] = useState('');
@@ -1116,7 +1132,7 @@ export function InstallGameServer({
     setPickerInitialEnv({});
     setPickerEnv({});
     setPickerJavaImages([]);
-    setCpuLimit('');
+    setCpuLimit(''); setCpuSet([]);
     setMemoryLimitMb('');
   };
 
@@ -1255,7 +1271,7 @@ export function InstallGameServer({
       env: configShowEnv ? { ...pickerEnv, ...envRowsToRecord(envRows) } : undefined,
       ...(showHytale ? { imageOptions: { patchline: hytaleOptions.patchline || undefined, profileUuid: hytaleOptions.profileUuid || null } } : {}),
       ...(isLgsm && requireSteamCredentials ? { requireSteamCredentials: true, steamUsername: steamUsername.trim(), steamPassword: steamPassword } : {}),
-      resourceLimits: (cpuVal > 0 || memVal > 0) ? { cpu: cpuVal > 0 ? cpuVal : 0, memoryMb: memVal > 0 ? memVal : 0 } : null,
+      resourceLimits: { ...(cpuVal > 0 ? { cpu: cpuVal } : {}), ...(memVal > 0 ? { memoryMb: memVal } : {}), ...(cpuSet.length ? { cpuSet } : {}) },
     };
     setInstallWasExternal(false);
     setInstallingName(uniqueName);
@@ -1295,7 +1311,7 @@ export function InstallGameServer({
       env: envRowsToRecord(extEnvRows),
       mounts: extMountRows.filter((m) => m.key.trim() && m.containerPath.trim()),
       runtimeIdentity: { user: extRuntimeUser.trim(), uid: runtimeUid, gid: runtimeGid },
-      resourceLimits: (extCpuVal > 0 || extMemVal > 0) ? { cpu: extCpuVal > 0 ? extCpuVal : 0, memoryMb: extMemVal > 0 ? extMemVal : 0 } : null,
+      resourceLimits: { ...(extCpuVal > 0 ? { cpu: extCpuVal } : {}), ...(extMemVal > 0 ? { memoryMb: extMemVal } : {}), ...(extCpuSet.length ? { cpuSet: extCpuSet } : {}) },
     };
     setInstallWasExternal(true);
     setInstallingName(uniqueExtName);
@@ -1334,7 +1350,7 @@ export function InstallGameServer({
   };
 
   return (
-    <>
+    <InstallTargetContext.Provider value={targetNodeId || null}>
       {isOpen && (
         <div className={nativeInstallationStarted ? 'contents' : 'fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4'}>
           <div
@@ -1344,6 +1360,7 @@ export function InstallGameServer({
             <div className={nativeInstallationStarted ? 'hidden' : 'flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700/50 flex-shrink-0 bg-gp-surface-card rounded-t-2xl'}>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Install Game Server</h2>
+                {nodeSelector}
                 {showExternal && (
                   <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Custom Docker image</p>
                 )}
@@ -1360,7 +1377,7 @@ export function InstallGameServer({
 
             <div className={nativeInstallationStarted ? 'contents' : 'flex-1 flex flex-col overflow-hidden'}>
 
-              {nativeTemplate && <div className={nativeInstallationStarted ? 'contents' : 'flex-1 overflow-y-auto p-4'}><React.Suspense fallback={<p>Loading installer…</p>}><NativeTemplateInstall row={nativeTemplate} fixedNodeId={ACTIVE_NODE} resumePreviousInstallation={false} onClose={() => setNativeTemplate(null)} onInstallationStarted={() => setNativeInstallationStarted(true)} onDismiss={handleClose} /></React.Suspense></div>}
+              {nativeTemplate && <div className={nativeInstallationStarted ? 'contents' : 'flex-1 overflow-y-auto p-4'}><React.Suspense fallback={<p>Loading installer…</p>}><NativeTemplateInstall row={nativeTemplate} fixedNodeId={targetNodeId || ACTIVE_NODE} resumePreviousInstallation={false} onClose={() => setNativeTemplate(null)} onInstallationStarted={() => setNativeInstallationStarted(true)} onDismiss={handleClose} /></React.Suspense></div>}
               {!showExternal && !nativeTemplate && (
                 <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
                   <div className="space-y-4">
@@ -1426,7 +1443,7 @@ export function InstallGameServer({
                     {!lgsmLoading && !noResults && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 
-                        {ovhFiltered.map((game) => (
+                        {(catalogMode === 'linuxgsm' ? [] : ovhFiltered).map((game) => (
                           <div
                             key={game.id}
                             className="flex items-center justify-between bg-gp-surface-elevated border border-gray-200 dark:border-gray-700/40 rounded-xl px-4 py-3 shadow-sm dark:shadow-none hover:border-gray-400 dark:hover:border-gray-500/70 hover:bg-gp-surface-input transition-all"
@@ -1651,6 +1668,7 @@ export function InstallGameServer({
                             )}
                           </div>
                         </div>
+                        <div className="mt-4"><CpuBindingPicker value={extCpuSet} onChange={setExtCpuSet} nodeId={targetNodeId || ACTIVE_NODE} disabled={installing} /></div>
                         <p className="text-xs text-gray-400">Leave blank for no limit.</p>
                       </div>
 
@@ -1733,6 +1751,9 @@ export function InstallGameServer({
           steamPassword={steamPassword}
           setSteamPassword={setSteamPassword}
           requireGameCopy={requireGameCopy || undefined}
+          cpuSet={cpuSet}
+          setCpuSet={setCpuSet}
+          cpuNodeId={targetNodeId || ACTIVE_NODE}
           cpuLimit={cpuLimit}
           setCpuLimit={setCpuLimit}
           memoryLimitMb={memoryLimitMb}
@@ -1760,13 +1781,14 @@ export function InstallGameServer({
         serverId={installServerId ?? undefined}
         installInteraction={installInteraction ?? null}
         installPlan={installPlan}
-        onRespondToInteraction={setInstallInteraction ? async (interactionId, response) => {
+        onRespondToInteraction={onRespondToInteraction || (setInstallInteraction ? async (interactionId, response) => {
           if (!installServerId) return;
           await apiClient.respondToInstallInteraction(installServerId, interactionId, response);
-        } : undefined}
+        } : undefined)}
+        connectionWarning={connectionWarning}
         permissionsSyncing={installPermissionsSyncing}
         canOpenConsole={canOpenInstallLog}
-        onClose={() => setShowInstallModal(false)}
+        onClose={() => { setShowInstallModal(false); onProgressClose?.(); }}
         onOpenConsole={(serverId) => onOpenConsole?.(serverId)}
         onRetryInstall={() => {
           setShowInstallModal(false);
@@ -1798,6 +1820,6 @@ export function InstallGameServer({
           }
         }}
       />
-    </>
+    </InstallTargetContext.Provider>
   );
 }

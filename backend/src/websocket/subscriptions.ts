@@ -1,3 +1,4 @@
+import { consoleLogHistory } from '../services/consoleLifecycle.js';
 import WebSocket, { type WebSocketServer } from 'ws';
 import type {
     AuthenticatedWebSocket,
@@ -155,7 +156,7 @@ export async function reattachLogStreamsForServer(wss: WebSocketServer, serverId
         sendSafe(ws, {
             type: 'logs:history',
             serverId,
-            logs: [...await nativeLogHistory(serverId), ...containerLogs],
+            logs: await consoleLogHistory(serverId, await nativeLogHistory(serverId), containerLogs),
             limit: REATTACH_LOG_HISTORY_LIMIT,
             timestamp: nowIso(),
         });
@@ -215,9 +216,9 @@ export async function handleSubscribeLogs(
 
     if (server.docker_container_id) {
         const containerLogs = await dockerUtils.getContainerLogs(server.docker_container_id, limit);
-        sendSafe(ws, { type: 'logs:history', serverId, logs: [...installLogs, ...containerLogs], limit, timestamp: nowIso() });
+        sendSafe(ws, { type: 'logs:history', serverId, logs: await consoleLogHistory(serverId, installLogs, containerLogs), limit, timestamp: nowIso() });
     } else {
-        sendSafe(ws, { type: 'logs:history', serverId, logs: installLogs, limit, timestamp: nowIso() });
+        sendSafe(ws, { type: 'logs:history', serverId, logs: await consoleLogHistory(serverId, installLogs, []), limit, timestamp: nowIso() });
     }
 
     sendSafe(ws, { type: 'logs:subscribed', serverId, timestamp: nowIso() });

@@ -58,6 +58,8 @@ export async function createNativeBackup(server: GameServerRow & { docker_contai
         const directory = await nativeBackupDirectory(server);
         const { serverRoot } = getServerStoragePaths(server.id);
         const keys = ['serverfiles'];
+        const fdl = await fs.lstat(path.join(serverRoot, 'data', 'fastdownload')).catch((e: any) => { if (e.code === 'ENOENT') return null; throw e; });
+        if (fdl) { if (!fdl.isDirectory()) throw new Error('FastDownload must be a real directory'); keys.push('fastdownload'); }
         const archiveRoot = path.join(serverRoot, 'data');
         for (const key of keys) {
             if (!(await fs.lstat(path.join(archiveRoot, key)).catch(() => null))?.isDirectory()) throw Object.assign(new Error('Invalid native data mount: expected data/serverfiles; migrate legacy layouts explicitly'), { statusCode: 409 });

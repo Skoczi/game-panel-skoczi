@@ -111,7 +111,8 @@ export async function restoreNativeBackup(server: GameServerRow & { docker_conta
         const archive = path.join(directory, name);
         if (!(await fs.lstat(archive)).isFile()) throw new Error('Backup must be a regular file');
         const serverRoot = path.join(getServerStoragePaths(server.id).serverRoot, 'data');
-        const keys = ['serverfiles'];
+        const keys = await validateNativeArchive(archive);
+        if (keys.includes('fastdownload')) await fs.mkdir(path.join(serverRoot, 'fastdownload'), {mode:0o755}).catch(e => { if(e.code !== 'EEXIST') throw e; });
         for (const key of keys) if (!(await fs.lstat(path.join(serverRoot, key))).isDirectory()) throw new Error('Invalid Native mount');
         staging = await fs.mkdtemp(path.join(directory, '.restore-'));
         await stageNativeArchive(archive, staging, keys);
@@ -120,7 +121,7 @@ export async function restoreNativeBackup(server: GameServerRow & { docker_conta
         await fs.mkdir(recovery, { mode: 0o700 });
         await fs.writeFile(path.join(recovery, 'recovery.json'), JSON.stringify({ archive: name, mounts: keys, state: 'prepared', createdAt: new Date().toISOString() }), { mode: 0o600 });
         await syncDirectory(directory);
-        await beginRestoreJournal(server.id, { recovery: path.basename(recovery), staging: path.basename(staging) });
+        await beginRestoreJournal(server.id, { recovery: path.basename(recovery), staging: path.basename(staging), keys });
         journalActive = true;
         const moved: string[] = [];
         const installed: string[] = [];

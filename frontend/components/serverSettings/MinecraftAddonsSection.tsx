@@ -1,6 +1,7 @@
+import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, Download, FileCode2, Loader2, Package,
+  AlertTriangle, CheckCircle2, Download, FileCode2, Loader2, Package,
   RefreshCw, Search, Trash2, Upload, X,
 } from 'lucide-react';
 import { AppButton, AppToggle } from '../../src/ui/components';
@@ -155,18 +156,16 @@ function AddonBrowser({
             />
           </div>
           <div className="relative">
-            <select className={selectCls} value={sort} onChange={(e) => setSort(e.target.value)}>
+            <AppOptionSelect className={selectCls} value={sort} onChange={(selectedValue) => setSort(selectedValue)}>
               {context.sorts.map((s) => <option key={s} value={s}>{prettyCategory(s)}</option>)}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            </AppOptionSelect>
           </div>
           {context.categories.length > 0 && (
             <div className="relative">
-              <select className={selectCls} value={category} onChange={(e) => setCategory(e.target.value)}>
+              <AppOptionSelect className={selectCls} value={category} onChange={(selectedValue) => setCategory(selectedValue)}>
                 <option value="">All categories</option>
                 {context.categories.map((c) => <option key={c} value={c}>{prettyCategory(c)}</option>)}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </AppOptionSelect>
             </div>
           )}
           <label className={`flex items-center gap-1.5 text-xs ${textSecondary} cursor-pointer select-none whitespace-nowrap`}>

@@ -17,6 +17,6 @@ export const NATIVE_CS16_TEMPLATE: GameTemplate = {
         startup: ['/data/hlds_linux', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}'],
         install: [{ name: 'Download and verify HLDS', argv: ['/usr/local/lib/gamepanel/cs16-install', 'install'], timeoutSeconds: 1800 }],
         update: [{ name: 'Update HLDS (no validate)', argv: ['/usr/local/lib/gamepanel/cs16-install', 'update'], timeoutSeconds: 1800 }],
-        workdir: '/data', stopSignal: 'SIGINT', stopTimeoutSeconds: 30,
+        workdir: '/data', stopCommand: 'quit', stopSignal: 'SIGINT', stopTimeoutSeconds: 30,
     },
 };

@@ -173,7 +173,14 @@ export function useFileManagerState({ activeTab, isOpen, serverId, containerConf
     writeSavedPosition(serverId, { root: currentRoot, path: currentPath });
   }, [isOpen, serverId, currentRoot, currentPath]);
 
+  const openDirectory = (root: string, path: string) => {
+    pendingRestoreRef.current = root === currentRoot ? null : { root, path };
+    setCurrentRoot(root);
+    setCurrentPath(path);
+  };
+
   return {
+    openDirectory,
     currentPath,
     setCurrentPath,
     currentRoot,

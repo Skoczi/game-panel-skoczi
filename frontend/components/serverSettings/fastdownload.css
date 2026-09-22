@@ -1,0 +1,92 @@
+.gp-fdl {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.gp-fdl-heading,
+.gp-fdl-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gp-fdl-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.gp-fdl-title h4 {
+  margin: 0;
+}
+.gp-fdl p {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+}
+.gp-fdl-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: #00bfd415;
+  color: #00bfd4;
+  border: 1px solid #00bfd430;
+}
+.gp-fdl-address {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #64748b40;
+  border-radius: 12px;
+  background: #64748b0b;
+}
+.gp-fdl-address code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  color: #089bb4;
+}
+.gp-fdl-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.gp-fdl-info > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gp-fdl-info span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.gp-fdl-info strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.gp-fdl-folders,
+.gp-fdl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gp-fdl-folders code {
+  font-size: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: #64748b18;
+}
+.gp-fdl .gp-fdl-error {
+  color: #ef657e;
+}
+@media (max-width: 640px) {
+  .gp-fdl-info {
+    grid-template-columns: 1fr;
+  }
+  .gp-fdl-actions > button {
+    flex: 1 1 auto;
+  }
+}

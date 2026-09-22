@@ -1,5 +1,5 @@
 import { AppSectionHeader } from '../../src/ui/layout';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertTriangle, CheckCircle, Clock, GripVertical, Loader2, Pencil, Plus,
   RefreshCw, Trash2, XCircle, X, Save, RotateCcw,
@@ -20,7 +20,7 @@ interface PrePostStep {
 
 interface ScheduledTask {
   id: number;
-  type: 'restart' | 'backup' | 'custom';
+  type: 'restart' | 'backup' | 'custom' | 'game_command';
   schedule: string;
   enabled: boolean;
   payload: {
@@ -37,10 +37,11 @@ interface ScheduledTask {
   lastRunAt: string | null;
   lastStatus: string | null;
   lastError: string | null;
+  lockedAt: string | null;
 }
 
 interface TaskForm {
-  type: 'restart' | 'backup' | 'custom';
+  type: 'restart' | 'backup' | 'custom' | 'game_command';
   schedule: string;
   enabled: boolean;
   pre: PrePostStep[];
@@ -116,9 +117,9 @@ function taskFormToPayload(form: TaskForm, showPrePost: boolean, showIncludeServ
     if (form.cleanup.length) base.cleanup = form.cleanup;
   }
   if (form.type === 'backup' && showIncludeServerArtifact) base.includeServerArtifact = form.includeServerArtifact;
-  if (form.type === 'custom') {
+  if (form.type === 'custom' || form.type === 'game_command') {
     base.command = form.command.trim();
-    if (form.workdir.trim()) base.workdir = form.workdir.trim();
+    if (form.type === 'custom' && form.workdir.trim()) base.workdir = form.workdir.trim();
   }
   return base;
 }
@@ -157,11 +158,12 @@ function TypeBadge({ type }: { type: ScheduledTask['type'] }) {
   const map = {
     restart: 'bg-blue-500/10 text-blue-500 border-blue-500/30',
     backup:  'bg-green-500/10 text-green-500 border-green-500/30',
+    game_command: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
     custom:  'bg-purple-500/10 text-purple-400 border-purple-500/30',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${map[type]}`}>
-      {type}
+      {type === 'game_command' ? 'Game console' : type === 'custom' ? 'Container shell' : type}
     </span>
   );
 }
@@ -349,21 +351,45 @@ export function ScheduledTasksTab({
     title: string; message: string; onConfirm: () => Promise<void>;
   } | null>(null);
 
-  const load = async () => {
-    if (!serverId || !canRead) return;
-    setLoading(true);
-    setError(null);
+  const loadSequence = useRef(0);
+  const loadPending = useRef(false);
+  const load = useCallback(async (background = false) => {
+    if (!serverId || !canRead || (background && loadPending.current)) return;
+    const sequence = ++loadSequence.current;
+    loadPending.current = true;
+    if (!background) setLoading(true);
     try {
       const res = await apiClient.getScheduledTasks(serverId);
+      if (sequence !== loadSequence.current) return;
       setTasks((res.tasks ?? []) as ScheduledTask[]);
+      setError(null);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to load scheduled tasks');
+      if (sequence === loadSequence.current) {
+        setError(err?.response?.data?.error || 'Failed to load scheduled tasks');
+      }
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) {
+        loadPending.current = false;
+        setLoading(false);
+      }
     }
-  };
+  }, [serverId, canRead]);
 
-  useEffect(() => { void load(); }, [serverId]);
+  useEffect(() => {
+    setTasks([]);
+    void load();
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    const timer = window.setInterval(refresh, 5000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      ++loadSequence.current;
+      loadPending.current = false;
+    };
+  }, [load]);
 
   const openNew = () => {
     const defaultType = 'restart';
@@ -386,7 +412,7 @@ export function ScheduledTasksTab({
   const handleSave = async () => {
     if (!serverId || !canWrite || saving) return;
     if (!form.schedule.trim()) { setFormError('Schedule is required.'); return; }
-    if (form.type === 'custom' && !form.command.trim()) { setFormError('Command is required.'); return; }
+    if ((form.type === 'custom' || form.type === 'game_command') && !form.command.trim()) { setFormError('Command is required.'); return; }
     setSaving(true);
     setFormError(null);
     try {
@@ -440,7 +466,7 @@ export function ScheduledTasksTab({
     setError(null);
     try {
       await apiClient.updateScheduledTask(serverId, task.id, { enabled: !task.enabled });
-      setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, enabled: !t.enabled } : t));
+      await load();
     } catch {
       setError('Could not confirm the schedule change. Refresh scheduled tasks before trying again.');
     } finally { setTogglingId(null); }
@@ -451,7 +477,8 @@ export function ScheduledTasksTab({
   const availableTypes: Array<{ value: TaskForm['type']; label: string }> = [
     { value: 'restart', label: 'Restart' },
     ...(serverBackupSupported ? [{ value: 'backup' as const, label: 'Backup' }] : []),
-    { value: 'custom', label: 'Custom Command' },
+    ...(!isExternal ? [{ value: 'game_command' as const, label: 'Game console command' }] : []),
+    { value: 'custom', label: 'Container shell command' },
   ];
 
   return (
@@ -468,13 +495,13 @@ export function ScheduledTasksTab({
         confirmButtonClass="bg-red-600 hover:bg-red-500"
       />
     )}
-    <div className="h-full overflow-y-auto p-4 sm:p-5">
+    <div className="gp-server-tab-body h-full overflow-y-auto p-4 sm:p-5">
       <div className="gp-server-settings-body max-w-4xl mx-auto space-y-4 sm:space-y-6">
 
-        <AppSectionHeader title="Schedules" actions={
+        <AppSectionHeader className="gp-server-tab-header" title="Schedules" actions={
           <div className="flex gap-2">
             <AppButton
-              onClick={load}
+              onClick={() => void load()}
               aria-label="Refresh scheduled tasks"
               className="flex items-center gap-2 px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white"
             >
@@ -512,7 +539,7 @@ export function ScheduledTasksTab({
                     key={value}
                     aria-pressed={form.type === value}
                     type="button"
-                    onClick={() => { setF('type', value); setF('command', ''); setF('workdir', ''); }}
+                    onClick={() => { setF('type', value); if (!['custom', 'game_command'].includes(value)) setF('command', ''); if (value !== 'custom') setF('workdir', ''); }}
                     style={form.type === value ? { color: 'white' } : undefined}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       form.type === value
@@ -566,7 +593,7 @@ export function ScheduledTasksTab({
               </div>
             )}
 
-            {form.type === 'custom' && (
+            {(form.type === 'custom' || form.type === 'game_command') && (
               <div className="space-y-4">
                 <div>
                   <label htmlFor={`${formId}-command`} className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
@@ -578,11 +605,12 @@ export function ScheduledTasksTab({
                     type="text"
                     value={form.command}
                     onChange={(e) => setF('command', e.target.value)}
-                    placeholder="echo hello && ./my-script.sh"
+                    placeholder={form.type === 'game_command' ? 'say Hello' : 'echo hello && ./my-script.sh'}
                     className={`${inputCls} font-mono`}
                   />
                 </div>
-                <div>
+                <p className={`text-xs ${textSecondary}`}>{form.type === 'game_command' ? 'Sent directly to the game console. The server must be running.' : 'Runs a shell command inside the container.'}</p>
+                {form.type === 'custom' && <div>
                   <label htmlFor={`${formId}-workdir`} className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
                     Working directory <span className={`normal-case font-normal ${textSecondary}`}>(optional)</span>
                   </label>
@@ -594,12 +622,13 @@ export function ScheduledTasksTab({
                     placeholder="/data"
                     className={`${inputCls} font-mono`}
                   />
-                </div>
+                </div>}
               </div>
             )}
 
             {showPrePost && (
               <div className="space-y-5">
+                <p className={`text-xs ${textSecondary}`}>Pre, post and cleanup commands run in the game console. Use any command supported by your game.</p>
                 <StepsEditor
                   label="Pre-commands"
                   steps={form.pre}
@@ -682,10 +711,10 @@ export function ScheduledTasksTab({
                       <span className={`text-xs ${textSecondary}`}>{desc}</span>
                     </div>
                     <div className="flex items-center gap-4 flex-wrap">
-                      <StatusBadge status={task.lastStatus} />
-                      {task.nextRunAt && (
+                      <StatusBadge status={task.lockedAt ? 'running' : task.lastStatus} />
+                      {!task.lockedAt && task.enabled && task.nextRunAt && (
                         <span className={`text-xs ${textSecondary}`}>
-                          Next: {formatRelative(task.nextRunAt)} · {task.timeZone || 'node timezone'}
+                          Next: {Date.parse(task.nextRunAt) <= Date.now() ? 'Due now' : formatRelative(task.nextRunAt)} · {task.timeZone || 'node timezone'}
                         </span>
                       )}
                       {task.lastRunAt && (
@@ -695,7 +724,7 @@ export function ScheduledTasksTab({
                       )}
                     </div>
                     {task.nextRuns && <details className={`text-xs ${textSecondary}`}><summary>Next 3 runs · {task.timeZone}</summary>{task.nextRuns.map(date => <div key={date}>{new Date(date).toLocaleString(undefined, { timeZone: task.timeZone, timeZoneName: 'short' })}</div>)}</details>}
-                    {task.lastStatus === 'failed' && task.lastError && (
+                    {!task.lockedAt && task.lastStatus === 'failed' && task.lastError && (
                       <p className="text-xs text-red-400 truncate">{task.lastError}</p>
                     )}
                   </div>

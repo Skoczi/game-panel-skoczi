@@ -1,3 +1,6 @@
+import { assertCpuBinding } from './cpuTopology.js';
+import { assertHostPortsAvailableForServer } from './hostPortAvailability.js';
+import { enterPortAllocationMutation } from './portAllocationLock.js';
 import { serverRepository } from '../database/index.js';
 import { nativeTemplate, nativeContainerOptions } from '../templates/nativeContract.js';
 import { getOvhcloudServerAdapter } from '../providers/ovhcloud/adapters/registry.js';
@@ -35,6 +38,11 @@ import {
 } from './serverActionPolicy.js';
 
 type ReconfigureInput = {
+    applyMode?: 'restart' | 'defer';
+    customParams?: string[];
+    hasCustomParamsPatch?: boolean;
+    startupCommand?: string[] | null;
+    hasStartupPatch?: boolean;
     name?: string;
     ports?: NormalizedPorts;
     mounts?: NormalizedMount[];
@@ -47,6 +55,7 @@ type ReconfigureInput = {
 };
 
 export type ReconfigureResult = {
+    pendingRestart?: boolean;
     reconfigured: boolean;
     wasRunning: boolean;
     usedImage: string;
@@ -158,6 +167,9 @@ export async function reconfigureServerContainer(
     const currentContainerStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);
     assertCanReconfigureContainer(currentContainerStatus);
 
+    const storedMetadata = JSON.parse(server.provider_metadata_json || '{}');
+    // Later edits merge into the saved draft, including fields the caller cannot edit.
+    input = { ...storedMetadata.pendingConfiguration, ...Object.fromEntries(Object.entries(input).filter(([key, value]) => value !== undefined && (!key.startsWith('has') || value === true))) };
     const currentPorts = parseStoredPorts(server);
     const currentMounts = parseStoredMounts(server);
     const currentEnv = parseStoredEnv(server);
@@ -165,18 +177,48 @@ export async function reconfigureServerContainer(
     const currentResourceLimits = parseStoredResourceLimits(server);
 
     const nextPorts = input.ports ?? currentPorts;
+    for (const protocol of ['tcp', 'udp'] as const) for (const binding of nextPorts[protocol]) {
+        const existing = currentPorts[protocol].find(p => p.container === binding.container);
+        const assigned = [...currentPorts.tcp, ...currentPorts.udp].map(p => p.hostIp || '0.0.0.0');
+        if ((existing && (existing.hostIp || '0.0.0.0') !== (binding.hostIp || '0.0.0.0')) || (!existing && assigned.length && !assigned.includes(binding.hostIp || '0.0.0.0'))) throw Object.assign(new Error('The assigned host IP cannot be changed.'), { statusCode: 400 });
+    }
     assertPortPolicy(nextPorts); // Validate before stopping the existing container.
     const nextMounts = input.mounts ?? currentMounts;
     const nextEnv = validateEnvForServer(server, input.env ?? currentEnv);
     const nextHealthcheck = input.hasHealthcheckPatch ? input.healthcheck ?? null : currentHealthcheck;
     const nextResourceLimits = input.hasResourceLimitsPatch ? input.resourceLimits ?? null : currentResourceLimits;
-    const native = nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'));
-    const nativeOptions = native ? nativeContainerOptions(native, nextEnv, nextPorts) : undefined;
+    await assertCpuBinding(nextResourceLimits);
+    const metadata = { ...storedMetadata };
+    delete metadata.pendingConfiguration;
+    const native = nativeTemplate(metadata);
+    if (input.hasStartupPatch) {
+        if (!native) throw Object.assign(new Error('Startup parameters require a native template.'), { statusCode: 400 });
+        metadata.startupCommand = input.startupCommand;
+    }
+    if (input.hasCustomParamsPatch) {
+        if (!native) throw Object.assign(new Error('Custom parameters require a native template.'), { statusCode: 400 });
+        metadata.customParams = input.customParams;
+    }
+    let nativeOptions;
+    try { nativeOptions = native ? nativeContainerOptions(native, nextEnv, nextPorts, metadata.startupCommand, metadata.customParams) : undefined; }
+    catch (error) { throw Object.assign(error as Error, { statusCode: 400 }); }
     if (native && JSON.stringify(nextMounts) !== JSON.stringify(native.mounts)) throw Object.assign(new Error('Native data mounts are fixed by the installed template'), { statusCode: 400 });
 
     const wasRunning = currentContainerStatus === 'running' || currentContainerStatus === 'restarting';
     const shouldStopBeforeReconfigure = currentContainerStatus === 'running';
     const displayName = input.name ?? server.name;
+    if (input.applyMode === 'defer') {
+        if (input.deleteHostData) throw Object.assign(new Error('Host data deletion requires applying changes now.'), { statusCode: 400 });
+        await serverRepository.update(serverId, {
+            provider_metadata_json: JSON.stringify({ ...storedMetadata, pendingConfiguration: {
+                name: displayName, ports: nextPorts, mounts: nextMounts, env: nextEnv,
+                healthcheck: nextHealthcheck, hasHealthcheckPatch: true,
+                resourceLimits: nextResourceLimits, hasResourceLimitsPatch: true,
+                ...(native ? { startupCommand: metadata.startupCommand ?? null, hasStartupPatch: true, customParams: metadata.customParams ?? [], hasCustomParamsPatch: true } : {}),
+            } }),
+        });
+        return { reconfigured: false, pendingRestart: true, wasRunning, usedImage: server.docker_image, usedImageFallback: false, deletedHostDataKeys: [], hostDataDeletionErrors: [] };
+    }
     const containerName = displayName === server.name && server.docker_container_name
         ? server.docker_container_name
         : dockerUtils.buildManagedContainerName(serverId, displayName);
@@ -217,6 +259,7 @@ export async function reconfigureServerContainer(
             }
 
             await serverRepository.update(serverId, {
+                provider_metadata_json: JSON.stringify(metadata),
                 name: displayName,
                 ports_json: JSON.stringify(nextPorts),
                 mounts_json: JSON.stringify(nextMounts),
@@ -270,6 +313,7 @@ export async function reconfigureServerContainer(
 
         await serverRepository.updateDockerInfo(serverId, containerInfo.id, containerInfo.name);
         await serverRepository.update(serverId, {
+            provider_metadata_json: JSON.stringify(metadata),
             name: displayName,
             ports_json: JSON.stringify(nextPorts),
             mounts_json: JSON.stringify(nextMounts),
@@ -310,6 +354,18 @@ export async function reconfigureServerContainer(
     }
 }
 
+// Called inside the caller's server-mutation lock, before any power transition.
+export async function applyPendingServerConfiguration(serverId: number): Promise<ReconfigureResult | null> {
+    const server = await getServerOrThrow(serverId);
+    const pending = JSON.parse(server.provider_metadata_json || '{}').pendingConfiguration;
+    if (!pending) return null;
+    const release = enterPortAllocationMutation();
+    try {
+        await assertHostPortsAvailableForServer({ ports: pending.ports, excludeServerId: serverId, excludeContainerIds: server.docker_container_id ? [server.docker_container_id] : [] });
+        return await reconfigureServerContainer(serverId, { applyMode: 'restart' });
+    } finally { release(); }
+}
+
 export async function updateServerResourceLimits(
     serverId: number,
     resourceLimits: NormalizedResourceLimits
@@ -319,6 +375,7 @@ export async function updateServerResourceLimits(
         throw Object.assign(new Error('Server not found'), { statusCode: 404 });
     }
 
+    await assertCpuBinding(resourceLimits);
     let dockerUpdated = false;
     let containerStatus = 'missing';
 

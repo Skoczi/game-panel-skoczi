@@ -1,3 +1,4 @@
+import { AppOptionSelect } from '../../src/ui/components/AppOptionSelect';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Terminal } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
@@ -78,19 +79,18 @@ function VersionSelect({
       )}
       {status === 'loaded' && (
         <div className="relative">
-          <select
+          <AppOptionSelect
             className={selectCls}
             value={value}
             disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(selectedValue) => onChange(selectedValue)}
           >
             {versions.map((v, i) => (
               <option key={v.version} value={v.version}>
                 {v.version}{i === 0 ? ' (Latest)' : ''}{v.type === 'pre-release' ? ' [pre-release]' : ''}
               </option>
             ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          </AppOptionSelect>
         </div>
       )}
     </div>

@@ -1,0 +1,510 @@
+/* Match the existing per-node server table and grid; fleet routing remains separate. */
+.gp-fleet-node-workspace {
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px #0206170a;
+}
+.dark .gp-fleet-node-workspace {
+  background: #0e1b2c;
+  border-color: #1f2937;
+}
+.gp-fleet-node-workspace .gp-fleet-heading {
+  align-items: center;
+  margin-bottom: 20px;
+}
+.gp-fleet-node-workspace h1 {
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: normal;
+  margin: 0;
+}
+.fleet-node-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.fleet-node-count {
+  border-left: 1px solid var(--fleet-border);
+  padding-left: 12px;
+  color: var(--fleet-muted);
+  font-size: 12px;
+}
+.gp-fleet-node-workspace .gp-fleet-toolbar {
+  border-top: 0;
+  padding: 8px 0 14px;
+  margin-bottom: 14px;
+}
+.gp-fleet-node-workspace .gp-fleet-search {
+  flex: 0 1 320px;
+  min-width: 0;
+  margin-right: 0;
+  border: 1px solid var(--fleet-border);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.gp-fleet-node-workspace .gp-fleet-view-controls {
+  margin-bottom: 18px;
+}
+.gp-fleet-node-workspace .gp-fleet-view-controls[hidden] {
+  display: none;
+}
+.gp-fleet-node-workspace .gp-fleet-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+.gp-fleet-node-workspace .gp-fleet-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: none;
+  gap: 0;
+}
+.dark .gp-fleet-node-workspace .gp-fleet-card {
+  background: #1f2937;
+  border-color: #1f2937;
+}
+.gp-fleet-node-workspace .gp-fleet-drag {
+  top: 17px;
+  bottom: auto;
+  right: 7px;
+  opacity: 0.45;
+}
+.gp-fleet-node-workspace .gp-fleet-drag:hover,
+.gp-fleet-node-workspace .gp-fleet-drag:focus-visible {
+  opacity: 1;
+}
+.fleet-node-card-heading {
+  padding-right: 22px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.fleet-node-card-heading > div {
+  min-width: 0;
+}
+.gp-fleet-node-workspace .fleet-node-card-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 24px;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+.fleet-node-card-heading h3 i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+}
+.fleet-node-card-heading h3 i.is-running {
+  background: #00c950;
+}
+.fleet-node-card-heading p {
+  margin: 5px 0 0;
+  color: var(--fleet-muted);
+  font-size: 14px;
+}
+.fleet-node-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 8px 18px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+.fleet-node-location {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--fleet-muted);
+  margin: 8px 0;
+}
+:root:not(.dark) .fleet-node-status {
+  color: #475569;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+:root:not(.dark) .fleet-node-status[data-status='running'] {
+  color: #047857;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.fleet-node-address {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 30px;
+  margin: 6px 0 14px;
+  white-space: nowrap;
+}
+.fleet-node-address code {
+  color: #009bb7;
+  font-size: 13px;
+  font-weight: 600;
+}
+.dark .fleet-node-address code {
+  color: #00c8df;
+}
+.fleet-node-address button {
+  display: flex;
+  color: #94a3b8;
+  background: transparent;
+  border: 0;
+  padding: 5px;
+  border-radius: 4px;
+}
+.fleet-node-metrics {
+  margin: 8px 0 12px;
+}
+.fleet-node-metric {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  margin-bottom: 7px;
+  font-size: 12px;
+  color: #6b7280;
+  width: 100%;
+  text-align: left;
+  padding: 3px;
+  border-radius: 5px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.fleet-node-metric:hover,
+.fleet-node-network:hover {
+  background: #06b6d414;
+}
+.fleet-node-metric:focus-visible,
+.fleet-node-network:focus-visible {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}
+.dark .fleet-node-metric {
+  color: #9ca3af;
+}
+.fleet-node-metric strong {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+}
+.dark .fleet-node-metric strong {
+  color: #e5e7eb;
+}
+.fleet-node-track {
+  grid-column: 1 / -1;
+  background: #e5e7eb;
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dark .fleet-node-track {
+  background: #374151;
+}
+.fleet-node-track i {
+  display: block;
+  height: 100%;
+  background: #0891b2;
+}
+.fleet-node-network {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #6b7280;
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  padding: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.fleet-node-network-values {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: ui-monospace, monospace;
+  color: var(--fleet-muted);
+}
+.fleet-node-address {
+  position: relative;
+}
+.fleet-node-address .fleet-address-text {
+  width: auto;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  text-align: left;
+}
+.fleet-copy-feedback {
+  position: absolute;
+  top: 100%;
+  font-size: 11px;
+  color: var(--fleet-muted);
+}
+.fleet-edit-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  max-width: 100%;
+}
+.fleet-edit-name svg {
+  opacity: 0;
+  flex-shrink: 0;
+}
+.fleet-edit-name:hover svg,
+.fleet-edit-name:focus-visible svg {
+  opacity: 1;
+}
+.fleet-name-editor {
+  max-width: 100%;
+}
+.fleet-name-editor form {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.fleet-name-editor input {
+  min-width: 0;
+  width: 150px;
+  border: 1px solid var(--fleet-border);
+  background: var(--fleet-surface);
+  border-radius: 7px;
+  padding: 8px;
+  color: inherit;
+}
+.fleet-name-editor button {
+  padding: 7px;
+  border-radius: 6px;
+  background: #06b6d414;
+}
+.fleet-name-editor p {
+  color: #ef4444;
+  font-size: 12px;
+  white-space: normal;
+}
+.fleet-node-table th[aria-sort='ascending'] button,
+.fleet-node-table th[aria-sort='descending'] button {
+  color: #0891b2;
+}
+.fleet-node-network svg {
+  color: #06b6d4;
+}
+.fleet-node-power,
+.fleet-node-management {
+  display: flex;
+  gap: 8px;
+}
+.fleet-node-power {
+  margin-bottom: 12px;
+}
+.fleet-node-power button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.fleet-node-stop {
+  color: #ef4444;
+  background: #ef44441a;
+  border-color: #ef44444d !important;
+}
+.fleet-node-restart {
+  color: #d97706;
+  background: #f973161a;
+  border-color: #f973164d !important;
+}
+.fleet-node-start {
+  color: #059669;
+  background: #10b9811a;
+  border-color: #10b9814d !important;
+}
+.dark .fleet-node-stop {
+  color: #ff5365;
+}
+.dark .fleet-node-restart {
+  color: #ff9800;
+}
+.fleet-node-power button:disabled,
+.fleet-node-management button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.fleet-node-management button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  white-space: nowrap;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.fleet-node-manage {
+  background: #e5e7eb;
+  color: #374151;
+}
+.dark .fleet-node-manage {
+  background: #374151;
+  color: #e5e7eb;
+}
+.fleet-node-console {
+  background: #0050d7;
+  color: #fff;
+}
+.fleet-node-access {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 8px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--fleet-muted);
+  background: transparent;
+  font-size: 12px;
+}
+.fleet-node-access:hover {
+  background: #64748b20;
+}
+.fleet-node-no-action {
+  display: block;
+  min-height: 40px;
+  color: var(--fleet-muted);
+}
+.fleet-node-tables section {
+  margin-top: 10px;
+}
+.fleet-node-table-scroll {
+  overflow-x: auto;
+}
+.fleet-node-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+.fleet-node-table th {
+  padding: 18px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--fleet-muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--fleet-border);
+}
+.fleet-node-table th button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-transform: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.fleet-node-table td {
+  padding: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+.dark .fleet-node-table td {
+  border-color: #1f2937;
+}
+.fleet-node-table tbody tr:hover {
+  background: #0050d708;
+}
+.dark .fleet-node-table tbody tr:hover {
+  background: #10243d;
+}
+.fleet-node-table td:first-child {
+  min-width: 150px;
+}
+.fleet-node-table td > strong {
+  display: block;
+  font-weight: 500;
+}
+.fleet-node-table td > small {
+  display: block;
+  margin-top: 4px;
+  color: var(--fleet-muted);
+  font-size: 10px;
+}
+.fleet-node-table .fleet-node-address {
+  margin: 0;
+}
+.fleet-node-table .fleet-node-metrics {
+  margin: 0;
+  min-width: 170px;
+}
+.fleet-node-table .fleet-node-metric {
+  grid-template-columns: 26px minmax(70px, 1fr) 45px;
+  align-items: center;
+  gap: 10px;
+  margin: 5px 0;
+  font-size: 10px;
+}
+.fleet-node-table .fleet-node-metric strong {
+  grid-column: 3;
+  grid-row: 1;
+  font-size: 12px;
+  text-align: right;
+}
+.fleet-node-table .fleet-node-track {
+  grid-column: 2;
+  grid-row: 1;
+  height: 5px;
+}
+.fleet-node-table .fleet-node-power {
+  margin: 0;
+}
+.fleet-node-table .fleet-node-power button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+.fleet-node-table .fleet-node-access {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .gp-fleet-node-workspace {
+    padding: 16px;
+  }
+  .gp-fleet-node-workspace .gp-fleet-actions {
+    gap: 8px;
+  }
+  .fleet-node-table-scroll {
+    max-width: 100%;
+  }
+}

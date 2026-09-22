@@ -1,3 +1,5 @@
+import { fastDownloadRoutes } from './fastDownload.js';
+import { createAvailableCpuRoutes } from './servers/availableCpus.js';
 import { Router } from 'express';
 import serverFileRoutes from './serverFile.js';
 import serverFilesRoutes from './serverFiles.js';
@@ -44,6 +46,7 @@ router.use('/:id', (req, res, next) => {
     } catch (error) { res.status(409).json({ error: (error as Error).message }); }
 });
 // /api/servers/:id/file
+router.use('/:id/fastdownload', fastDownloadRoutes);
 router.use('/:id/file', serverFileRoutes);
 // /api/servers/:id/files
 router.use('/:id/files', serverFilesRoutes);
@@ -63,6 +66,7 @@ router.use('/', createServerMetricsRoutes());
 
 // /api/servers
 router.use('/', createAvailablePortRoutes());
+router.use('/', createAvailableCpuRoutes());
 router.use('/', createServerReadRoutes());
 // POST /api/servers/install
 router.use('/', createServerInstallRoutes());

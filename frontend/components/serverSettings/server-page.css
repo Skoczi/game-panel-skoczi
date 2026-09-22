@@ -678,3 +678,37 @@
 .gp-server-state-message h1 { font-size: 18px; line-height: 26px; margin: 0 0 4px; }
 .gp-server-state-message p { font-size: 14px; }
 .gp-server-state-icon { width: 40px; height: 40px; border-radius: 10px; }
+
+/* Fill the overview row down to the last server statistic. */
+@media (min-width: 1101px) {
+  .gp-server-overview > .gp-server-console { align-self: stretch; display: flex; flex-direction: column; }
+  .gp-server-console > .gp-console-panel:not([data-fullscreen='true']) { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .gp-server-console > .gp-console-panel:not([data-fullscreen='true']) > div:nth-child(2) { flex-grow: 1; }
+}
+
+/* One heading rhythm across server management tabs. */
+.gp-server-page .gp-server-tab-body { padding: 24px; }
+.gp-server-page .gp-server-tab-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 40px;
+  flex-shrink: 0;
+  margin: 0 0 24px;
+}
+.gp-server-page .gp-server-tab-header .gp-section-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+  color: var(--gp-foreground);
+}
+.gp-server-page .gp-server-tab-header + * { margin-top: 0; }
+.gp-server-page .gp-settings > .gp-server-tab-header { margin-bottom: 2px; }
+@media (max-width: 640px) {
+  .gp-server-page .gp-server-tab-body { padding: 16px; }
+  .gp-server-page .gp-server-tab-header { margin-bottom: 20px; }
+}

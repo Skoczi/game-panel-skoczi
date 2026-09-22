@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { loadWithMocks } from './loadWithMocks.js';
 import { rejectPrivateFileRoots } from '../src/middleware/privateFileRoots.js';
 
-test('native backups archive only serverfiles without following symlinks, online and offline', async () => {
+test('native backups include game files and FastDownload uploads without following symlinks, online and offline', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gp-native-backup-test-'));
     let status = 'running'; let released = 0;
     const module = loadWithMocks('../src/services/nativeBackups.ts', {
@@ -30,6 +30,7 @@ test('native backups archive only serverfiles without following symlinks, online
         await fs.mkdir(path.join(root, 'data', 'serverfiles'), { recursive: true }); await fs.mkdir(path.join(root, 'config'));
         await fs.writeFile(path.join(root, 'data', 'serverfiles', 'server.cfg'), 'hostname test');
         await fs.writeFile(path.join(root, 'config', 'settings.ini'), 'test=1');
+        await fs.mkdir(path.join(root,'data','fastdownload'));await fs.writeFile(path.join(root,'data','fastdownload','manual.bsp'),'manual');
         await fs.symlink('server.cfg', path.join(root, 'data', 'serverfiles', 'inside'));
         await fs.symlink('libSDL2-2.0.so.0', path.join(root, 'data', 'serverfiles', 'libSDL2.so'));
         const server = { id: 1, provider_metadata_json: '{}', docker_container_id: 'test' };
@@ -46,7 +47,7 @@ test('native backups archive only serverfiles without following symlinks, online
         assert.equal((await fs.stat(archive)).mode & 0o777, 0o600);
         const { stdout } = await promisify(execFile)('tar', ['-tzf', archive]);
         assert(stdout.includes('serverfiles/libSDL2.so')); assert(!stdout.includes('serverfiles/libSDL2-2.0.so.0'));
-        assert(stdout.includes('serverfiles/server.cfg')); assert(!stdout.includes('config/settings.ini')); assert(!stdout.includes('backups/'));
+        assert(stdout.includes('fastdownload/manual.bsp'));assert(stdout.includes('serverfiles/server.cfg')); assert(!stdout.includes('config/settings.ini')); assert(!stdout.includes('backups/'));
         assert(!stdout.includes('outside/passwd')); assert(!stdout.includes('.native-backups'));
         await fs.symlink('/etc', path.join(root, 'data', 'serverfiles', 'outside'));
         await assert.rejects(module.createNativeBackup(server), /external link/);

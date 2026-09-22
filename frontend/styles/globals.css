@@ -1631,3 +1631,78 @@ body:has(.fixed.inset-0) {
 
 .gp-page-title, .gp-fleet-heading h1 { font-size: 20px; line-height: 28px; font-weight: 600; margin: 0; }
 .gp-section-title, .gp-server-page .gp-section-title { font-size: 18px; line-height: 26px; font-weight: 600; margin: 0; }
+
+/* Quiet branded loading state; motion respects the OS preference. */
+.gp-session-loading { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 42%, #102039 0%, #090f1b 55%); color: #e8edf7; }
+.gp-session-loader { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.gp-session-mark { position: relative; display: grid; place-items: center; width: 76px; height: 76px; border: 1px solid #28425b; border-radius: 24px; background: linear-gradient(145deg, #16283e, #0c1626); color: #04c8e4; box-shadow: 0 12px 50px #00b8dc12, inset 0 1px 0 #ffffff0c; }
+.gp-session-mark > span { position: absolute; right: 9px; bottom: 9px; width: 7px; height: 7px; border-radius: 50%; background: #35dbb0; box-shadow: 0 0 12px #35dbb044; }
+.gp-session-wordmark { font-size: 17px; font-weight: 600; letter-spacing: .02em; }
+.gp-session-track { width: 108px; height: 3px; border-radius: 3px; background: #1d2a3e; overflow: hidden; }
+.gp-session-track > span { display: block; width: 42%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #038da9, #04d7eb); animation: gp-session-progress 1.4s ease-in-out infinite alternate; }
+@keyframes gp-session-progress { from { transform: translateX(-40%); } to { transform: translateX(180%); } }
+@media (prefers-reduced-motion: reduce) { .gp-session-track > span { animation: none; margin: auto; } }
+
+/* Installation receipt: explicit layout keeps actions aligned at every width. */
+.gp-install-status { --install-accent: #0284a0; background: linear-gradient(130deg, #f0fbff, #fff 55%); border: 1px solid #d5e3ec; border-radius: 20px; padding: 28px; color: #172b43; }
+.dark .gp-install-status { --install-accent: #04c8e4; background: radial-gradient(ellipse at top left, #12304770, transparent 65%), #0e1a2b; border-color: #284053; color: #e4edf8; }
+.gp-install-status__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 30px; }
+.gp-install-status button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; height: auto; margin: 0; padding: 10px 16px; border: 1px solid #b8cbd9; border-radius: 11px; background: transparent; color: inherit; font: inherit; font-size: 14px; font-weight: 600; line-height: 20px; cursor: pointer; transition: background .15s, border-color .15s; }
+.dark .gp-install-status button { border-color: #34495d; }
+.gp-install-status button:hover { background: #0891b210; border-color: var(--install-accent); }
+.gp-install-status button:focus-visible { outline: 2px solid var(--install-accent); outline-offset: 3px; }
+.gp-install-status button svg { flex-shrink: 0; }
+.gp-install-status .gp-install-status__back { min-height: 38px; padding: 8px 12px; gap: 8px; flex-shrink: 0; white-space: nowrap; border: 0; font-size: 13px; color: #64748b; }
+.dark .gp-install-status .gp-install-status__back { color: #9dafc5; }
+.gp-install-status__badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 8px; background: #0891b212; color: var(--install-accent); font-size: 12px; font-weight: 600; line-height: 18px; }
+.gp-install-status__heading { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.gp-install-status__heading > div { min-width: 0; }
+.gp-install-status__icon { display: grid; place-items: center; flex: 0 0 60px; height: 60px; border: 1px solid #0891b233; border-radius: 17px; background: #0891b210; color: var(--install-accent); }
+.gp-install-status .gp-install-status__eyebrow { margin: 0 0 5px; font-size: 10px; font-weight: 700; letter-spacing: .15em; color: var(--install-accent); }
+.gp-install-status h2 { margin: 0; font-size: 26px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
+.gp-install-status .gp-install-status__template { margin: 7px 0 0; font-size: 14px; color: #64748b; overflow-wrap: anywhere; }
+.dark .gp-install-status .gp-install-status__template { color: #9dafc5; }
+.gp-install-status__template span { opacity: .75; }
+.gp-install-status__details { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 20px; margin: 28px 0; padding: 20px 0; border-block: 1px solid #94a3b826; }
+.gp-install-status__details dt { margin-bottom: 7px; font-size: 12px; color: #64748b; }
+.dark .gp-install-status__details dt { color: #91a4bc; }
+.gp-install-status__details dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.gp-install-status__address { font-family: ui-monospace, monospace; }
+.gp-install-status__progress > div:first-child { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; font-size: 13px; }
+.gp-install-status__progress strong { font-variant-numeric: tabular-nums; color: var(--install-accent); }
+.gp-install-status__track { height: 5px; border-radius: 5px; overflow: hidden; background: #94a3b826; }
+.gp-install-status__track span { display: block; height: 100%; border-radius: inherit; background: var(--install-accent); transition: width .3s; }
+.gp-install-status__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+.gp-install-status .gp-install-status__primary { background: #075be8; border-color: #3980fa; color: #fff; }
+.gp-install-status .gp-install-status__primary:hover { background: #146bf4; }
+.gp-install-status .gp-install-status__another { margin-left: auto; border-color: transparent; font-weight: 500; }
+.gp-install-status__warning { margin: 18px 0 0; padding: 12px 14px; border-radius: 10px; background: #f59e0b12; color: #b45309; font-size: 13px; }
+.dark .gp-install-status__warning { color: #fbbf24; }
+.gp-install-status[data-state="completed"] { --install-accent: #059669; }
+.dark .gp-install-status[data-state="completed"] { --install-accent: #34d399; }
+.gp-install-status[data-state="failed"] { --install-accent: #d97706; }
+.dark .gp-install-status[data-state="failed"] { --install-accent: #fbbf24; }
+.gp-install-status__spinner { animation: gp-install-spin 1.5s linear infinite; }
+@keyframes gp-install-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gp-install-status__spinner { animation: none; } .gp-install-status__track span { transition: none; } }
+@media (max-width: 600px) {
+  .gp-install-status { padding: 20px; border-radius: 16px; }
+  .gp-install-status__top { margin-bottom: 24px; }
+  .gp-install-status__heading { gap: 12px; }
+  .gp-install-status__icon { flex-basis: 44px; height: 44px; border-radius: 13px; }
+  .gp-install-status h2 { font-size: 22px; }
+  .gp-install-status__details { grid-template-columns: 1fr 1fr; gap: 18px; }
+  .gp-install-status__details > div:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .gp-install-status__actions > button { flex: 1 1 100%; }
+  .gp-install-status .gp-install-status__another { margin-left: 0; }
+}
+
+.gp-protection-details .gp-protection-content { padding: clamp(20px, 2vw, 28px); border-radius: 16px; }
+.gp-protection-details > summary { padding-block: 4px; }
+
+/* Former native select fields share the panel dropdown and menu styling. */
+.gp-option-select.gp-app-select { padding: 0; border: 0; background: transparent; background-image: none; height: auto; min-width: 0; }
+.gp-option-select .gp-app-select-control { min-height: 40px; padding: 9px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: #f7f9fc; color: #172436; font-size: 14px; line-height: 20px; }
+.dark .gp-option-select .gp-app-select-control { background: #111e30; border-color: #334258; color: #edf2f8; }
+.gp-option-select .gp-app-select-control:hover { border-color: #0891b2; }
+.gp-option-select .gp-app-select-control:focus-within { border-color: #06b6d4; box-shadow: 0 0 0 3px #06b6d41a; }

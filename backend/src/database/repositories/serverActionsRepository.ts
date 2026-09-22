@@ -4,9 +4,8 @@ import { nowIso } from '../../utils/time.js';
 import { BaseRepository } from './base.js';
 
 export class ServerActionsRepository extends BaseRepository {
-  async create(serverId: number, level: string, message: string, actorUsername: string) {
+  async create(serverId: number, level: string, message: string, actorUsername: string, timestamp = nowIso()) {
     const db = await this.ensureDb();
-    const timestamp = nowIso();
     const result = await db.run(
       'INSERT INTO server_actions (server_id, timestamp, level, message, actor_username) VALUES (?, ?, ?, ?, ?)',
       [serverId, timestamp, level, message, actorUsername]
@@ -44,7 +43,7 @@ export class ServerActionsRepository extends BaseRepository {
   async getRecent(serverId: number, limit = 100): Promise<ServerActionRow[]> {
     const db = await this.ensureDb();
     return db.all<ServerActionRow[]>(
-      'SELECT * FROM server_actions WHERE server_id = ? ORDER BY timestamp DESC LIMIT ?',
+      'SELECT * FROM server_actions WHERE server_id = ? ORDER BY timestamp DESC, id DESC LIMIT ?',
       [serverId, limit]
     );
   }

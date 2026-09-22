@@ -689,8 +689,9 @@ export function GameConfigTab({
       )}
 
       {hasGameConfiguration && (
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6">
-        <div className="w-full max-w-full md:max-w-4xl mx-auto space-y-3 pb-6">
+      <div className="gp-server-tab-body min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6">
+        <div className="gp-server-settings-body w-full max-w-full md:max-w-4xl mx-auto space-y-3 pb-6">
+          <header className="gp-server-tab-header"><h3 className="gp-section-title">Game Config</h3></header>
           {(configFilesLoading || verifiedConfigFiles.length > 0) && <div className="space-y-5 px-1 sm:px-2">
               {configFilesLoading && (
                 <div className={`flex items-center gap-2 text-sm ${textSecondary}`}>

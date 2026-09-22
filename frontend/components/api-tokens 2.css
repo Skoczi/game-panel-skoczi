@@ -1,0 +1,18 @@
+.gp-api-tokens[data-ods='modal-content'] { border-radius: 16px; overflow: hidden; }
+.gp-api-tokens .gp-app-modal-header { padding: 22px 68px 12px 24px; }
+.gp-api-tokens .gp-app-modal-body { padding: 8px 24px 24px; }
+.gp-api-tokens form > div > label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; }
+.gp-api-tokens .gp-app-input { display: block; box-sizing: border-box; width: 100%; min-height: 44px; padding: 8px 12px; border-width: 1px; border-style: solid; border-radius: 8px; font-size: 16px; }
+.gp-api-tokens .gp-app-toggle { display: flex; width: 100%; min-height: 44px; text-align: left; }
+.gp-api-tokens .gp-app-toggle-control { flex-shrink: 0; }
+.gp-api-tokens .gp-app-toggle-label { min-width: 0; white-space: normal; }
+.gp-api-tokens fieldset label { min-height: 36px; }
+.gp-api-tokens input[type='checkbox'] { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--gp-ods-accent-primary, #06b6d4); }
+@media (max-width: 600px) {
+  .gp-api-tokens .gp-app-modal-header { padding-left: 16px; }
+  .gp-api-tokens .gp-app-modal-body { padding-left: 16px; padding-right: 16px; }
+}
+
+.gp-api-tokens .gp-app-input { border-color: #cbd5e1; background: #f8fafc; }
+.dark .gp-api-tokens .gp-app-input { border-color: #334155; background: #111827; }
+.gp-api-tokens .gp-app-input input { width: 100%; min-width: 0; background: transparent; color: inherit; }

@@ -251,13 +251,9 @@ export function ServerSshTerminal({ serverId, serverStatus }: ServerSshTerminalP
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-4 flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-2xl font-bold text-white">Terminal</h3>
-          </div>
-        </div>
-      </div>
+      <header className="gp-server-tab-header">
+        <h3 className="gp-section-title">Terminal</h3>
+      </header>
 
       {!serverId && (
         <div className="bg-gp-surface-elevated border border-gray-700 rounded-lg p-5 text-sm text-gray-300">

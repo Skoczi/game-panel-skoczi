@@ -1,6 +1,24 @@
+import { AppOptionSelect } from '../src/ui/components/AppOptionSelect';
 import type { GameTemplate } from '../utils/gameTemplates';
 
 const field = 'mt-1 w-full rounded-xl border border-slate-300 bg-transparent px-3 py-2.5 dark:border-slate-600';
+// Each textarea is exactly one argv entry, including any embedded newlines.
+export function NativeArgumentsEditor({ value, onChange, label }: { value: string[]; onChange: (args: string[]) => void; label: string }) {
+  return <fieldset className="space-y-3">
+    <legend className="mb-2 text-sm font-medium">{label}</legend>
+    {value.map((argument, index) => <div key={index} className="flex items-start gap-2">
+      <span className="w-7 shrink-0 pt-3 text-right font-mono text-xs text-slate-500">{index}</span>
+      <textarea aria-label={`${label} argument ${index}`} spellCheck={false}
+        className={`${field} min-w-0 flex-1 font-mono text-sm`} rows={Math.min(14, Math.max(1, argument.split('\n').length))}
+        value={argument} onChange={e => onChange(value.map((item, i) => i === index ? e.target.value.replace(/\r\n?/g, '\n') : item))} />
+      <button type="button" className="mt-2 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-500/10"
+        aria-label={`Remove ${label.toLowerCase()} argument ${index}`} onClick={() => onChange(value.filter((_, i) => i !== index))}>Remove</button>
+    </div>)}
+    <button type="button" className={button} onClick={() => onChange([...value, ''])}>Add argument</button>
+    <p className="text-sm text-slate-500">Each field is one argument. A script after -c stays in one field, including all its lines. Argument 0 is the executable path.</p>
+  </fieldset>;
+}
+
 const button = 'rounded-xl border border-slate-300 px-4 py-2 text-sm dark:border-slate-600';
 export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; change: (patch: Partial<GameTemplate>) => void }) {
   const lifecycle = draft.lifecycle;
@@ -29,10 +47,17 @@ export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; 
       }} />
     </label>
     <p className="text-sm text-slate-500">Shared installation environment with Bash and download tools, independent of the game image in Runtime. Both images are pinned at installation. Changing this draft does not change existing servers.</p>
-    <label className="block text-sm font-medium">Startup arguments (one per line)
-      <textarea aria-label="Startup arguments" className={`${field} font-mono`} rows={7} value={lifecycle.startup.join('\n')} onChange={e => update({ startup: e.target.value.split('\n') })} />
+    <NativeArgumentsEditor label="Startup arguments" value={lifecycle.startup} onChange={startup => update({ startup })} />
+    <p className="text-sm text-slate-500">Use an absolute executable path. Use {'{{VARIABLE}}'} for declared variables or managed port variables. Arguments are passed directly, without a shell. Do not add quoting around values.</p>
+    <label className="block text-sm font-medium">Stop command (optional)
+      <input aria-label="Stop command" className={`${field} font-mono`} maxLength={1000} placeholder="For example: quit or stop" value={lifecycle.stopCommand ?? ''} onChange={e => {
+        const next = { ...lifecycle };
+        if (e.target.value) next.stopCommand = e.target.value;
+        else delete next.stopCommand;
+        change({ lifecycle: next });
+      }} />
     </label>
-    <p className="text-sm text-slate-500">First line: absolute executable path. Use {'{{VARIABLE}}'} for declared variables or managed port variables. Arguments are passed directly, without a shell. Do not add quoting around values.</p>
+    <p className="text-sm text-slate-500">Sent to the game console before stopping. The panel waits for the process to exit; the stop signal is a fallback if it does not respond. Leave empty to use the stop signal directly.</p>
     <div className="grid gap-4 md:grid-cols-3">
       <label className="text-sm">Working directory<input className={field} value={lifecycle.workdir} onChange={e => update({ workdir: e.target.value })} /></label>
       <label className="text-sm">Stop timeout (seconds)<input className={field} type="number" min={1} max={120} value={lifecycle.stopTimeoutSeconds} onChange={e => update({ stopTimeoutSeconds: Number(e.target.value) })} /></label>
@@ -43,7 +68,7 @@ export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; 
       <p className="text-sm text-slate-500">Expose exact configuration files in Server Settings. Paths are relative to the selected data mount, not the host filesystem.</p>
       {(draft.configFiles ?? []).map((file, index) => <div key={index} className="grid gap-2 md:grid-cols-4">
         <input aria-label={`Configuration label ${index + 1}`} className={field} value={file.label} placeholder="Label" onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, label: e.target.value } : f) })} />
-        <select aria-label={`Configuration root ${index + 1}`} className={field} value={file.root} onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, root: e.target.value } : f) })}>{draft.mounts.map(m => <option key={m.key} value={m.key}>{m.containerPath}</option>)}</select>
+        <AppOptionSelect aria-label={`Configuration root ${index + 1}`} className={field} value={file.root} onChange={selectedValue => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, root: selectedValue } : f) })}>{draft.mounts.map(m => <option key={m.key} value={m.key}>{m.containerPath}</option>)}</AppOptionSelect>
         <input aria-label={`Configuration path ${index + 1}`} className={field} value={file.path} placeholder="/serverfiles/game/server.cfg" onChange={e => change({ configFiles: draft.configFiles!.map((f, i) => i === index ? { ...f, path: e.target.value } : f) })} />
         <button className={button} onClick={() => change({ configFiles: draft.configFiles!.filter((_, i) => i !== index) })}>Remove file</button>
       </div>)}
@@ -58,7 +83,7 @@ export function NativeLifecycleEditor({ draft, change }: { draft: GameTemplate; 
           {step.script !== undefined ? <>
             <label className="block text-sm">Bash script<textarea aria-label={`${phase} script ${index + 1}`} className={`${field} font-mono text-sm`} rows={14} spellCheck={false} maxLength={16384} value={step.script} onChange={e => edit({ script: e.target.value.replace(/\r\n?/g, '\n') })} /></label>
             <p className="text-sm text-slate-500">Stored in the versioned template. Bash runs with errexit, nounset and pipefail. Read variables as quoted environment values, e.g. {'"${MAP}"'} — no {'{{VARIABLE}}'} substitution in script source. Data directory: {lifecycle.workdir}. Maximum 16 KiB per script.</p>
-          </> : <label className="block text-sm">Command arguments (one per line)<textarea className={`${field} font-mono`} rows={4} value={step.argv.join('\n')} onChange={e => edit({ argv: e.target.value.split('\n') })} /></label>}
+          </> : <NativeArgumentsEditor label={`${phase} command`} value={step.argv} onChange={argv => edit({ argv })} />}
           <label className="block text-sm">Timeout (1–3600 seconds)<input className={field} type="number" min={1} max={3600} value={step.timeoutSeconds} onChange={e => edit({ timeoutSeconds: Number(e.target.value) })} /></label>
           <button className={button} onClick={() => update({ [phase]: lifecycle[phase].filter((_, i) => i !== index) })}>Remove step</button>
         </div>;

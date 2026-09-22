@@ -38,11 +38,18 @@ router.post(
 
             const server = await getServerOrThrow(serverId);
             const result = await sendGameConsoleCommand(server, body.command);
+            // The service has validated the command. Keep credentials out of shared activity.
+            const command = (body.command as string).trim().replace(
+                /((?:^|[;\s])(?:[+-]?(?:\w*(?:password|passwd|token|secret|api_key)|sv_setsteamaccount))\s*(?:=\s*|\s+))(?:"[^"]*"|'[^']*'|[^;\s]+)/gi,
+                '$1[REDACTED]'
+            );
 
             await actionsRepository.create(
                 serverId,
                 result.ok ? 'info' : 'error',
-                result.ok ? 'Console command sent' : `Console command failed (exitCode=${result.exitCode})`,
+                result.ok
+                    ? `Console command sent: ${command}`
+                    : `Console command failed (exitCode=${result.exitCode}): ${command}`,
                 req.user?.username || ''
             );
 

@@ -119,16 +119,14 @@ export class GameServerRepository extends BaseRepository {
   async updateStatusIfChanged(id: number, status: ServerStatus) {
     const db = await this.ensureDb();
 
-    const current = await db.get<{ status: string }>('SELECT status FROM game_servers WHERE id = ?', [id]);
-    if (!current) return;
-    if (current.status === status) return;
-
     const timestamp = nowIso();
-    await db.run(
-      'UPDATE game_servers SET status = ?, last_error = NULL, updated_at = ? WHERE id = ?',
-      [status, timestamp, id]
+    // The route and Docker event listener can complete the same transition concurrently.
+    // Check and write atomically so only the winning update publishes a status event.
+    const result = await db.run(
+      'UPDATE game_servers SET status = ?, last_error = NULL, updated_at = ? WHERE id = ? AND status <> ?',
+      [status, timestamp, id, status]
     );
-    bus.emit('server.status', { serverId: id, status, timestamp });
+    if (result.changes) bus.emit('server.status', { serverId: id, status, timestamp });
   }
 
   async updateDesiredState(id: number, desiredState: DesiredServerState) {

@@ -9,7 +9,8 @@ const document = {
   variables: [
     { key: 'SERVER_NAME', label: 'Server name', type: 'string', required: true, secret: false, default: 'Counter-Strike 1.6 ReHLDS Server' },
     { key: 'MAP', label: 'Starting map', type: 'string', required: true, secret: false, default: 'de_dust2' },
-    { key: 'MAX_PLAYERS', label: 'Maximum players (1-32)', type: 'integer', required: true, secret: false, default: '16' }
+    { key: 'MAX_PLAYERS', label: 'Maximum players (1-32)', type: 'integer', required: true, secret: false, default: '16' },
+    { key: 'CFG', label: 'Server config', type: 'string', required: true, secret: false, default: 'server.cfg' }
   ],
   mounts: [{ key: 'data', containerPath: '/data' }],
   configFiles: [
@@ -20,8 +21,8 @@ const document = {
   ],
   lifecycle: {
     installerImage: 'gamepanel-installer:steamcmd-v1', workdir: '/data',
-    startup: ['/bin/bash', '-c', readFileSync(new URL('./start.sh', import.meta.url), 'utf8'), 'hlds', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+servercfgfile', 'gamepanel-startup.cfg', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}'],
-    stopSignal: 'SIGINT', stopTimeoutSeconds: 30,
+    startup: ['/bin/bash', '-c', readFileSync(new URL('./start.sh', import.meta.url), 'utf8'), 'hlds', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+servercfgfile', '{{CFG}}', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}'],
+    stopCommand: 'quit', stopSignal: 'SIGINT', stopTimeoutSeconds: 30,
     install: [{ name: 'Install Steam legacy files and verified ReHLDS', timeoutSeconds: 1800, script: readFileSync(new URL('./install.sh', import.meta.url), 'utf8') }], update: []
   }
 };

@@ -1,3 +1,6 @@
+import type { FastDownloadStatus } from '../components/serverSettings/FastDownloadCard';
+import { nodesRequest } from './nodesApi';
+import type { CpuTopology } from '../components/resources/CpuBindingPicker';
 import { clearEditorDrafts } from './editorDrafts';
 import { mutationOutcomeUnknown } from './apiError';
 import type { ResourceUsage } from './resourceMetrics';
@@ -412,7 +415,7 @@ class ApiClient {
     requireSteamCredentials?: boolean;
     steamUsername?: string;
     steamPassword?: string;
-    resourceLimits?: { memoryMb: number; cpu: number } | null;
+    resourceLimits?: { memoryMb?: number; cpu?: number; cpuSet?: number[] } | null;
   }) {
     const response = await this.client.post('/api/servers/install', payload, {
       timeout: LONG_TIMEOUT_MS,
@@ -448,9 +451,21 @@ class ApiClient {
     return response.data;
   }
 
+  async getFastDownload(id: number): Promise<FastDownloadStatus> { return (await this.client.get(`/api/servers/${id}/fastdownload`)).data; }
+  async updateFastDownload(id: number, patch: {enabled?:boolean;compression?:boolean}) { return (await this.client.patch(`/api/servers/${id}/fastdownload`,patch)).data; }
+  async syncFastDownload(id: number) { return (await this.client.post(`/api/servers/${id}/fastdownload/sync`,{}, {timeout:300000})).data; }
+  async configureFastDownload(id: number): Promise<{message:string}> { return (await this.client.post(`/api/servers/${id}/fastdownload/configure`)).data; }
+
+  async getAvailableCpus(nodeId = ACTIVE_NODE, serverId?: number): Promise<CpuTopology> {
+    return nodesRequest<CpuTopology>(runtimeUrl(`/api/servers/${serverId ? `${serverId}/` : ''}available-cpus`, nodeId));
+  }
+
   async updateServer(
     serverId: number,
     payload: {
+      applyMode?: 'restart' | 'defer';
+      customParams?: string[];
+      startupCommand?: string[] | null;
       name?: string;
       ports?: {
         tcp: Array<{ host: number; container: number; label: string; hostIp?: string }>;
@@ -460,9 +475,12 @@ class ApiClient {
       env?: Record<string, string>;
       healthcheck?: null | { mode: string; [key: string]: unknown };
       deleteHostData?: boolean;
-      resourceLimits?: { memoryMb: number; cpu: number } | null;
+      resourceLimits?: { memoryMb?: number; cpu?: number; cpuSet?: number[] } | null;
     }
   ) {
+    if (payload.resourceLimits && Object.prototype.hasOwnProperty.call(payload.resourceLimits, 'cpuSet')) {
+      return nodesRequest<{ success?: boolean; server?: { id: number; name?: string } }>(runtimeUrl(`/api/servers/${serverId}`), payload, 'PATCH');
+    }
     const response = await this.client.patch(`/api/servers/${serverId}`, payload);
     return response.data as { success?: boolean; server?: { id: number; name?: string } };
   }
@@ -475,6 +493,11 @@ class ApiClient {
   async createTerminalSession(id: number) {
     const response = await this.client.post(`/api/servers/${id}/terminal/container/sessions`);
     return response.data as { sessionId: string };
+  }
+
+  async getAvailableServerPorts(id: number, ip: string, protocol: 'tcp' | 'udp') {
+    const response = await this.client.get(`/api/servers/${id}/available-ports`, { params: { ip, protocol } });
+    return response.data as { ports: number[] };
   }
 
   async getServer(id: number) {
@@ -758,7 +781,7 @@ class ApiClient {
       tasks: Array<{
         id: number;
         serverId: number;
-        type: 'restart' | 'backup' | 'custom';
+        type: 'restart' | 'backup' | 'custom' | 'game_command';
         schedule: string;
         enabled: boolean;
         payload: Record<string, unknown>;
@@ -766,6 +789,7 @@ class ApiClient {
         lastRunAt: string | null;
         lastStatus: string | null;
         lastError: string | null;
+        lockedAt: string | null;
       }>;
     };
   }
@@ -773,7 +797,7 @@ class ApiClient {
   async createScheduledTask(
     serverId: number,
     payload: {
-      type: 'restart' | 'backup' | 'custom';
+      type: 'restart' | 'backup' | 'custom' | 'game_command';
       schedule: string;
       enabled?: boolean;
       payload?: Record<string, unknown>;

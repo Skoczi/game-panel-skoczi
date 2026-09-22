@@ -1,0 +1,50 @@
+/* Keep the shared ODS dismiss action aligned with the padded title, not the corner. */
+.gp-app-modal-content[data-ods='modal-content'] [data-part='close-trigger'] {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #64748b0d;
+  color: #52627a;
+  cursor: pointer;
+  z-index: 2;
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.gp-app-modal-content[data-ods='modal-content'] [data-part='close-trigger']:hover {
+  background: #64748b1a;
+  color: #17233d;
+}
+.dark .gp-app-modal-content[data-ods='modal-content'] [data-part='close-trigger'] {
+  background: #94a3b80d;
+  color: #b8c6d9;
+}
+.dark .gp-app-modal-content[data-ods='modal-content'] [data-part='close-trigger']:hover {
+  background: #94a3b81f;
+  color: #f1f5f9;
+}
+.gp-app-modal-content[data-ods='modal-content'] [data-part='close-trigger']:focus-visible {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}
+.gp-app-modal-content[data-ods='modal-content'] .gp-app-modal-header {
+  padding-right: 80px;
+}
+@media (max-width: 600px) {
+  .gp-app-modal-content[data-ods='modal-content'] [data-part='close-trigger'] {
+    top: 12px;
+    right: 12px;
+  }
+  .gp-app-modal-content[data-ods='modal-content'] .gp-app-modal-header {
+    padding-right: 68px;
+  }
+}

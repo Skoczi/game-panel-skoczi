@@ -1,0 +1,9 @@
+.gp-panel-update[data-ods='modal-content'] { display: flex; flex-direction: column; border-radius: 16px; }
+.gp-panel-update .gp-app-modal-header { padding: 22px 76px 16px 24px; }
+.gp-panel-update .gp-app-modal-body { min-height: 0; padding: 4px 24px 24px; }
+.gp-panel-update details { padding-top: 16px; border-top: 1px solid #94a3b833; }
+.gp-panel-update summary { margin-bottom: 14px; }
+@media (max-width: 600px) {
+  .gp-panel-update .gp-app-modal-header { padding: 18px 64px 12px 16px; }
+  .gp-panel-update .gp-app-modal-body { padding: 4px 16px 20px; }
+}

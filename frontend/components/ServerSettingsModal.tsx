@@ -258,6 +258,7 @@ export function ServerSettingsModal({
     setSelectedItems,
     deleteMultiNames,
     setDeleteMultiNames,
+    openDirectory,
   } = useFileManagerState({
     activeTab,
     isOpen,
@@ -1051,7 +1052,7 @@ export function ServerSettingsModal({
           />
         }
         terminalContent={
-          <div className="h-full overflow-hidden p-3 sm:p-4 md:p-6">
+          <div className="gp-server-tab-body h-full overflow-hidden p-3 sm:p-4 md:p-6">
             <Suspense fallback={<div className="p-4 text-sm text-gray-400">Loading terminal…</div>}>
               <ServerSshTerminal serverId={serverId} serverName={serverName} serverStatus={serverStatus} />
             </Suspense>
@@ -1076,6 +1077,18 @@ export function ServerSettingsModal({
         }
         containerConfigContent={
           <ContainerConfigTab
+            onOpenFileManagerDirectory={canUseFileManager ? (path) => {
+              hasUserSelectedTabRef.current = true;
+              setPendingFilePath(null);
+              editorSession.select(null);
+              setSelectedFile(null);
+              setSelectedItems([]);
+              setFileError(null);
+              setFilesError(null);
+              openDirectory('data', path);
+              setActiveTab('filemanager');
+            } : undefined}
+            canWriteFiles={canWriteFiles}
             serverId={serverId!}
             serverName={serverName}
             canDelete={Boolean(currentUser?.isRoot || serverPermissions.includes('*') || serverPermissions.includes('server.delete'))}

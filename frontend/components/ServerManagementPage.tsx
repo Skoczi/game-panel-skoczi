@@ -1,4 +1,5 @@
 import { OperationNotice } from './OperationNotice';
+import { ServerActivityTimeline } from './ServerActivityTimeline';
 import { resourceLabel, resourceBytes } from '../utils/resourceMetrics';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react';
 import {
@@ -60,7 +61,6 @@ const labels: Record<ServerPageTab, string> = {
   gameconfig: 'Game Config',
   backup: 'Backups',
   scheduledtasks: 'Schedules',
-  network: 'Network',
   containerconfig: 'Settings',
   terminal: 'Terminal',
   activity: 'Activity',
@@ -188,7 +188,9 @@ export function ServerManagementPage({
     if (!panel) return;
     const observer = new ResizeObserver(() => {
       if (panel.dataset.fullscreen === 'true') return;
-      setTallConsole(panel.getBoundingClientRect().height > 660);
+      const body = panel.children[1] as HTMLElement | undefined;
+      const requestedHeight = Number.parseFloat(body?.style.height || '0');
+      setTallConsole(requestedHeight ? requestedHeight + 54 > 660 : false);
     });
     observer.observe(panel);
     return () => observer.disconnect();
@@ -228,7 +230,7 @@ export function ServerManagementPage({
       setConfirm(null);
     }
   };
-  const settingsTab = !['console', 'activity', 'network'].includes(tab);
+  const settingsTab = !['console', 'activity'].includes(tab);
   let hasBackup = server.provider === 'linuxgsm' || isNativeTemplate(server.providerMetadataJson);
   if (server.provider === 'ovhcloud') {
     try {
@@ -238,7 +240,7 @@ export function ServerManagementPage({
     }
   }
   const tabs = (Object.keys(labels) as ServerPageTab[]).filter((key) => {
-    if (key === 'console' || key === 'network' || key === 'containerconfig') return true;
+    if (key === 'console' || key === 'containerconfig') return true;
     if (key === 'activity') return canLogs;
     if (key === 'backup') return hasBackup && access.canReadBackups;
     if (
@@ -259,12 +261,6 @@ export function ServerManagementPage({
       );
     return access.canAccessTab(key as SettingsTab);
   });
-  const rows = ['tcp', 'udp'].flatMap((protocol) =>
-    (server.portBindings?.[protocol as 'tcp' | 'udp'] || []).map((binding) => ({
-      ...binding,
-      protocol,
-    }))
-  );
   return (
     <div className="gp-server-page">
       <header className="gp-server-heading">
@@ -496,54 +492,14 @@ export function ServerManagementPage({
               serverPermissions={permissions}
             />
           )}
-          {tab === 'network' && (
-            <section className="gp-server-stat">
-              <h2 className="gp-section-title">Network</h2>
-              <p>
-                Public connection: <strong>{address}</strong>
-              </p>
-              <div className="overflow-x-auto">
-                <table className="gp-server-network">
-                  <thead>
-                    <tr>
-                      <th>Purpose</th>
-                      <th>Protocol</th>
-                      <th>Public address</th>
-                      <th>Container port</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, i) => (
-                      <tr key={i}>
-                        <td>{row.label || 'Game server'}</td>
-                        <td>{row.protocol.toUpperCase()}</td>
-                        <td>
-                          {row.hostIp || host}:{row.host}
-                        </td>
-                        <td>{row.container}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!rows.length && <p>No additional port mappings available.</p>}
-            </section>
-          )}
+
           {tab === 'activity' && (
-            <section className="gp-server-stat">
-              <h2 className="gp-section-title">Activity</h2>
-              <p>Runtime events received by this panel session.</p>
+            <section className="gp-server-stat gp-server-tab-body">
+              <header className="gp-server-tab-header"><h2 className="gp-section-title">Activity</h2></header>
               {!canLogs ? (
                 <p>No access to server activity.</p>
               ) : history.length ? (
-                <ol className="gp-server-activity">
-                  {[...history].reverse().map((entry) => (
-                    <li key={entry.id}>
-                      <time>{new Date(entry.timestamp).toLocaleString()}</time>
-                      <span>{entry.message}</span>
-                    </li>
-                  ))}
-                </ol>
+                <ServerActivityTimeline entries={history} />
               ) : (
                 <p>No events recorded yet.</p>
               )}

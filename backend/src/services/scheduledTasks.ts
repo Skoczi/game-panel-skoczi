@@ -1,3 +1,4 @@
+import { applyPendingServerConfiguration } from './serverReconfiguration.js';
 import { isPanelMaintenance } from './panelMaintenance.js';
 import { nativeServerTemplate } from './nativeBackups.js';
 import { scheduledTaskRepository, serverRepository, actionsRepository } from '../database/index.js';
@@ -144,8 +145,8 @@ function normalizeSteps(value: unknown, fieldName: 'pre' | 'post' | 'cleanup'): 
 }
 
 function normalizeTaskType(value: unknown): ScheduledTaskType {
-    if (value === 'restart' || value === 'backup' || value === 'custom') return value;
-    throw Object.assign(new Error('type must be restart, backup, or custom'), { statusCode: 400 });
+    if (value === 'restart' || value === 'backup' || value === 'custom' || value === 'game_command') return value;
+    throw Object.assign(new Error('type must be restart, backup, custom, or game_command'), { statusCode: 400 });
 }
 
 function normalizePayload(type: ScheduledTaskType, value: unknown): ScheduledTaskPayload {
@@ -163,9 +164,9 @@ function normalizePayload(type: ScheduledTaskType, value: unknown): ScheduledTas
     if (post) payload.post = post;
     if (cleanup) payload.cleanup = cleanup;
 
-    if (type === 'custom') {
+    if (type === 'custom' || type === 'game_command') {
         payload.command = normalizeCommand(raw.command, 'payload.command');
-        payload.workdir = normalizeWorkdir(raw.workdir);
+        if (type === 'custom') payload.workdir = normalizeWorkdir(raw.workdir);
     }
 
     if (type === 'backup' && raw.includeServerArtifact !== undefined) {
@@ -374,6 +375,9 @@ async function completeDockerPowerTransition(serverId: number): Promise<void> {
 
 async function executeRestartTask(server: GameServerRow & { docker_container_id: string }): Promise<void> {
     try {
+        const applied = await applyPendingServerConfiguration(server.id);
+        if (applied?.wasRunning) return;
+        if (applied) server = (await serverRepository.findById(server.id)) as typeof server;
         await serverRepository.updateDesiredState(server.id, 'running');
         await beginServerTransition(server.id, 'restarting', {
             timeoutMs: POWER_TRANSITION_TIMEOUT_MS,
@@ -440,8 +444,12 @@ async function executeScheduledTaskCore(server: GameServerRow & { docker_contain
         await executeRestartTask(server);
     } else if (row.type === 'backup') {
         await executeBackupTask(server, payload);
-    } else {
+    } else if (row.type === 'game_command') {
+        await executeGameCommand(server, normalizeCommand(payload.command, 'payload.command'));
+    } else if (row.type === 'custom') {
         await executeCustomTask(server, payload);
+    } else {
+        throw new Error('Unsupported scheduled task type');
     }
 
     const freshServer = await serverRepository.findById(server.id);

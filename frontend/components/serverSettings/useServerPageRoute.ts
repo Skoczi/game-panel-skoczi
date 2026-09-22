@@ -4,14 +4,13 @@ import { ACTIVE_NODE, ACTIVE_SERVER, openFleet } from '../../utils/nodeContext';
 import type { SettingsTab } from './access';
 import { serverNumber, shortServerRoute, shortServerUrl } from '../../utils/serverLinks';
 
-export type ServerPageTab = SettingsTab | 'console' | 'activity' | 'network';
+export type ServerPageTab = SettingsTab | 'console' | 'activity';
 export const SERVER_PAGE_TABS: ServerPageTab[] = [
   'console',
   'filemanager',
   'gameconfig',
   'backup',
   'scheduledtasks',
-  'network',
   'containerconfig',
   'terminal',
   'activity',
@@ -34,7 +33,7 @@ function readRoute(): ServerPageRoute | null {
     return {
       node: match[1],
       id: match[2],
-      tab: SERVER_PAGE_TABS.includes(match[3] as ServerPageTab)
+      tab: match[3] === 'network' ? 'containerconfig' : SERVER_PAGE_TABS.includes(match[3] as ServerPageTab)
         ? (match[3] as ServerPageTab)
         : 'console',
     };

@@ -1,3 +1,5 @@
+import { fastDownloadPublic } from './routes/fastDownload.js';
+import { startFastDownloadWorker } from './services/fastDownload.js';
 import { isPanelMaintenance, activePanelRequests, trackPanelMutation } from './services/panelMaintenance.js';
 import { activeServerOperations } from './services/nativeOperationLock.js';
 import { runtimeCapabilities } from './utils/runtimeCapabilities.js';
@@ -94,6 +96,7 @@ let periodicHealthReconcile: { stop: () => void } | null = null;
 let linuxGsmRefreshJob: { stop: () => void } | null = null;
 let fileTransferCleanupJob: { stop: () => void } | null = null;
 let downloadTokenCleanupJob: { stop: () => void } | null = null;
+let fastDownloadWorker: { stop: () => void } | null = null;
 let scheduledTaskRunner: { stop: () => void } | null = null;
 let agentHeartbeat: { stop: () => void } | null = null;
 
@@ -125,6 +128,8 @@ app.use((req, res, next) => {
   res.once('finish', release); res.once('close', release);
   next();
 });
+
+app.use('/fdl', fastDownloadPublic);
 
 // Agent gate and remote proxy precede parsers so uploads remain streaming.
 if (isAgent()) app.use(agentGate);
@@ -236,6 +241,7 @@ async function startServer(): Promise<void> {
     fileTransferCleanupJob = startFileTransferCleanupJob();
     downloadTokenCleanupJob = startDownloadTokenCleanupJob();
     scheduledTaskRunner = startScheduledTaskRunner();
+    fastDownloadWorker = startFastDownloadWorker();
 
     httpServer.listen(port, () => {
       logInfo('APP', 'Game Panel backend listening on port ' + port);
@@ -264,6 +270,7 @@ function setupGracefulShutdown(): void {
       fileTransferCleanupJob?.stop();
       downloadTokenCleanupJob?.stop();
       scheduledTaskRunner?.stop();
+      fastDownloadWorker?.stop();
       agentHeartbeat?.stop();
       closeNodeSockets();
 

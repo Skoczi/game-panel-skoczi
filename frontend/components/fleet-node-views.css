@@ -7,8 +7,8 @@
   box-shadow: 0 8px 24px #0206170a;
 }
 .dark .gp-fleet-node-workspace {
-  background: #0e1b2c;
-  border-color: #1f2937;
+  background: #111827;
+  border-color: #374151;
 }
 .gp-fleet-node-workspace .gp-fleet-heading {
   align-items: center;
@@ -509,11 +509,12 @@
   }
 }
 
-/* Names wrap within a bounded column; absolute metrics keep their units together. */
-.fleet-node-table td:first-child { width: 22%; max-width: 280px; }
-.fleet-node-table .fleet-edit-name { width: 100%; min-width: 0; text-align: left; }
+/* Bounded names and compact resource bars keep list rows balanced. */
+.fleet-node-table th:first-child, .fleet-node-table td:first-child { width: 240px; max-width: 240px; }
+.fleet-node-table .fleet-edit-name { width: 100%; max-width: 25ch; min-width: 0; white-space: normal; text-align: left; }
 .fleet-node-table .fleet-edit-name strong, .fleet-node-table td > strong { overflow-wrap: anywhere; }
 .fleet-node-table .fleet-node-metrics { min-width: 180px; }
-.fleet-node-table .fleet-node-metric { grid-template-columns: 26px minmax(140px, 1fr); gap: 8px; }
-.fleet-node-table .fleet-node-metric strong { grid-column: 2; white-space: nowrap; }
-.fleet-node-table .fleet-node-track { display: none; }
+.fleet-node-table .fleet-node-metric { grid-template-columns: 26px minmax(110px, 1fr); gap: 12px; padding: 7px 3px; }
+.fleet-node-table .fleet-node-metric strong { grid-column: 2; white-space: nowrap; text-align: left; }
+.fleet-node-table .fleet-node-track { display: block; height: 7px; border-radius: 999px; }
+.fleet-node-table .fleet-node-track i { border-radius: inherit; transition: width 180ms ease; }

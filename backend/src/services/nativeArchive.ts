@@ -13,7 +13,7 @@ export async function validateNativeArchive(filename: string) {
       const name = header.name.replace(/\/$/, '');
       const parts = name.split('/');
       if (
-        parts[0] !== 'serverfiles' ||
+        !['serverfiles', 'fastdownload'].includes(parts[0]) ||
         parts.some((p) => !p || p === '.' || p === '..') ||
         name.includes('\\') ||
         entries.has(name)
@@ -52,7 +52,7 @@ export async function validateNativeArchive(filename: string) {
         resolved.pop(); continue;
       }
       resolved.push(part);
-      if (resolved[0] !== 'serverfiles') throw new Error('Backup link escapes serverfiles');
+      if (resolved[0] !== name.split('/')[0]) throw new Error('Backup link escapes serverfiles');
       const key = resolved.join('/');
       const entry = entries.get(key);
       if (entry?.type === 'symlink' || entry?.type === 'link') {
@@ -80,4 +80,5 @@ export async function validateNativeArchive(filename: string) {
         throw new Error('Backup path crosses a link or missing directory');
     }
   }
+  return ['serverfiles', 'fastdownload'].filter(key => entries.get(key)?.type === 'directory');
 }

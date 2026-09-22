@@ -7,8 +7,8 @@ COPY frontend/package*.json frontend/
 RUN cd frontend && npm ci
 COPY frontend frontend
 COPY docs/pro/RELEASE-2.0.55.md docs/pro/RELEASE-2.0.55.md
-# Data-only contract imported by the template editor during type checking.
-COPY backend/src/templates/types.ts backend/src/templates/types.ts
+# Shared template contract and pure startup-command helpers used by the editor.
+COPY backend/src/templates/types.ts backend/src/templates/startupCommand.ts backend/src/templates/
 ARG VITE_DB_API_BASE_URL
 ENV VITE_DB_API_BASE_URL=${VITE_DB_API_BASE_URL}
 ARG NODE_BUILD_HEAP_MB=4096

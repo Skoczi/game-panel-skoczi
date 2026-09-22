@@ -60,7 +60,7 @@ export function GameMonitoringCard({ serverId }: { serverId: number }) {
                     {([{ key: 'cooldownSeconds', label: 'Minimum time between attempts (seconds)', min: 60, max: 3600 }, { key: 'maxAttempts', label: 'Maximum attempts in window', min: 1, max: 5 }, { key: 'windowSeconds', label: 'Restart limit window (seconds)', min: 900, max: 86400 }] as const).map(f => <label key={f.key}>{f.label}<input type="number" min={f.min} max={f.max} value={Number.isNaN(draft.autoRestart![f.key]) ? '' : draft.autoRestart![f.key]} disabled={busy} onChange={e => change({ autoRestart: { ...draft.autoRestart!, [f.key]: e.target.value === '' ? NaN : Number(e.target.value) } })}/></label>)}
                 </div>}
                 <p>Attempts in window: {data.recovery.attemptsInWindow}{data.recovery.nextAttemptAt ? ` · Next eligible attempt: ${new Date(data.recovery.nextAttemptAt).toLocaleString()}` : ''}</p>
-                {data.recovery.lastResult && <p>{data.recovery.lastResult}</p>}
+                {data.recovery.lastResult && <p>{data.summary.state === 'online' ? 'Game response confirmed. Restart details are available in Activity.' : data.recovery.lastResult}</p>}
                 <p>Discord alerts are configured in Panel Settings → Discord notifications.</p>
             </div>}
             <AppButton onClick={() => void save()} disabled={busy || !Number.isInteger(draft.intervalSeconds) || !Number.isInteger(draft.startupGraceSeconds) || !Number.isInteger(draft.failureThreshold) || (draft.enabled && !draft.queryPort)}><Save size={16} />{busy ? 'Saving…' : 'Save monitoring settings'}</AppButton>

@@ -59,3 +59,10 @@ test('automatic restart is opt-in, persists limits and is disabled together with
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:'/tmp/gamepanel-recovery-mobile.png',fullPage:true});
 });
+
+test('recovered game does not keep showing that the restart is awaiting a response', async ({ page }) => {
+    await page.route('**/api/servers/7/monitoring', r => r.fulfill({ json: { ...settings(), recovery: { supported: true, attemptsInWindow: 1, nextAttemptAt: null, lastResult: 'Restart request completed; awaiting game response' } } }));
+    await page.goto('/test/game-monitoring.fixture.html');
+    await expect(page.getByText('Game response confirmed. Restart details are available in Activity.')).toBeVisible();
+    await expect(page.getByText('Restart request completed; awaiting game response')).toHaveCount(0);
+});

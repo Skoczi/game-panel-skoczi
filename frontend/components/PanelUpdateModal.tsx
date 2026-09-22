@@ -125,9 +125,9 @@ export function PanelUpdateModal({ isOpen, onClose, updateInfo }: PanelUpdateMod
           <p className="text-xs opacity-70">{info?.managedUpdates?.reason || 'Checking GitHub does not change this installation. Managed updates require the standalone installer.'}</p>
           {info?.updateAvailable && info.managedUpdates?.enabled && <AppButton disabled={starting || updateRunning || uncertainStart} onClick={() => setConfirmUpdate(true)}>Update to {info.latestVersion}</AppButton>}
           {updateStatus && <p role="status" className="text-sm">{updateStatus}</p>}
-          {getAppVersion() === '2.0.57' && <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · 2.0.57</summary><Markdown>{localReleaseNotes}</Markdown></details>}
+          <details open className="text-sm"><summary className="cursor-pointer font-medium">Installed changelog · {getAppVersion()}</summary><Markdown>{localReleaseNotes}</Markdown></details>
           {info?.newerReleases?.map(release => <ReleaseNotesBlock key={release.version} release={release} isDark={isDark} heading={release.version} />)}
-          {info?.currentRelease && getAppVersion() !== '2.0.57' && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
+          {info?.currentRelease && info.currentVersion !== getAppVersion() && <ReleaseNotesBlock release={info.currentRelease} isDark={isDark} heading="Installed release" />}
           <AppButton onClick={onClose}>Close</AppButton>
         </AppModalBody>
       </AppModalContent>

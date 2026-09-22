@@ -246,3 +246,28 @@ for (const theme of ['light', 'dark']) test(`backup fields and empty history hav
   expect(heading!.y - modalBox.y).toBeGreaterThanOrEqual(16);
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await history.screenshot({ path: `test-results/file-history-empty-${theme}.png` });
 });
+
+test('interrupted schedule explains uncertainty and stays disabled until explicitly enabled', async ({ page }) => {
+  const reason = 'Agent stopped before this task finished. Some commands may have run; cleanup is not confirmed. Check the server before enabling this schedule again.';
+  const task = { id: 1, type: 'game_command', enabled: false, schedule: '*/5 * * * *', payload: { command: 'say hello' }, nextRuns: ['2099-01-01T00:00:00Z'], nextRunAt: null, lastRunAt: '2026-09-22T09:00:00Z', lastStatus: 'interrupted', lastError: reason, lockedAt: null };
+  await page.route('**/scheduled-tasks', route => route.fulfill({ json: { tasks: [task] } }));
+  let updates = 0;
+  await page.route('**/scheduled-tasks/1', route => { updates++; task.enabled = true; return route.fulfill({ json: { task } }); });
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/scheduledtasks');
+  await expect(page.getByText('Interrupted', { exact: true })).toBeVisible();
+  await expect(page.getByText(reason, { exact: true })).toBeVisible();
+  const toggle = page.getByRole('switch', { name: 'Task enabled' });
+  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByText(/Next 3 runs/)).toHaveCount(0);
+  expect(updates).toBe(0);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true'); expect(updates).toBe(1);
+});
+
+test('running schedule disables edit, delete and enable controls', async ({ page }) => {
+  await page.route('**/scheduled-tasks', route => route.fulfill({ json: { tasks: [{ id: 1, type: 'game_command', enabled: true, schedule: '*/5 * * * *', payload: { command: 'status' }, nextRunAt: null, lastRunAt: null, lastStatus: null, lastError: null, lockedAt: '2026-09-22T09:00:00Z' }] } }));
+  await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/scheduledtasks');
+  await expect(page.getByRole('switch', { name: 'Task enabled' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Edit game_command task' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Delete game_command task' })).toBeDisabled();
+});

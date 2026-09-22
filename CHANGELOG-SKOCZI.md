@@ -2,6 +2,15 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## Unreleased — Scheduler reliability
+
+- Dispatch scheduled tasks independently across servers with a runtime-wide limit of 20 concurrent tasks; queue due tasks for the same server.
+- Resolve the current container again before cleanup, including when a restart recreates it or fails after recreation.
+- After agent startup, atomically mark unfinished tasks as interrupted and disable their schedules. Some commands may already have run; inspect the server before explicitly re-enabling. Re-enabling schedules a future run, without replaying the interrupted occurrence.
+- Keep tasks due while another operation owns the server. Reject edits/deletion of running tasks and preserve their execution state.
+- Display interrupted-task details and disable controls while a task is running. Existing unlocked overdue tasks keep their previous catch-up behavior.
+- No database migration or version bump. These changes are local and have not been published or deployed.
+
 ## 2.0.55 — Server management, CPU binding and FastDownload — 2026-09-22
 
 - Node-local FastDownload with template profiles, direct GoldSrc assets, Source BZIP2 publication, managed cleanup, backup/restore support and a public file browser.

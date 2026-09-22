@@ -67,8 +67,12 @@ const MAX_WORKDIR_LENGTH = 512;
 const MAX_SLEEP_SECONDS = 3600;
 const TASK_ACTOR = 'scheduler';
 const runningTasks = new Set<number>();
+const runningServers = new Set<number>();
+const MAX_RUNNING_TASKS = 20;
 let runnerStarted = false;
 let runnerTickRunning = false;
+let runnerInitialization: Promise<void> | null = null;
+let runnerGeneration = 0;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -308,7 +312,6 @@ export async function updateScheduledTask(serverId: number, taskId: number, inpu
         enabled,
         payload,
         nextRunAt,
-        lockedAt: null,
     });
 
     if (!updated) throw Object.assign(new Error('Scheduled task not found'), { statusCode: 404 });
@@ -438,25 +441,31 @@ async function executeScheduledTaskCore(server: GameServerRow & { docker_contain
 
     let failure: unknown;
     try {
-    await executeSteps(server, payload.pre);
+        await executeSteps(server, payload.pre);
 
-    if (row.type === 'restart') {
-        await executeRestartTask(server);
-    } else if (row.type === 'backup') {
-        await executeBackupTask(server, payload);
-    } else if (row.type === 'game_command') {
-        await executeGameCommand(server, normalizeCommand(payload.command, 'payload.command'));
-    } else if (row.type === 'custom') {
-        await executeCustomTask(server, payload);
-    } else {
-        throw new Error('Unsupported scheduled task type');
-    }
+        if (row.type === 'restart') {
+            await executeRestartTask(server);
+        } else if (row.type === 'backup') {
+            await executeBackupTask(server, payload);
+        } else if (row.type === 'game_command') {
+            await executeGameCommand(server, normalizeCommand(payload.command, 'payload.command'));
+        } else if (row.type === 'custom') {
+            await executeCustomTask(server, payload);
+        } else {
+            throw new Error('Unsupported scheduled task type');
+        }
 
-    const freshServer = await serverRepository.findById(server.id);
-    const postServer = getServerWithContainer(freshServer) ?? server;
-    await executeSteps(postServer, payload.post);
+        const freshServer = await serverRepository.findById(server.id);
+        const postServer = getServerWithContainer(freshServer) ?? server;
+        await executeSteps(postServer, payload.post);
     } catch (error) { failure = error; }
-    try { await executeSteps(server, payload.cleanup); }
+    try {
+        if (payload.cleanup?.length) {
+            const cleanupServer = getServerWithContainer(await serverRepository.findById(server.id));
+            if (!cleanupServer) throw new Error('Server has no container');
+            await executeSteps(cleanupServer, payload.cleanup);
+        }
+    }
     catch (error) { throw new Error(`${failure ? errorMessage(failure) + '; ' : ''}Cleanup failed: ${errorMessage(error)}`); }
     if (failure) throw failure;
 }
@@ -477,14 +486,22 @@ async function finishTask(row: ScheduledTaskRow, status: ScheduledTaskLastStatus
 }
 
 async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
-    if (isPanelMaintenance() || runningTasks.has(row.id)) return;
+    if (isPanelMaintenance() || runningTasks.has(row.id) || runningServers.has(row.server_id)) return;
     runningTasks.add(row.id);
+    runningServers.add(row.server_id);
     let releaseMutation: (() => void) | undefined;
+    let claimed = false;
 
     try {
-        releaseMutation = enterServerMutation(row.server_id);
+        try { releaseMutation = enterServerMutation(row.server_id); }
+        catch (error) {
+            // Leave due tasks queued while another operation owns this server.
+            if ((error as { statusCode?: number }).statusCode === 409) return;
+            throw error;
+        }
         const locked = await scheduledTaskRepository.lock(row.id, nowIso());
         if (!locked) return;
+        claimed = true;
 
         const fresh = await scheduledTaskRepository.findById(row.id);
         if (!fresh || !fresh.enabled) {
@@ -513,7 +530,8 @@ async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
 
         await actionsRepository.create(server.id, 'info', `Scheduled ${fresh.type} started`, TASK_ACTOR);
         await executeScheduledTaskCore(server, fresh);
-        await actionsRepository.create(server.id, 'success', `Scheduled ${fresh.type} completed`, TASK_ACTOR);
+        await actionsRepository.create(server.id, 'success', `Scheduled ${fresh.type} completed`, TASK_ACTOR)
+            .catch((error) => logError('SERVICE:SCHEDULED_TASKS:ACTIVITY', error, { taskId: row.id }));
         await finishTask(fresh, 'success');
     } catch (error) {
         logError('SERVICE:SCHEDULED_TASKS:EXECUTE', error, { taskId: row.id, serverId: row.server_id, type: row.type });
@@ -523,31 +541,50 @@ async function executeScheduledTask(row: ScheduledTaskRow): Promise<void> {
             `Scheduled ${row.type} failed: ${errorMessage(error)}`,
             TASK_ACTOR
         ).catch(() => undefined);
-        await finishTask(row, 'failed', error).catch(() => undefined);
+        if (claimed) await finishTask(row, 'failed', error).catch(() => undefined);
     } finally {
         releaseMutation?.();
         runningTasks.delete(row.id);
+        runningServers.delete(row.server_id);
     }
 }
 
 export async function runDueScheduledTasks(): Promise<void> {
+    const generation = runnerGeneration;
+    if (runnerInitialization) {
+        await runnerInitialization;
+        if (!runnerStarted || generation !== runnerGeneration) return;
+    }
     if (isPanelMaintenance() || runnerTickRunning) return;
     runnerTickRunning = true;
-
+    let executions: Promise<void>[] = [];
     try {
-        const due = await scheduledTaskRepository.listDue(nowIso(), 20);
-        await Promise.all(due.map((row) => executeScheduledTask(row)));
+        const capacity = MAX_RUNNING_TASKS - runningTasks.size;
+        if (capacity <= 0) return;
+        const due = await scheduledTaskRepository.listDue(nowIso(), capacity, [...runningServers]);
+        if (runnerInitialization && (!runnerStarted || generation !== runnerGeneration)) return;
+        executions = due.map((row) => executeScheduledTask(row));
     } finally {
+        // Only serialize dispatch, not execution (including sleeps and backups).
         runnerTickRunning = false;
     }
+    await Promise.all(executions);
 }
 
 export function startScheduledTaskRunner(): { stop: () => void } {
     if (runnerStarted) return { stop: () => undefined };
     runnerStarted = true;
+    const generation = ++runnerGeneration;
 
-    void scheduledTaskRepository.unlockAllLocked()
-        .then(() => runDueScheduledTasks())
+    runnerInitialization = (async () => {
+        const interrupted = await scheduledTaskRepository.recoverInterrupted([...runningTasks]);
+        for (const task of interrupted) {
+            await actionsRepository.create(task.server_id, 'warning', `Scheduled ${task.type} interrupted; schedule disabled. ${task.last_error}`, TASK_ACTOR)
+                .catch((error) => logError('SERVICE:SCHEDULED_TASKS:RECOVERY_ACTIVITY', error, { taskId: task.id }));
+        }
+    })();
+    void runnerInitialization
+        .then(() => { if (runnerStarted && runnerGeneration === generation) return runDueScheduledTasks(); })
         .catch((error) => logError('SERVICE:SCHEDULED_TASKS:STARTUP', error));
 
     const timer = setInterval(() => {
@@ -559,7 +596,7 @@ export function startScheduledTaskRunner(): { stop: () => void } {
     return {
         stop() {
             clearInterval(timer);
-            runnerStarted = false;
+            if (runnerGeneration === generation) runnerStarted = false;
         },
     };
 }

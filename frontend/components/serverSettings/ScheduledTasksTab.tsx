@@ -143,6 +143,7 @@ function StatusBadge({ status }: { status: string | null }) {
   const map: Record<string, { label: string; cls: string; icon: JSX.Element }> = {
     success: { label: 'Success', cls: 'text-green-500', icon: <CheckCircle className="w-3.5 h-3.5" /> },
     failed:  { label: 'Failed',  cls: 'text-red-500',   icon: <XCircle className="w-3.5 h-3.5" /> },
+    interrupted: { label: 'Interrupted', cls: 'text-yellow-500', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
     skipped: { label: 'Skipped', cls: 'text-yellow-500', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
     running: { label: 'Running', cls: 'text-blue-500',  icon: <Loader2 className="w-3.5 h-3.5 animate-spin" /> },
   };
@@ -723,8 +724,8 @@ export function ScheduledTasksTab({
                         </span>
                       )}
                     </div>
-                    {task.nextRuns && <details className={`text-xs ${textSecondary}`}><summary>Next 3 runs · {task.timeZone}</summary>{task.nextRuns.map(date => <div key={date}>{new Date(date).toLocaleString(undefined, { timeZone: task.timeZone, timeZoneName: 'short' })}</div>)}</details>}
-                    {!task.lockedAt && task.lastStatus === 'failed' && task.lastError && (
+                    {task.enabled && task.nextRuns && <details className={`text-xs ${textSecondary}`}><summary>Next 3 runs · {task.timeZone}</summary>{task.nextRuns.map(date => <div key={date}>{new Date(date).toLocaleString(undefined, { timeZone: task.timeZone, timeZoneName: 'short' })}</div>)}</details>}
+                    {!task.lockedAt && ['failed', 'interrupted'].includes(task.lastStatus || '') && task.lastError && (
                       <p className="text-xs text-red-400 truncate">{task.lastError}</p>
                     )}
                   </div>
@@ -733,7 +734,7 @@ export function ScheduledTasksTab({
                     <AppToggle
                       ariaLabel="Task enabled"
                       checked={task.enabled}
-                      disabled={!canWrite || togglingId !== null}
+                      disabled={!canWrite || togglingId !== null || !!task.lockedAt}
                       size="standard"
                       onChange={() => handleToggleEnabled(task)}
                     />
@@ -742,6 +743,7 @@ export function ScheduledTasksTab({
                         <AppButton
                           tone="ghost"
                           aria-label={`Edit ${task.type} task`}
+                          disabled={!!task.lockedAt}
                           onClick={() => editingId === task.id ? closeForm() : openEdit(task)}
                           className={`p-2 rounded ${textSecondary} hover:text-[var(--gp-ods-accent-primary)] hover:bg-gray-100 dark:hover:bg-white/10`}
                         >
@@ -751,7 +753,7 @@ export function ScheduledTasksTab({
                           tone="ghost"
                           aria-label={`Delete ${task.type} task`}
                           onClick={() => handleDelete(task)}
-                          disabled={deletingId === task.id}
+                          disabled={deletingId === task.id || !!task.lockedAt}
                           className="p-2 rounded text-gray-400 hover:text-red-400 hover:bg-red-500/10"
                         >
                           {deletingId === task.id

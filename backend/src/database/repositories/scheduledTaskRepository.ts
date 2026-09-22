@@ -17,10 +17,6 @@ export type UpdateScheduledTaskInput = Partial<{
   enabled: boolean;
   payload: Record<string, unknown>;
   nextRunAt: string | null;
-  lastRunAt: string | null;
-  lastStatus: string | null;
-  lastError: string | null;
-  lockedAt: string | null;
 }>;
 
 export class ScheduledTaskRepository extends BaseRepository {
@@ -74,27 +70,40 @@ export class ScheduledTaskRepository extends BaseRepository {
     );
   }
 
-  async listDue(nowIso: string, limit = 20): Promise<ScheduledTaskRow[]> {
+  async listDue(nowIso: string, limit = 20, busyServerIds: number[] = []): Promise<ScheduledTaskRow[]> {
     const db = await this.ensureDb();
+    const excluded = busyServerIds.length ? `AND task.server_id NOT IN (${busyServerIds.map(() => '?').join(',')})` : '';
     return db.all<ScheduledTaskRow[]>(
-      `SELECT * FROM server_scheduled_tasks
-       WHERE enabled = 1
-         AND next_run_at IS NOT NULL
-         AND next_run_at <= ?
-         AND locked_at IS NULL
-       ORDER BY next_run_at ASC, id ASC
+      `SELECT task.* FROM server_scheduled_tasks task
+       WHERE task.enabled = 1
+         AND task.next_run_at <= ?
+         AND task.locked_at IS NULL
+         ${excluded}
+         AND NOT EXISTS (
+           SELECT 1 FROM server_scheduled_tasks other
+           WHERE other.server_id = task.server_id AND (
+             other.locked_at IS NOT NULL OR
+             (other.enabled = 1 AND (other.next_run_at < task.next_run_at OR
+               (other.next_run_at = task.next_run_at AND other.id < task.id)))
+           )
+         )
+       ORDER BY task.next_run_at ASC, task.id ASC
        LIMIT ?`,
-      [nowIso, limit]
+      [nowIso, ...busyServerIds, limit]
     );
   }
 
-  async unlockAllLocked(): Promise<void> {
+  async recoverInterrupted(activeTaskIds: number[] = []): Promise<ScheduledTaskRow[]> {
     const db = await this.ensureDb();
-    await db.run(
+    const excluded = activeTaskIds.length ? `AND id NOT IN (${activeTaskIds.map(() => '?').join(',')})` : '';
+    // One durable transition: a crash after this statement cannot make the old run due again.
+    return db.all<ScheduledTaskRow[]>(
       `UPDATE server_scheduled_tasks
-       SET locked_at = NULL, updated_at = ?
-       WHERE locked_at IS NOT NULL`,
-      [nowIso()]
+       SET enabled = 0, next_run_at = NULL, last_run_at = locked_at,
+           last_status = 'interrupted', last_error = ?, locked_at = NULL, updated_at = ?
+       WHERE locked_at IS NOT NULL ${excluded}
+       RETURNING *`,
+      ['Agent stopped before this task finished. Some commands may have run; cleanup is not confirmed. Check the server before enabling this schedule again.', nowIso(), ...activeTaskIds]
     );
   }
 
@@ -103,34 +112,29 @@ export class ScheduledTaskRepository extends BaseRepository {
     const current = await this.findById(id);
     if (!current) return undefined;
 
-    await db.run(
+    const result = await db.run(
       `UPDATE server_scheduled_tasks
        SET type = ?,
            schedule = ?,
            enabled = ?,
            payload_json = ?,
            next_run_at = ?,
-           last_run_at = ?,
-           last_status = ?,
-           last_error = ?,
-           locked_at = ?,
            updated_at = ?
-       WHERE id = ?`,
+       WHERE id = ? AND locked_at IS NULL`,
       [
         input.type ?? current.type,
         input.schedule ?? current.schedule,
         input.enabled !== undefined ? (input.enabled ? 1 : 0) : current.enabled,
         input.payload !== undefined ? JSON.stringify(input.payload) : current.payload_json,
         input.nextRunAt !== undefined ? input.nextRunAt : current.next_run_at,
-        input.lastRunAt !== undefined ? input.lastRunAt : current.last_run_at,
-        input.lastStatus !== undefined ? input.lastStatus : current.last_status,
-        input.lastError !== undefined ? input.lastError : current.last_error,
-        input.lockedAt !== undefined ? input.lockedAt : current.locked_at,
         nowIso(),
         id,
       ]
     );
 
+    if (!result.changes && await this.findById(id)) {
+      throw Object.assign(new Error('This task is running. Wait for it to finish before editing it.'), { statusCode: 409 });
+    }
     return this.findById(id);
   }
 
@@ -139,8 +143,8 @@ export class ScheduledTaskRepository extends BaseRepository {
     const result = await db.run(
       `UPDATE server_scheduled_tasks
        SET locked_at = ?, updated_at = ?
-       WHERE id = ? AND locked_at IS NULL`,
-      [lockedAt, nowIso(), id]
+       WHERE id = ? AND locked_at IS NULL AND enabled = 1 AND next_run_at <= ?`,
+      [lockedAt, nowIso(), id, lockedAt]
     );
     return Number(result.changes ?? 0) > 0;
   }
@@ -177,6 +181,9 @@ export class ScheduledTaskRepository extends BaseRepository {
 
   async delete(id: number): Promise<void> {
     const db = await this.ensureDb();
-    await db.run('DELETE FROM server_scheduled_tasks WHERE id = ?', [id]);
+    const result = await db.run('DELETE FROM server_scheduled_tasks WHERE id = ? AND locked_at IS NULL', [id]);
+    if (!result.changes && await this.findById(id)) {
+      throw Object.assign(new Error('This task is running. Wait for it to finish before deleting it.'), { statusCode: 409 });
+    }
   }
 }

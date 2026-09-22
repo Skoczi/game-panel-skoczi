@@ -1,3 +1,4 @@
+import * as rehldsStartup from '../src/templates/rehldsStartup.js';
 import { test } from 'node:test';
 import { validateCpuBinding } from '../src/services/cpuTopology.js';
 import assert from 'node:assert/strict';
@@ -14,6 +15,7 @@ function fixture() {
  let server: any = { id: 7, name: 'Test', provider: 'external', docker_container_id: 'old', docker_container_name: 'test', docker_image: 'test-image', provider_metadata_json: JSON.stringify({ template: { document: template, hash: templateHash(template) } }), ports_json: JSON.stringify({ tcp: [], udp: [{ host: 27050, container: 27015, hostIp: '192.0.2.1', label: 'Game' }] }), env_json: JSON.stringify(['SERVER_PORT=27015', 'MAP=de_dust', 'MAX_PLAYERS=16']), mounts_json: JSON.stringify(template.mounts) };
  const mark = (name: string, result?: any) => async () => { calls.push(name); return result; };
  const mod = loadWithMocks('../src/services/serverReconfiguration.ts', {
+  '../templates/rehldsStartup.js': rehldsStartup, '../utils/docker/client.js': {},
   './cpuTopology.js': { assertCpuBinding: async (limits: any) => validateCpuBinding(limits, available) },
   './hostPortAvailability.js': { assertHostPortsAvailableForServer: mark('check-ports') }, './portAllocationLock.js': { enterPortAllocationMutation: () => () => {} },
   '../templates/nativeContract.js': nativeContract,

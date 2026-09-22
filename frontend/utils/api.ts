@@ -881,6 +881,11 @@ class ApiClient {
     return `${API_BASE_URL}${res.data.path as string}`;
   }
 
+  async getNativeGameConfig(serverId: number) {
+    const response = await this.client.get(`/api/servers/${serverId}/game-config`);
+    return response.data as { definition: import('../../backend/src/templates/types').GameConfigDefinition | null };
+  }
+
   async readServerFileSnapshot(serverId: number, path: string, root?: string) {
     const response = await this.client.get(`/api/servers/${serverId}/file`, { params: { path, ...(root ? { root } : {}) }, responseType: 'arraybuffer' });
     return { bytes: response.data as ArrayBuffer, version: response.headers.etag as string | undefined };

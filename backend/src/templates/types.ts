@@ -13,7 +13,17 @@ export type GameTemplate = {
     monitoring?: { protocol: 'a2s'; queryPort: string };
     fastDownload?: { enabled: boolean; gameRoot?: string; folders?: string[]; compression?: 'none' | 'bzip2'; configFile?: string };
     configFiles?: Array<{ root: string; path: string; label: string }>;
+    gameConfig?: GameConfigDefinition | false;
     lifecycle?: NativeLifecycle;
+};
+export type GameConfigField = {
+    key: string; label: string; description: string; type: 'text' | 'password' | 'number' | 'boolean' | 'select';
+    apply: 'map-change' | 'restart'; min?: number; max?: number; step?: number;
+    options?: Array<{ value: string; label: string }>;
+};
+export type GameConfigDefinition = {
+    format: 'valve-cfg'; root: string; path: string;
+    sections: Array<{ id: string; label: string; description: string; fields: GameConfigField[] }>;
 };
 export type NativeLifecycle = {
     startup: string[];

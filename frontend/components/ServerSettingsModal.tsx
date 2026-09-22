@@ -394,14 +394,16 @@ export function ServerSettingsModal({
 
   const openTab = (tab: SettingsTab) => {
     if (!canAccessTab(tab)) return;
-    hasUserSelectedTabRef.current = true;
-    setActiveTab(tab);
+    const go = () => { hasUserSelectedTabRef.current = true; setActiveTab(tab); };
+    if (gameConfigDirty) { requestConfirm('Discard configuration changes?', 'Your unsaved Game Config changes will be lost.', async () => { setGameConfigDirty(false); go(); }); return; }
+    go();
   };
   const defaultTab = SETTINGS_TAB_PRIORITY.find((tab) => canAccessTab(tab)) ?? 'filemanager';
   const effectiveActiveTab = pageTab ?? (hasUserSelectedTabRef.current ? activeTab : defaultTab);
   useBodyScrollLock(isOpen && !pageTab);
   const editorSession = useEditorSession(serverId, canWriteFiles, isOpen, requestConfirm, currentUser && DRAFT_SERVER_CONTEXT && DRAFT_SERVER_CONTEXT.runtimeId === serverId ? { userId: String(currentUser.id), serverId: DRAFT_SERVER_CONTEXT.id, nodeId: DRAFT_SERVER_CONTEXT.nodeId } : undefined);
-  const anyFileDirty = isFileDirty || editorSession.dirty;
+  const [gameConfigDirty, setGameConfigDirty] = useState(false);
+  const anyFileDirty = isFileDirty || editorSession.dirty || gameConfigDirty;
   useEffect(() => {
     onDirtyChange?.(anyFileDirty);
     return () => onDirtyChange?.(false);
@@ -784,7 +786,7 @@ export function ServerSettingsModal({
       <ServerSettingsModalLayout
         pageMode={Boolean(pageTab)}
         isOpen={isOpen}
-        onClose={onClose}
+        onClose={() => gameConfigDirty ? requestConfirm('Discard configuration changes?', 'Your unsaved Game Config changes will be lost.', async () => { setGameConfigDirty(false); onClose(); }) : onClose()}
         serverName={serverName}
         serverProvider={isNative ? 'native' : serverProvider}
         modalBg={modalBg}
@@ -912,8 +914,8 @@ export function ServerSettingsModal({
           />
         }
         gameConfigContent={
-          isNative ? <NativeGameConfig serverId={serverId} metadata={serverProviderMetadataJson}
-            onOpen={(path, root) => { hasUserSelectedTabRef.current = true; setCurrentRoot(root); handleOpenFileManagerAtPath(path); }} /> : <GameConfigTab
+          isNative ? <NativeGameConfig serverId={serverId} metadata={serverProviderMetadataJson} canRead={canUseFileManager} canWrite={canWriteFiles} onDirtyChange={setGameConfigDirty}
+            onOpen={(path, root) => { const go = () => { hasUserSelectedTabRef.current = true; setCurrentRoot(root); handleOpenFileManagerAtPath(path); }; if (gameConfigDirty) requestConfirm('Discard configuration changes?', 'Your unsaved Game Config changes will be lost.', async () => { setGameConfigDirty(false); go(); }); else go(); }} /> : <GameConfigTab
             serverGame={serverGame}
             serverProvider={serverProvider}
             serverId={serverId!}

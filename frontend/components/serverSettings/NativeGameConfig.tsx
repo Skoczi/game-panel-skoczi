@@ -1,22 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '../../utils/api';
 import { FileText, FolderOpen, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { AppButton } from '../../src/ui/components';
 import './game-config-files.css';
+import { NativeConfigEditor } from './NativeConfigEditor';
+import { cs16GameConfig } from '../../../backend/src/templates/gameConfig';
 import type { GameTemplate } from '../../utils/gameTemplates';
 
 // Discover links from this server's actual files, not a LinuxGSM catalog path.
-export function NativeGameConfig({ serverId, metadata, onOpen }: {
+export function NativeGameConfig({ serverId, metadata, onOpen, canRead = true, canWrite = false, onDirtyChange }: {
+  canRead?: boolean; canWrite?: boolean; onDirtyChange?: (dirty: boolean) => void;
   serverId?: number | null; metadata?: string | null; onOpen: (path: string, root: string) => void;
 }) {
   const [files, setFiles] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  let template: GameTemplate | undefined;
-  try { template = JSON.parse(metadata || '{}')?.template?.document; } catch { /* no snapshot */ }
+  let templateJson = '';
+  try { templateJson = JSON.stringify(JSON.parse(metadata || '{}')?.template?.document) || ''; } catch { /* unavailable snapshot */ }
+  const template = useMemo<GameTemplate | undefined>(() => templateJson ? JSON.parse(templateJson) : undefined, [templateJson]);
+  const definition = useMemo(() => {
+    if (template?.gameConfig === false) return undefined;
+    if (template?.gameConfig) return template.gameConfig;
+    // Compatibility for installed, immutable CS 1.6 snapshots. Other games need a template definition.
+    const file = template?.configFiles?.find(f => /\/cstrike\/server\.cfg$/i.test(f.path));
+    return file && /ReHLDS|Counter.Strike\s*1\.6/i.test(template?.name || '') ? cs16GameConfig(file.path, file.root) : undefined;
+  }, [template]);
+  const [section, setSection] = useState('settings');
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError(''); setFiles([]);
+    if (!canRead) { setLoading(false); return; }
     if (template?.configFiles !== undefined) { setLoading(false); return; }
     if (!serverId) { setLoading(false); return; }
     void (async () => {
@@ -39,15 +52,24 @@ export function NativeGameConfig({ serverId, metadata, onOpen }: {
     })().catch(() => { if (!cancelled) setError('Could not list configuration files. Open File Manager to inspect them.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [serverId, metadata]);
+  }, [serverId, metadata, canRead]);
   const configFiles = template?.configFiles ?? files.map(path => ({
     path, root: 'data', label: path.split('/').pop() || path,
   }));
+  if (!canRead) return <p>File read permission is required to view Game Config.</p>;
   return <div className="gp-server-tab-body gp-config-files text-gray-800 dark:text-gray-200">
     <header className="gp-server-tab-header">
       <h3 className="gp-section-title">Game Config</h3>
       {!loading && !error && <span className="gp-config-file-count">{configFiles.length} {configFiles.length === 1 ? 'file' : 'files'}</span>}
     </header>
+    {definition && template && serverId && <>
+      <nav className="gp-config-tabs" aria-label="Game Config sections">
+        <button type="button" aria-pressed={section === 'settings'} onClick={() => setSection('settings')}>Settings</button>
+        <button type="button" aria-pressed={section === 'files'} onClick={() => setSection('files')}>Configuration files <span>{configFiles.length}</span></button>
+      </nav>
+      <div hidden={section !== 'settings'}><NativeConfigEditor key={`${serverId}:${templateJson}`} serverId={serverId} definition={definition} template={template} active={section === 'settings'} canWrite={canWrite} onOpen={onOpen} onDirtyChange={onDirtyChange} /></div>
+    </>}
+    <div hidden={Boolean(definition) && section !== 'files'}>
     {loading && <div className="gp-config-file-state" role="status"><RefreshCw size={18} className="animate-spin" />Loading configuration files…</div>}
     {error && <div className="gp-config-file-state is-error" role="alert">{error}</div>}
     {!loading && !error && configFiles.length > 0 && <div className="gp-config-file-grid">
@@ -74,5 +96,6 @@ export function NativeGameConfig({ serverId, metadata, onOpen }: {
       })}
     </div>}
     {!loading && !error && configFiles.length === 0 && <div className="gp-config-file-state"><FileText size={20} aria-hidden="true" />No configuration files found. Use File Manager for deeper directories.</div>}
+    </div>
   </div>;
 }

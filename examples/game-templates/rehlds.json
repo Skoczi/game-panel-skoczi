@@ -31,14 +31,6 @@
   ],
   "variables": [
     {
-      "key": "SERVER_NAME",
-      "label": "Server name",
-      "type": "string",
-      "required": true,
-      "secret": false,
-      "default": "Counter-Strike 1.6 ReHLDS Server"
-    },
-    {
       "key": "MAP",
       "label": "Starting map",
       "type": "string",
@@ -91,13 +83,145 @@
       "label": "Banned addresses"
     }
   ],
+  "gameConfig": {
+    "format": "valve-cfg",
+    "root": "data",
+    "path": "/serverfiles/cstrike/server.cfg",
+    "sections": [
+      {
+        "id": "general",
+        "label": "Server identity",
+        "description": "How players find and join your server.",
+        "fields": [
+          {
+            "key": "hostname",
+            "label": "Server name",
+            "description": "Name shown in the game server browser.",
+            "type": "text",
+            "apply": "map-change"
+          },
+          {
+            "key": "sv_password",
+            "label": "Join password",
+            "description": "Leave empty to allow everyone to join.",
+            "type": "password",
+            "apply": "map-change"
+          },
+          {
+            "key": "sv_alltalk",
+            "label": "All-talk voice",
+            "description": "Allow voice communication across both teams.",
+            "type": "boolean",
+            "apply": "map-change"
+          }
+        ]
+      },
+      {
+        "id": "rounds",
+        "label": "Rounds & rotation",
+        "description": "Set the pace of each match.",
+        "fields": [
+          {
+            "key": "mp_timelimit",
+            "label": "Map time limit",
+            "description": "Minutes per map. 0 disables the time limit.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 0,
+            "max": 1440,
+            "step": 1
+          },
+          {
+            "key": "mp_roundtime",
+            "label": "Round duration",
+            "description": "Round length in minutes.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 1,
+            "max": 9,
+            "step": 0.5
+          },
+          {
+            "key": "mp_freezetime",
+            "label": "Freeze time",
+            "description": "Seconds before players can move at the start of a round.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 0,
+            "max": 60,
+            "step": 1
+          },
+          {
+            "key": "mp_buytime",
+            "label": "Buy time",
+            "description": "Minutes during which equipment can be purchased.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 0.25,
+            "step": 0.05
+          },
+          {
+            "key": "mp_c4timer",
+            "label": "Bomb timer",
+            "description": "Seconds until the planted bomb explodes.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 10,
+            "max": 90,
+            "step": 1
+          }
+        ]
+      },
+      {
+        "id": "gameplay",
+        "label": "Teams & gameplay",
+        "description": "Choose the rules for your players.",
+        "fields": [
+          {
+            "key": "mp_friendlyfire",
+            "label": "Friendly fire",
+            "description": "Allow teammates to damage each other.",
+            "type": "boolean",
+            "apply": "map-change"
+          },
+          {
+            "key": "mp_autoteambalance",
+            "label": "Auto team balance",
+            "description": "Automatically balance team sizes.",
+            "type": "boolean",
+            "apply": "map-change"
+          },
+          {
+            "key": "mp_limitteams",
+            "label": "Team size difference",
+            "description": "Maximum player difference between teams. 0 disables the limit.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 0,
+            "max": 20,
+            "step": 1
+          },
+          {
+            "key": "mp_startmoney",
+            "label": "Starting money",
+            "description": "Money given when a player joins.",
+            "type": "number",
+            "apply": "map-change",
+            "min": 800,
+            "max": 16000,
+            "step": 100
+          }
+        ]
+      }
+    ]
+  },
   "lifecycle": {
     "installerImage": "gamepanel-installer:steamcmd-v1",
     "workdir": "/data",
     "startup": [
       "/bin/bash",
       "-c",
-      "set -euo pipefail\ncd /data/serverfiles\n[[ \"$MAX_PLAYERS\" =~ ^[0-9][0-9]?$ ]] && (( 10#$MAX_PLAYERS >= 1 && 10#$MAX_PLAYERS <= 32 )) || ( echo 'Player limit must be 1-32'; exit 2; )\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || ( echo 'Invalid map name'; exit 2; )\n[[ \"$SERVER_NAME\" != *\\\"* && \"$SERVER_NAME\" != *\\\\* && \"$SERVER_NAME\" != *';'* && \"$SERVER_NAME\" != *$'\\n'* && \"$SERVER_NAME\" != *$'\\r'* ]] || ( echo 'Server name cannot contain quotes, backslashes, semicolons or line breaks'; exit 2; )\n[[ \"$CFG\" =~ ^[A-Za-z0-9_-]+\\.cfg$ ]] || ( echo 'Config must be a .cfg filename without directories'; exit 2; )\nconfig=\"cstrike/$CFG\"\n[[ ! -L \"$config\" ]] || ( echo 'Config must not be a symbolic link'; exit 2; )\n[[ -f \"$config\" ]] || touch \"$config\"\n# Keep the owner's settings; update only hostname and remove an exact self-include.\n[[ -e \"$config.bak\" ]] || cp -p -- \"$config\" \"$config.bak\"\ntmp=$(mktemp \"cstrike/.hostname.XXXXXXXX\")\ntrap 'rm -f -- \"$tmp\"' EXIT\ncp -p -- \"$config\" \"$tmp\"\nwritten=0\nwhile IFS= read -r line || [[ -n \"$line\" ]]; do\n  if [[ \"$line\" =~ ^[[:space:]]*[Hh][Oo][Ss][Tt][Nn][Aa][Mm][Ee][[:space:]] ]]; then\n    (( written )) || printf 'hostname \"%s\"\\n' \"$SERVER_NAME\"\n    written=1\n  elif [[ \"$line\" =~ ^[[:space:]]*exec[[:space:]]+\\\"?\"$CFG\"\\\"?[[:space:]]*$ ]]; then\n    continue\n  else\n    printf '%s\\n' \"$line\"\n  fi\ndone < \"$config\" > \"$tmp\"\n(( written )) || printf 'hostname \"%s\"\\n' \"$SERVER_NAME\" >> \"$tmp\"\nmv -- \"$tmp\" \"$config\"\ntrap - EXIT\nexport LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin\nexec ./hlds_linux \"$@\"\n",
+      "set -euo pipefail\ncd /data/serverfiles\n[[ \"$MAX_PLAYERS\" =~ ^[0-9][0-9]?$ ]] && (( 10#$MAX_PLAYERS >= 1 && 10#$MAX_PLAYERS <= 32 )) || ( echo 'Player limit must be 1-32'; exit 2; )\n[[ \"$MAP\" =~ ^[A-Za-z0-9_-]+$ ]] || ( echo 'Invalid map name'; exit 2; )\n[[ \"$CFG\" =~ ^[A-Za-z0-9_-]+\\.cfg$ ]] || ( echo 'Config must be a .cfg filename without directories'; exit 2; )\nexport LD_LIBRARY_PATH=/data/serverfiles:/data/serverfiles/bin\nexec ./hlds_linux \"$@\"\n",
       "hlds",
       "-console",
       "-game",

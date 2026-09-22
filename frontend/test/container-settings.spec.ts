@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 const template = { schemaVersion: 2, name: 'ReHLDS', variables: [{ key: 'MAP', label: 'Map', default: 'de_dust' }, { key: 'MAX_PLAYERS', label: 'Max players', default: '32' }, { key: 'SERVER_NAME', label: 'Hostname', default: 'Game server' }], ports: [{ env: 'SERVER_PORT' }], lifecycle: { startup: ['/bin/bash', '-c', 'set -e\nexec ./hlds_linux "$@"', 'hlds', '-port', '{{SERVER_PORT}}', '+map', '{{MAP}}'], update: [] } };
 const server = { dockerImage: 'gamepanel/rehlds:latest', providerMetadata: { template: { document: template, version: 1 } }, ports: { tcp: [], udp: [{ host: 27050, container: 27015, hostIp: '51.83.150.145', label: 'Game / Query / RCON' }] }, env: { MAP: 'de_dust', MAX_PLAYERS: '32', SERVER_NAME: 'My server', SERVER_PORT: '27015' }, mounts: [{ key: 'data', containerPath: '/data' }], resourceLimits: { cpu: 1, memoryMb: 1024 } };
@@ -69,4 +70,15 @@ test('running servers can save for later without submitting a restart', async ({
  expect(payload.applyMode).toBe('defer');
  expect(payload.customParams).toEqual(['+sv_lan','0','-tickrate','128']);
  expect(payload.env.MAP).toBe('de_dust2');
+});
+
+test('legacy ReHLDS no longer offers a startup hostname variable', async ({ page }) => {
+ const oldScript = readFileSync(new URL('../../backend/test/fixtures/legacy-rehlds-start.sh', import.meta.url), 'utf8');
+ const old = { ...server, providerMetadata: { template: { version: 1, document: { ...template, lifecycle: { ...template.lifecycle, startup: ['/bin/bash', '-c', oldScript, 'hlds', '-port', '{{SERVER_PORT}}', '+map', '{{MAP}}'] } } } } };
+ await page.route('**/api/**', route => new URL(route.request().url()).pathname.startsWith('/api/') ? route.fulfill({ json: old }) : route.continue());
+ await page.goto('/test/container-settings.fixture.html');
+ await expect(page.getByLabel('Map', { exact: true })).toBeVisible();
+ await expect(page.getByLabel('Hostname', { exact: true })).toHaveCount(0);
+ await page.getByRole('button', { name: 'Edit startup parameters' }).click();
+ await expect(page.locator('.gp-startup-variables')).not.toContainText('SERVER_NAME');
 });

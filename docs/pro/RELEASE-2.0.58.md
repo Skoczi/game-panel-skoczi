@@ -12,3 +12,17 @@ Game monitoring can now notify administrators through Discord and optionally res
 Panel and agents require an update. Migration `0007_monitoring_alerts` requires a pre-update database snapshot for rollback. Discord webhook configuration is optional; no messages are sent until enabled. The release candidate has not been published on GitHub.
 
 See [behavior, limits and rollout notes](MONITORING-ALERTS.md).
+
+## Native Game Config
+
+- Settings and configuration files now share the existing Game Config tab, with grouped
+  controls, mobile layout, change review and permission-aware editing.
+- Templates can declare their own fields; CS 1.6 / ReHLDS includes a ready-made preset.
+- Versioned file saves retain comments and custom cvars. Conflicts preserve the draft,
+  passwords are masked in review, and idle forms refresh external file changes.
+- Game hostname comes from the active CFG; the panel label stays independent.
+  New ReHLDS startup scripts no longer overwrite hostname. Existing known startup
+  scripts are adapted when the container is recreated on a panel start/restart.
+
+The Game Config changes are currently local and tested; they have not yet been
+deployed or included in a GitHub release. See [configuration and compatibility](NATIVE-GAME-CONFIG.md).

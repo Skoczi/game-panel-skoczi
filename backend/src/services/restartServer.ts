@@ -1,6 +1,6 @@
 import { serverRepository } from '../database/index.js';
 import * as dockerUtils from '../utils/docker.js';
-import { applyPendingServerConfiguration } from './serverReconfiguration.js';
+import { applyPendingServerConfiguration, refreshNativeStartupCompatibility } from './serverReconfiguration.js';
 import { assertHostPortsAvailableForServer } from './hostPortAvailability.js';
 import { getServerStopTimeoutSeconds, restartOvhcloudServerIfHandled } from './ovhcloudLifecycle.js';
 import { parseStoredPorts } from '../providers/runtimeConfig.js';
@@ -22,6 +22,9 @@ export async function restartServer(serverId: number, applyPending = true) {
         return true;
     }
     if (applied) server = await load(serverId);
+    const refreshed = await refreshNativeStartupCompatibility(serverId);
+    if (refreshed?.wasRunning) return Boolean(applied);
+    if (refreshed) server = await load(serverId);
     const currentStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);
     if (currentStatus !== 'running') await assertHostPortsAvailableForServer({ ports: parseStoredPorts(server), excludeServerId: serverId, excludeContainerIds: [server.docker_container_id] });
     await serverRepository.updateDesiredState(serverId, 'running');

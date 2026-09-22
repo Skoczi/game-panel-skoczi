@@ -68,7 +68,8 @@ test('declared config opens the actual nested file and native settings fit dark 
     return route.fulfill({ json: { entries: [{ name: 'server.cfg', type: 'file' }] } });
   });
   await page.goto('/test/native-settings.fixture.html?declared');
-  await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /Configuration files 1/ }).click();
+  await expect(page.locator('.gp-config-file-card').getByRole('heading', { name: 'Server configuration', exact: true })).toBeVisible();
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-settings-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const requested = page.waitForRequest(r => new URL(r.url()).pathname.endsWith('/file'));

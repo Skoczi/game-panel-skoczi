@@ -38,7 +38,7 @@ function unique(values: string[]) {
 }
 export function validateTemplate(input: unknown): GameTemplate {
     if (JSON.stringify(input)?.length > 32768) throw new TemplateError('Template exceeds 32 KiB');
-    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload', 'monitoring', 'icon']);
+    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload', 'monitoring', 'icon', 'gameConfig']);
     let icon: string | undefined;
     if (v.icon !== undefined) {
         icon = text(v.icon, 22000);
@@ -107,6 +107,42 @@ export function validateTemplate(input: unknown): GameTemplate {
             return { root, path: filePath, label: text(file.label, 80) };
         });
         unique(configFiles.map(f => `${f.root}:${f.path}`));
+    }
+    let gameConfig: GameTemplate['gameConfig'];
+    if (v.gameConfig !== undefined && v.schemaVersion !== 2) throw new TemplateError('Game Config requires a native template');
+    if (v.gameConfig === false) gameConfig = false;
+    else if (v.gameConfig !== undefined) {
+        const g = object(v.gameConfig, ['format', 'root', 'path', 'sections']);
+        const format = choice(g.format, ['valve-cfg'] as const);
+        const root = identifier(g.root), path = text(g.path, 300);
+        if (!configFiles?.some(f => f.root === root && f.path === path)) throw new TemplateError('Game Config must reference a declared configuration file');
+        const sections = list(g.sections, 8).map(raw => {
+            const section = object(raw, ['id', 'label', 'description', 'fields']);
+            const fields = list(section.fields, 24).map(rawField => {
+                const f = object(rawField, ['key', 'label', 'description', 'type', 'apply', 'min', 'max', 'step', 'options']);
+                const key = identifier(f.key).toLowerCase();
+                const type = choice(f.type, ['text', 'password', 'number', 'boolean', 'select'] as const);
+                if (/password|secret|token|credential/i.test(key) && type !== 'password') throw new TemplateError('Credential fields must use password controls');
+                const bounds: { min?: number; max?: number; step?: number } = {};
+                for (const name of ['min', 'max', 'step'] as const) if (f[name] !== undefined) {
+                    if (type !== 'number' || typeof f[name] !== 'number' || !Number.isFinite(f[name]) || Math.abs(f[name]) > 1e9 || (name === 'step' && f[name] <= 0)) throw new TemplateError('Invalid numeric field bounds');
+                    bounds[name] = f[name];
+                }
+                if (bounds.min !== undefined && bounds.max !== undefined && bounds.min > bounds.max) throw new TemplateError('Field minimum exceeds maximum');
+                let options;
+                if (type === 'select') {
+                    options = list(f.options, 32).map(o => { const option = object(o, ['value', 'label']); const value = text(option.value, 256, true); if (value === '__unset__' || /["\\;\r\n]/.test(value)) throw new TemplateError('Invalid option value'); return { value, label: text(option.label, 80) }; });
+                    if (!options.length) throw new TemplateError('Select fields need options');
+                    unique(options.map(o => o.value));
+                } else if (f.options !== undefined) throw new TemplateError('Options require a select field');
+                return { key, label: text(f.label, 80), description: text(f.description, 300, true), type, apply: choice(f.apply, ['map-change', 'restart'] as const), ...bounds, ...(options ? { options } : {}) };
+            });
+            if (!fields.length) throw new TemplateError('Sections need at least one field');
+            return { id: identifier(section.id), label: text(section.label, 80), description: text(section.description, 300, true), fields };
+        });
+        if (!sections.length || sections.flatMap(s => s.fields).length > 64) throw new TemplateError('Game Config needs 1–64 fields');
+        unique(sections.map(s => s.id)); unique(sections.flatMap(s => s.fields.map(f => f.key)));
+        gameConfig = { format, root, path, sections };
     }
     let monitoring: GameTemplate['monitoring'];
     if (v.monitoring !== undefined) {
@@ -193,7 +229,7 @@ export function validateTemplate(input: unknown): GameTemplate {
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
         lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}), ...(stopCommand ? { stopCommand } : {}) };
     }
-    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}), ...(monitoring !== undefined ? { monitoring } : {}), ...(icon !== undefined ? { icon } : {}) };
+    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}), ...(monitoring !== undefined ? { monitoring } : {}), ...(icon !== undefined ? { icon } : {}), ...(gameConfig !== undefined ? { gameConfig } : {}) };
 }
 export function validateVariable(v: GameTemplate['variables'][number], value: unknown): string {
     const s = text(value, 2048, !v.required);

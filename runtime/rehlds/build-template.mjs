@@ -1,3 +1,4 @@
+import { cs16GameConfig } from '../../backend/dist/templates/gameConfig.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 const document = {
   schemaVersion: 2, name: 'Counter-Strike 1.6 · ReHLDS',
@@ -7,7 +8,6 @@ const document = {
   runtime: { provider: 'external', image: 'gamepanel-runtime:linux-v1', catalogId: '', gameServerName: '', architectures: ['x64'], identity: { user: '1000', uid: 1000, gid: 1000 } },
   ports: [{ key: 'game', label: 'Game / Query / RCON', protocol: 'udp', container: 27015, suggested: 27015, env: 'SERVER_PORT', linuxgsmKey: '' }],
   variables: [
-    { key: 'SERVER_NAME', label: 'Server name', type: 'string', required: true, secret: false, default: 'Counter-Strike 1.6 ReHLDS Server' },
     { key: 'MAP', label: 'Starting map', type: 'string', required: true, secret: false, default: 'de_dust2' },
     { key: 'MAX_PLAYERS', label: 'Maximum players (1-32)', type: 'integer', required: true, secret: false, default: '16' },
     { key: 'CFG', label: 'Server config', type: 'string', required: true, secret: false, default: 'server.cfg' }
@@ -19,6 +19,7 @@ const document = {
     { root: 'data', path: '/serverfiles/cstrike/banned.cfg', label: 'Banned players' },
     { root: 'data', path: '/serverfiles/cstrike/listip.cfg', label: 'Banned addresses' }
   ],
+  gameConfig: cs16GameConfig(),
   lifecycle: {
     installerImage: 'gamepanel-installer:steamcmd-v1', workdir: '/data',
     startup: ['/bin/bash', '-c', readFileSync(new URL('./start.sh', import.meta.url), 'utf8'), 'hlds', '-console', '-game', 'cstrike', '-ip', '0.0.0.0', '-port', '{{SERVER_PORT}}', '-strictportbind', '+servercfgfile', '{{CFG}}', '+maxplayers', '{{MAX_PLAYERS}}', '+map', '{{MAP}}'],

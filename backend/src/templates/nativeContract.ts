@@ -1,3 +1,4 @@
+import { normalizeRehldsStartup } from './rehldsStartup.js';
 import { applyStartupOverride, appendStartupParams } from './startupCommand.js';
 import { TemplateError, templateHash, validateTemplate, validateVariable, type GameTemplate } from './schema.js';
 import type { NormalizedPorts } from '../utils/ports.js';
@@ -50,7 +51,7 @@ export function nativeContainerOptions(t: GameTemplate, env: string[], ports: No
     const allowed = [...t.variables.map(v => v.key), ...t.ports.map(p => p.env)];
     const startup = applyStartupOverride(lifecycle.startup, startupOverride, allowed);
     return {
-        command: renderNativeArgv(appendStartupParams(startup, customParams, allowed), nativeEnvironment(t, env, ports)),
+        command: renderNativeArgv(normalizeRehldsStartup(appendStartupParams(startup, customParams, allowed)), nativeEnvironment(t, env, ports)),
         user: `${identity.uid}:${identity.gid}`,
         workdir: lifecycle.workdir,
         stopSignal: lifecycle.stopSignal,

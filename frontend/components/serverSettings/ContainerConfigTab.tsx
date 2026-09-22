@@ -1,3 +1,4 @@
+import { normalizeRehldsStartup } from '../../../backend/src/templates/rehldsStartup';
 import { GameMonitoringCard } from './GameMonitoringCard';
 import { FastDownloadCard } from './FastDownloadCard';
 import { CpuBindingPicker } from '../resources/CpuBindingPicker';
@@ -425,7 +426,7 @@ export function ContainerConfigTab({
           <section className="gp-settings-card gp-settings-startup">
             <div className="gp-settings-section-head"><h4>Startup command</h4>{startupText && canEdit && canManageEnv && <AppButton tone="ghost" onClick={() => setEditingStartup(v => !v)}>{editingStartup ? 'Close editor' : 'Edit startup parameters'}</AppButton>}</div>
             <pre>{startupCommand || (startupError ? 'Fix the parameters below to preview the command.' : 'Default image entrypoint')}</pre>
-            {editingStartup && <div className="gp-settings-startup-editor"><textarea aria-label="Startup parameters" rows={4} spellCheck={false} value={startupText} disabled={saving} onChange={e => setStartupText(e.target.value)} /><div className="gp-startup-variables"><small>Dostępne parametry:</small>{[...new Set([...(nativeSnapshot?.document.variables.map(v => v.key) || []), ...(nativeSnapshot?.document.ports.map(p => p.env).filter(Boolean) || [])])].map(key => <code key={key}>{'{{' + key + '}}'}</code>)}</div>{startupError && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
+            {editingStartup && <div className="gp-settings-startup-editor"><textarea aria-label="Startup parameters" rows={4} spellCheck={false} value={startupText} disabled={saving} onChange={e => setStartupText(e.target.value)} /><div className="gp-startup-variables"><small>Dostępne parametry:</small>{[...new Set([...(nativeSnapshot?.document.variables.filter(v => v.key !== 'SERVER_NAME' || normalizeRehldsStartup(nativeSnapshot.document.lifecycle!.startup) === nativeSnapshot.document.lifecycle!.startup).map(v => v.key) || []), ...(nativeSnapshot?.document.ports.map(p => p.env).filter(Boolean) || [])])].map(key => <code key={key}>{'{{' + key + '}}'}</code>)}</div>{startupError && <p role="alert" className="gp-settings-port-error">{startupError}</p>}</div>}
           </section>
           <section className="gp-settings-card"><h4>Docker image</h4><code>{dockerImage || '—'}</code></section>
         </div>
@@ -437,7 +438,7 @@ export function ContainerConfigTab({
             {envEntries.length === 0 && (
               <p className={`text-sm ${textSecondary}`}>No variables configured.</p>
             )}
-            {envEntries.map((entry, idx) => nativeSnapshot?.document.ports.some(p => p.env === entry.key) ? null : (
+            {envEntries.map((entry, idx) => nativeSnapshot?.document.ports.some(p => p.env === entry.key) || (entry.key === 'SERVER_NAME' && nativeSnapshot && normalizeRehldsStartup(nativeSnapshot.document.lifecycle!.startup) !== nativeSnapshot.document.lifecycle!.startup) ? null : (
               <div key={idx} className={nativeSnapshot ? "gp-settings-variable" : "flex gap-2 items-center"}>
                 {nativeSnapshot && <label htmlFor={`setting-env-${idx}`}>{nativeSnapshot.document.variables.find(v => v.key === entry.key)?.label || entry.key}</label>}
                 {!nativeSnapshot && <input

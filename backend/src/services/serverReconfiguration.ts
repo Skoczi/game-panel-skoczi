@@ -1,3 +1,5 @@
+import { normalizeRehldsStartup } from '../templates/rehldsStartup.js';
+import { docker } from '../utils/docker/client.js';
 import { assertCpuBinding } from './cpuTopology.js';
 import { assertHostPortsAvailableForServer } from './hostPortAvailability.js';
 import { enterPortAllocationMutation } from './portAllocationLock.js';
@@ -158,7 +160,8 @@ async function completeReconfigureStatus(params: {
 
 export async function reconfigureServerContainer(
     serverId: number,
-    input: ReconfigureInput
+    input: ReconfigureInput,
+    options: { preservePending?: boolean } = {}
 ): Promise<ReconfigureResult> {
     const server = await getServerOrThrow(serverId);
 
@@ -169,7 +172,7 @@ export async function reconfigureServerContainer(
 
     const storedMetadata = JSON.parse(server.provider_metadata_json || '{}');
     // Later edits merge into the saved draft, including fields the caller cannot edit.
-    input = { ...storedMetadata.pendingConfiguration, ...Object.fromEntries(Object.entries(input).filter(([key, value]) => value !== undefined && (!key.startsWith('has') || value === true))) };
+    input = { ...(options.preservePending ? {} : storedMetadata.pendingConfiguration), ...Object.fromEntries(Object.entries(input).filter(([key, value]) => value !== undefined && (!key.startsWith('has') || value === true))) };
     const currentPorts = parseStoredPorts(server);
     const currentMounts = parseStoredMounts(server);
     const currentEnv = parseStoredEnv(server);
@@ -189,7 +192,7 @@ export async function reconfigureServerContainer(
     const nextResourceLimits = input.hasResourceLimitsPatch ? input.resourceLimits ?? null : currentResourceLimits;
     await assertCpuBinding(nextResourceLimits);
     const metadata = { ...storedMetadata };
-    delete metadata.pendingConfiguration;
+    if (!options.preservePending) delete metadata.pendingConfiguration;
     const native = nativeTemplate(metadata);
     if (input.hasStartupPatch) {
         if (!native) throw Object.assign(new Error('Startup parameters require a native template.'), { statusCode: 400 });
@@ -397,4 +400,15 @@ export async function updateServerResourceLimits(
         dockerUpdated,
         containerStatus,
     };
+}
+
+// Refresh only the known former hostname-writing startup contract, under the caller's
+// mutation lock. Automatic recovery must not apply unrelated pending settings.
+export async function refreshNativeStartupCompatibility(serverId: number) {
+    const server = await getServerOrThrow(serverId);
+    if (!nativeTemplate(JSON.parse(server.provider_metadata_json || '{}'))) return null;
+    const info = await docker.getContainer(server.docker_container_id).inspect();
+    const command = info.Config.Cmd || [];
+    if (normalizeRehldsStartup(command) === command) return null;
+    return reconfigureServerContainer(serverId, { applyMode: 'restart' }, { preservePending: true });
 }

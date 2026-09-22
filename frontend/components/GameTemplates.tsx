@@ -1,4 +1,6 @@
+import { normalizeRehldsStartup } from '../../backend/src/templates/rehldsStartup';
 import { TemplateIconEditor } from './TemplateIconEditor';
+import { TemplateGameConfigEditor } from './TemplateGameConfigEditor';
 import { TemplateMonitoringEditor } from './TemplateMonitoringEditor';
 import { TemplateFastDownloadEditor } from './TemplateFastDownloadEditor';
 import { CpuBindingPicker } from './resources/CpuBindingPicker';
@@ -300,6 +302,7 @@ export function GameTemplates() {
               'storage',
               'fastdownload',
               'monitoring',
+              'game config',
               'versions',
               'json',
             ].map((t) => (
@@ -566,6 +569,7 @@ export function GameTemplates() {
                 </p>
               </>
             )}
+            {tab === 'game config' && <TemplateGameConfigEditor draft={draft} change={change} />}
             {tab === 'monitoring' && <TemplateMonitoringEditor draft={draft} change={change} />}
             {tab === 'fastdownload' && <TemplateFastDownloadEditor draft={draft} change={change} />}
             {tab === 'lifecycle' && <NativeLifecycleEditor draft={draft} change={change} />}
@@ -1104,7 +1108,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         nativeRuntimeProtocol?: number;
         templateScriptsProtocol?: number;
         nativeSettingsProtocol?: number;
-        capabilities?: {fastDownload?:number;gameMonitoring?:number;templateIcons?:number};
+        capabilities?: {fastDownload?:number;gameMonitoring?:number;templateIcons?:number;gameConfigEditor?:number};
       }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
@@ -1114,6 +1118,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         throw new Error(
           'This node does not support Native Runtime. Update its agent first. No installation was sent.'
         );
+      if((row.document.gameConfig !== undefined || (row.document.lifecycle && normalizeRehldsStartup(row.document.lifecycle.startup) !== row.document.lifecycle.startup)) && health.capabilities?.gameConfigEditor !== 1) throw new Error('Update this node to support template configuration forms. No installation was sent.');
       if(row.document.icon && health.capabilities?.templateIcons !== 1) throw new Error('Update this node to support template game icons. No installation was sent.');
       if(row.document.monitoring && health.capabilities?.gameMonitoring !== 1) throw new Error('Update this node to support game monitoring templates.');
       if(row.document.fastDownload?.enabled && health.capabilities?.fastDownload !== 1) throw new Error('Update this node to support FastDownload templates.');
@@ -1252,7 +1257,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
           {!loading && row.document.ports.length > 0 && allocations.length === 0 && (
             <p>Add IP allocations in this node’s settings before installing.</p>
           )}
-          {row.document.variables.map((v) => (
+          {row.document.variables.filter(v => v.key !== 'SERVER_NAME' || !row.document.lifecycle || normalizeRehldsStartup(row.document.lifecycle.startup) === row.document.lifecycle.startup).map((v) => (
             <Field
               key={v.key}
               label={`${v.key === 'SERVER_NAME' && /^server name$/i.test(v.label.trim()) ? 'In-game server name (visible to players)' : v.label}${v.required ? ' *' : ''}${v.secret ? ' (secret)' : ''}`}

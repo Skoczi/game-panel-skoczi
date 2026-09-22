@@ -1,5 +1,5 @@
 import { restartServer } from '../../services/restartServer.js';
-import { applyPendingServerConfiguration } from '../../services/serverReconfiguration.js';
+import { applyPendingServerConfiguration, refreshNativeStartupCompatibility } from '../../services/serverReconfiguration.js';
 import { Router, type Response } from 'express';
 import {
     type AuthenticatedRequest,
@@ -71,6 +71,7 @@ export function createServerPowerRoutes(): Router {
                 const currentStatus = await dockerUtils.checkContainerStatus(server.docker_container_id);
                 if (currentStatus !== 'running') {
                     await applyPendingServerConfiguration(serverId);
+                    await refreshNativeStartupCompatibility(serverId);
                     server = await getServerForPowerAction(serverId);
                     await assertHostPortsAvailableForServer({
                         ports: parseStoredPorts(server),

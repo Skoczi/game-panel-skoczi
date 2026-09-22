@@ -1,5 +1,12 @@
 # Game Panel PRO — Changelog
 
+## 2.0.57
+
+- Compact server list with game icons beside names and one monitoring-aware status column; card layouts unchanged.
+- Template icon library and portable custom image upload, with compatibility checks for older agents.
+
+[Full release notes](docs/pro/RELEASE-2.0.57.md). Panel and agent update; no new database migration.
+
 ## 2.0.54
 
 - Add Game Server now opens the game template catalog directly from the shared fleet.

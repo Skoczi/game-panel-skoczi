@@ -1,4 +1,5 @@
-import { GameMonitoringStatus } from '../GameMonitoringStatus';
+import { GameIcon } from '../GameIcon';
+import { ServerListStatus } from '../ServerListStatus';
 import { resourceLabel } from '../../utils/resourceMetrics';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -104,7 +105,6 @@ export function GameServersDesktopTable({
   borderColor,
   rowBorder,
   textPrimary,
-  textSecondary,
   textTertiary,
   inputBg,
   inputBorder,
@@ -204,20 +204,7 @@ export function GameServersDesktopTable({
                 {getSortIcon(sortField, sortOrder, 'name')}
               </AppButton>
             </th>
-            <th
-              aria-sort={sortField === 'game' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
-              className={`text-left ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}
-            >
-              <AppButton
-                onClick={() => handleSort('game')}
-                tone="ghost"
-                className="flex h-auto items-center gap-2 border-none bg-transparent p-0 text-xs font-semibold uppercase tracking-wider text-inherit hover:text-[var(--color-cyan-400)]"
-              >
-                Game
-                {getSortIcon(sortField, sortOrder, 'game')}
-              </AppButton>
-            </th>
-            <th className={`text-left ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}>Connection</th>
+            <th className={`text-left ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}>Server IP</th>
             <th
               aria-sort={sortField === 'status' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
               className={`text-left ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}
@@ -227,7 +214,7 @@ export function GameServersDesktopTable({
                 tone="ghost"
                 className="flex h-auto items-center gap-2 border-none bg-transparent p-0 text-xs font-semibold uppercase tracking-wider text-inherit hover:text-[var(--color-cyan-400)]"
               >
-                Status
+                Server status
                 {getSortIcon(sortField, sortOrder, 'status')}
               </AppButton>
             </th>
@@ -294,13 +281,12 @@ export function GameServersDesktopTable({
             </th>
             <th className={`text-left ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}>Power</th>
             <th className={`text-left ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}>Management</th>
-            <th className={`text-center ${textTertiary} text-xs font-semibold uppercase tracking-wider py-3 px-4`}>Delete</th>
           </tr>
         </thead>
         <tbody>
           {filteredAndSortedServers.length === 0 && (
             <tr>
-              <td colSpan={8} className="py-12 text-center">
+              <td colSpan={6} className="py-12 text-center">
                 <p className={`text-sm ${textTertiary}`}>No game servers yet.</p>
                 <p className={`mt-1 text-xs ${textTertiary}`}>
                   Use “Add Game Server” below to install your first one.
@@ -348,6 +334,7 @@ export function GameServersDesktopTable({
             return (
               <tr key={server.id} className={`border-b ${rowBorder}`}>
                 <td className={`${textPrimary} py-4 px-4`}>
+                  <div className="gp-list-server-name"><GameIcon game={getGameLabel(server)} icon={server.gameIcon} />
                   {editingId === server.id ? (
                     <div className="flex items-center gap-2">
                       <AppInput
@@ -390,8 +377,8 @@ export function GameServersDesktopTable({
                       </AppButton>
                     </div>
                   )}
+                  </div>
                 </td>
-                <td className={`${textSecondary} py-4 px-4`}>{getGameLabel(server)}<GameMonitoringStatus summary={server.monitoring} runtimeStatus={server.status} /></td>
                 <td className="py-4 px-4">
                   {server.port ? (
                     <div className="flex items-center gap-2 group">
@@ -440,7 +427,8 @@ export function GameServersDesktopTable({
                 </td>
                 <td className="py-4 pr-4 pl-0">
                   <div className="flex justify-start">
-                  <AppButton
+                  <ServerListStatus summary={server.monitoring} runtimeStatus={server.status} name={server.name}
+                    onHistory={() => openHistoryModal(server, canReadLogs)} disabled={!canReadLogs} fallback={<AppButton
                     type="button"
                     onClick={() => openHistoryModal(server, canReadLogs)}
                     disabled={!canReadLogs}
@@ -456,7 +444,7 @@ export function GameServersDesktopTable({
                     }`}
                   >
                     {statusLabel}
-                  </AppButton>
+                  </AppButton>} />
                   </div>
                 </td>
                 <td className="py-4 px-4">
@@ -680,11 +668,9 @@ export function GameServersDesktopTable({
                       <Terminal className="w-4 h-4" />
                       Console
                     </AppButton>
-                  </div>
-                </td>
-                <td className="py-4 px-4 text-center">
                   <AppButton
                     tone="ghost"
+                    aria-label={`Delete ${server.name}`}
                     disabled={!canDeleteServer}
                     onClick={() =>
                       setConfirmAction({
@@ -702,6 +688,7 @@ export function GameServersDesktopTable({
                   >
                     <Trash2 className="w-4 h-4" />
                   </AppButton>
+                  </div>
                 </td>
               </tr>
             );

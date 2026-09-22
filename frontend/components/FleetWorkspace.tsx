@@ -1,4 +1,6 @@
 import { GameMonitoringStatus } from './GameMonitoringStatus';
+import { GameIcon } from './GameIcon';
+import { ServerListStatus } from './ServerListStatus';
 import { withoutDeletedServers } from '../utils/deletedFleetServers';
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { RefreshCw, Search, ShieldCheck, Server, Users, GripVertical } from 'lucide-react';
@@ -483,9 +485,8 @@ export function FleetWorkspace({
                   <thead>
                     <tr>
                       {sortHeader('name', 'Server name')}
-                      {sortHeader('type', 'Game')}
-                      <th>Connection</th>
-                      {sortHeader('status', 'Status')}
+                      <th>Server IP</th>
+                      {sortHeader('status', 'Server status')}
                       <th>Server metrics</th>
                       <th>Power</th>
                       <th>Management</th>
@@ -494,15 +495,25 @@ export function FleetWorkspace({
                   <tbody>
                     {items.map((server) => (
                       <tr key={server.id}>
-                        <td>{serverName(server)}</td>
-                        <td>{game(server).label}<GameMonitoringStatus summary={runtimes[server.id]?.server.monitoring} runtimeStatus={server.available ? server.status : "unknown"} /></td>
+                        <td>
+                          <div className="gp-list-server-name">
+                            <GameIcon game={game(server).label} icon={runtimes[server.id]?.server.gameIcon} />
+                            {serverName(server)}
+                          </div>
+                        </td>
                         <td>{connection(server)}</td>
                         <td>
-                          <FleetStatus
-                            status={server.status}
-                            available={server.available}
+                          <ServerListStatus
+                            summary={runtimes[server.id]?.server.monitoring}
+                            runtimeStatus={server.available ? server.status : 'unknown'}
                             name={server.name}
-                            onClick={() => setHistorySelection(server)}
+                            onHistory={() => setHistorySelection(server)}
+                            fallback={<FleetStatus
+                              status={server.status}
+                              available={server.available}
+                              name={server.name}
+                              onClick={() => setHistorySelection(server)}
+                            />}
                           />
                         </td>
                         <td>{metrics(server, true)}</td>

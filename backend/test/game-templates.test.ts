@@ -104,3 +104,19 @@ test('long remote container names become deterministic <=63 byte hostnames witho
     assert.notEqual(containerHostname(name), containerHostname(name + '2'));
     assert.equal(containerHostname('test-server-1'), 'test-server-1');
 });
+
+test('template icons round-trip through immutable versions and node tickets without changing old hashes', () => {
+    const original = snapshot();
+    const plain = validateTemplate(original.document);
+    assert.equal(templateHash(plain), original.hash);
+    assert.equal(Object.hasOwn(plain, 'icon'), false);
+    for (const icon of ['counter-strike', 'counter-strike-source', 'counter-strike-go', 'counter-strike-2', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAq0lEQVR4nOXOIQEAAAgDsPfPRQnSnBgTiPkls32NBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HgAO0mywmjerl49AAAAAElFTkSuQmCC']) {
+        const document = validateTemplate({ ...plain, icon });
+        const s = { ...original, document, hash: templateHash(document) };
+        assert.equal(readTemplateTicket(issueTemplateTicket(s, key, 'node-a'), key, 'node-a').document.icon, icon);
+        const body = materializeTemplate(s, { name: 'CS', bindings: [{ key: 'game', host: 27015, hostIp: '192.0.2.10' }] }, 'x64');
+        assert.equal(body.templateSnapshot.document.icon, icon);
+    }
+    for (const icon of ['unknown-icon', 'https://external.example/icon.png', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/png;base64,YmFk', 'data:image/png;base64,' + 'A'.repeat(21900)])
+        assert.throws(() => validateTemplate({ ...plain, icon }), /icon/);
+});

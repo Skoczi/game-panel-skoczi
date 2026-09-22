@@ -1,0 +1,11 @@
+.gp-list-server-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.gp-list-server-name > :last-child { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.gp-game-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 9px; background: #64748b14; color: #94a3b8; overflow: hidden; }
+.gp-game-icon img { display: block; width: 32px; height: 32px; object-fit: contain; border-radius: 6px; }
+.gp-list-game-status { display: block; min-width: 175px; max-width: 280px; background: transparent; border: 0; padding: 6px 0; color: inherit; text-align: left; cursor: pointer; border-radius: 6px; }
+.gp-list-game-status .gp-game-monitor { margin: 0; }
+.gp-list-game-status .gp-game-monitor-state { white-space: nowrap; }
+.gp-list-game-status:hover { background: #64748b0d; }
+.gp-list-game-status:focus-visible { outline: 2px solid #06b6d4; outline-offset: 4px; }
+.gp-list-game-status:disabled { cursor: default; }
+.fleet-node-table th:first-child, .fleet-node-table td:first-child { min-width: 220px; }

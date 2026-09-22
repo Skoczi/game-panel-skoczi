@@ -68,6 +68,7 @@ export async function loadFleetRuntime(id: string): Promise<FleetRuntime> {
     status: mapBackendStatusToUi(raw.status),
     provider: raw.provider,
     monitoring: raw.monitoring,
+    gameIcon: raw.providerMetadata?.template?.document?.icon,
     providerMetadataJson: JSON.stringify({
       capabilities: {
         consoleCommand: raw.providerMetadata?.capabilities?.consoleCommand !== false,

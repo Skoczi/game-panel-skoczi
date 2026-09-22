@@ -506,6 +506,7 @@ function AppContent() {
       containerStatus: server.containerStatus,
       healthStatus: server.healthStatus,
       monitoring: server.monitoring ?? existing?.monitoring,
+      gameIcon: server.providerMetadata?.template?.document?.icon,
       lastError: server.lastError ?? null,
       providerMetadataJson: server.providerMetadata
         ? JSON.stringify(server.providerMetadata)

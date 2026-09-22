@@ -1,5 +1,6 @@
 export type GameTemplate = {
     schemaVersion: 1 | 2;
+    icon?: string;
     name: string; description: string; author: string; source: string;
     runtime: {
         provider: 'linuxgsm' | 'ovhcloud' | 'external'; image: string; catalogId: string; gameServerName: string;

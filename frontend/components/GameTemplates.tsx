@@ -1,3 +1,4 @@
+import { TemplateIconEditor } from './TemplateIconEditor';
 import { TemplateMonitoringEditor } from './TemplateMonitoringEditor';
 import { TemplateFastDownloadEditor } from './TemplateFastDownloadEditor';
 import { CpuBindingPicker } from './resources/CpuBindingPicker';
@@ -337,6 +338,7 @@ export function GameTemplates() {
             {tab === 'general' && (
               <>
                 <Field label="Name" value={draft.name} onChange={(name) => change({ name })} />
+                <TemplateIconEditor draft={draft} change={change} />
                 <Field
                   label="Author / maintainer"
                   value={draft.author}
@@ -1102,7 +1104,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         nativeRuntimeProtocol?: number;
         templateScriptsProtocol?: number;
         nativeSettingsProtocol?: number;
-        capabilities?: {fastDownload?:number;gameMonitoring?:number};
+        capabilities?: {fastDownload?:number;gameMonitoring?:number;templateIcons?:number};
       }>(`${base}/api/health`);
       if (health.templatesProtocol !== 1)
         throw new Error(
@@ -1112,6 +1114,7 @@ export function TemplateInstall({ row, onClose, fixedNodeId, initialNodeId, onIn
         throw new Error(
           'This node does not support Native Runtime. Update its agent first. No installation was sent.'
         );
+      if(row.document.icon && health.capabilities?.templateIcons !== 1) throw new Error('Update this node to support template game icons. No installation was sent.');
       if(row.document.monitoring && health.capabilities?.gameMonitoring !== 1) throw new Error('Update this node to support game monitoring templates.');
       if(row.document.fastDownload?.enabled && health.capabilities?.fastDownload !== 1) throw new Error('Update this node to support FastDownload templates.');
       const lifecycle = row.document.lifecycle;

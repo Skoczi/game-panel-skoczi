@@ -33,6 +33,7 @@ export type GameServerStatus =
 
 export interface GameServer {
   monitoring?: GameMonitoringSummary;
+  gameIcon?: string;
   id: string;
   name: string;
   game: string;

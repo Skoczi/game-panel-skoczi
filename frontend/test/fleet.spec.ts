@@ -35,18 +35,28 @@ const servers = [
 test('game monitoring appears in fleet cards and list using the selected node runtime', async ({ page }) => {
   await page.route(`**/api/nodes/${nodeId}/runtime/api/servers/1`, route => route.fulfill({ json: { server: {
     id: 1, name: 'Community Arena', status: 'running', provider: 'external',
+    providerMetadata: { template: { document: { schemaVersion: 1, icon: 'counter-strike-go' } } },
     monitoring: { enabled: true, state: 'online', checkedAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), failures: 0, incidentStartedAt: null, error: null, latencyMs: 3, runtimeKey: 'one', staleAfterSeconds: 100, info: { name: 'Community Arena', map: 'de_dust2', players: 7, maxPlayers: 16, bots: 0 } },
   } } }));
   await page.route('**/api/servers/1/metrics?limit=1', route => route.fulfill({ json: { metrics: [] } }));
   await page.goto('/test/fleet.fixture.html');
   const card = page.getByRole('article').filter({ hasText: 'Community Arena' });
   await expect(card.getByText('Game responding')).toBeVisible();
+  await expect(card.getByText('Running', { exact: true })).toBeVisible();
   await expect(card.getByText('de_dust2')).toBeVisible();
   await expect(card.getByText('7 / 16')).toBeVisible();
   await page.getByRole('button', { name: 'List view' }).click();
   const row = page.getByRole('row').filter({ hasText: 'Community Arena' });
   await expect(row.getByText('Game responding')).toBeVisible();
   await expect(row.getByText('7 / 16')).toBeVisible();
+  await expect(row.getByText('Running', { exact: true })).toHaveCount(0);
+  await expect(row.locator('.gp-game-icon img')).toHaveAttribute('src', '/game-icons/counter-strike-go.jpg');
+  await expect(row.locator('.gp-game-icon img')).toHaveJSProperty('naturalWidth', 32);
+  await expect(page.getByRole('columnheader')).toHaveText(['Server name', 'Server IP', 'Server status', 'Server metrics', 'Power', 'Management']);
+  await expect(row.getByRole('cell').nth(2).getByText('Game responding')).toBeVisible();
+  await expect(row.getByRole('cell').first().getByRole('img', { name: 'Custom image' })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Survival World' }).getByText('Unavailable', { exact: true })).toBeVisible();
+  await page.screenshot({ path: '/tmp/gamepanel-list-icons.png', fullPage: true });
 });
 test('fleet metric modals and action history are scoped to the selected server', async ({
   page,
@@ -201,7 +211,7 @@ test('header sorting toggles direction and persists while clipboard copies the f
   expect(await page.evaluate(() => (window as any).copiedAddress)).toBe('192.0.2.5:27015');
   await page.getByRole('button', { name: 'List view' }).click();
   const names = page.locator('tbody tr td:first-child');
-  for (const column of ['Server name', 'Game', 'Status']) {
+  for (const column of ['Server name', 'Server status']) {
     const header = page.getByRole('columnheader', { name: new RegExp(`^${column}`) });
     await header.getByRole('button').click();
     await expect(header).toHaveAttribute('aria-sort', 'ascending');
@@ -211,7 +221,7 @@ test('header sorting toggles direction and persists while clipboard copies the f
     await expect(names).toHaveText(['Survival World', 'Community Arena']);
   }
   await page.reload();
-  await expect(page.getByRole('columnheader', { name: /^Status/ })).toHaveAttribute(
+  await expect(page.getByRole('columnheader', { name: /^Server status/ })).toHaveAttribute(
     'aria-sort',
     'descending'
   );

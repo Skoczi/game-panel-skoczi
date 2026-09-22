@@ -420,3 +420,47 @@ test('late local response cannot overwrite remote node availability', async ({ p
   await expect(page.getByText('192.0.2.10:27015', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Create server', exact: true })).toBeEnabled();
 });
+
+test('game icon library and custom upload persist in a new template version', async ({ page }) => {
+  await mock(page);
+  let saved: any;
+  await page.route('**/api/game-templates/builtin-cs16/versions', route => {
+    saved = route.request().postDataJSON();
+    return route.fulfill({ json: { ...row, version: 2, document: saved.document } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/test/templates.fixture.html');
+  await page.getByRole('button', { name: 'Manage', exact: true }).click();
+  const icons = page.getByRole('group', { name: 'Game icon', exact: true });
+  await icons.getByRole('button', { name: 'Counter-Strike: Global Offensive', exact: true }).click();
+  await expect(icons.getByRole('button', { name: 'Counter-Strike: Global Offensive', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Save new draft version' }).click();
+  await expect.poll(() => saved?.document.icon).toBe('counter-strike-go');
+  await expect(page.getByRole('status').filter({ hasText: 'Draft v2 saved' })).toBeVisible();
+  await icons.getByLabel('Upload your own icon').setInputFiles({ name: 'my-icon.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAq0lEQVR4nOXOIQEAAAgDsPfPRQnSnBgTiPkls32NBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HhA4wGNBzQe0HgAO0mywmjerl49AAAAAElFTkSuQmCC', 'base64') });
+  await expect(icons.getByText('Custom icon selected')).toBeVisible();
+  await page.getByRole('button', { name: 'Save new draft version' }).click();
+  await expect.poll(() => saved?.document.icon?.startsWith('data:image/png;base64,')).toBe(true);
+  await expect(page.getByRole('status').filter({ hasText: 'Draft v2 saved' })).toBeVisible();
+  await expect(icons.locator('.gp-template-icon-preview img')).toHaveJSProperty('naturalWidth', 64);
+  await page.screenshot({ path: '/tmp/gamepanel-template-icons-mobile.png', fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await icons.getByLabel('Upload your own icon').setInputFiles({ name: 'invalid.png', mimeType: 'image/png', buffer: Buffer.from('not an image') });
+  await expect(icons.getByRole('alert')).toBeVisible();
+  await expect(icons.getByText('Custom icon selected')).toBeVisible();
+  await icons.getByRole('button', { name: 'Automatic', exact: true }).click();
+  await expect(icons.getByText('Custom icon selected')).toHaveCount(0);
+});
+
+test('icon templates reject older agents before installation', async ({ page }) => {
+  await mock(page, 'published');
+  await page.route('**/api/game-templates', route => route.fulfill({ json: { templates: [{ ...row, status: 'published', document: { ...definition, icon: 'counter-strike-go' } }] } }));
+  await page.route('**/api/health', route => route.fulfill({ json: { templatesProtocol: 1, capabilities: { gameMonitoring: 1 } } }));
+  let sends = 0;
+  await page.route('**/prepare', route => { sends++; return route.fulfill({ json: {} }); });
+  await page.route('**/api/servers/install', route => { sends++; return route.fulfill({ json: {} }); });
+  await openNetwork(page);
+  await page.getByRole('button', { name: 'Create server', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Update this node to support template game icons');
+  expect(sends).toBe(0);
+});

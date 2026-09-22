@@ -1,5 +1,6 @@
 // Versioned templates. Native commands are reviewed and published by root administrators.
 import { createHash } from 'node:crypto';
+import { GAME_ICONS, MAX_GAME_ICON_BYTES } from './gameIcons.js';
 import type { GameTemplate } from './types.js';
 export type { GameTemplate } from './types.js';
 export class TemplateError extends Error {
@@ -37,7 +38,19 @@ function unique(values: string[]) {
 }
 export function validateTemplate(input: unknown): GameTemplate {
     if (JSON.stringify(input)?.length > 32768) throw new TemplateError('Template exceeds 32 KiB');
-    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload', 'monitoring']);
+    const v = object(input, ['schemaVersion', 'name', 'description', 'author', 'source', 'runtime', 'ports', 'variables', 'mounts', 'lifecycle', 'configFiles', 'fastDownload', 'monitoring', 'icon']);
+    let icon: string | undefined;
+    if (v.icon !== undefined) {
+        icon = text(v.icon, 22000);
+        if (!GAME_ICONS.some(item => item.id === icon)) {
+            const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/.exec(icon);
+            const bytes = match ? Buffer.from(match[1], 'base64') : Buffer.alloc(0);
+            if (!match || bytes.length > MAX_GAME_ICON_BYTES || bytes.length < 33 || bytes.toString('base64') !== match[1]
+                || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+                || bytes.toString('ascii', 12, 16) !== 'IHDR' || bytes.readUInt32BE(16) !== 64 || bytes.readUInt32BE(20) !== 64)
+                throw new TemplateError('Choose a library icon or upload a 64 × 64 PNG icon up to 16 KiB');
+        }
+    }
     if (v.schemaVersion !== 1 && v.schemaVersion !== 2) throw new TemplateError('Unsupported template schema (expected 1 or 2; egg files require conversion)');
     if (v.schemaVersion === 1 && v.lifecycle !== undefined) throw new TemplateError('Native lifecycle requires schemaVersion 2');
     const r = object(v.runtime, ['provider', 'image', 'catalogId', 'gameServerName', 'architectures', 'identity']);
@@ -180,7 +193,7 @@ export function validateTemplate(input: unknown): GameTemplate {
         if (!mounts.some(m => m.containerPath === workdir)) throw new TemplateError('Native working directory must be a declared data mount');
         lifecycle = { startup: argv(l.startup), install: steps(l.install), update: steps(l.update), workdir, stopSignal: choice(l.stopSignal, ['SIGTERM', 'SIGINT']), stopTimeoutSeconds: bounded(l.stopTimeoutSeconds, 120), ...(installerImage ? { installerImage } : {}), ...(stopCommand ? { stopCommand } : {}) };
     }
-    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}), ...(monitoring !== undefined ? { monitoring } : {}) };
+    return { schemaVersion: v.schemaVersion, name: text(v.name, 80), description: text(v.description, 1000, true), author: text(v.author, 100), source: text(v.source, 300, true), runtime: { provider, image, catalogId, gameServerName, architectures, ...(identity ? { identity } : {}) }, ports, variables, mounts, ...(lifecycle ? { lifecycle } : {}), ...(configFiles !== undefined ? { configFiles } : {}), ...(fastDownload !== undefined ? { fastDownload } : {}), ...(monitoring !== undefined ? { monitoring } : {}), ...(icon !== undefined ? { icon } : {}) };
 }
 export function validateVariable(v: GameTemplate['variables'][number], value: unknown): string {
     const s = text(value, 2048, !v.required);

@@ -94,9 +94,11 @@ test('native lifecycle editor upgrades only the draft and preserves literal star
   await page.getByRole('button', { name: 'Manage', exact: true }).click();
   await page.getByRole('tab', { name: 'Lifecycle', exact: true }).click();
   await page.getByRole('button', { name: 'Use Native Runtime in this draft' }).click();
-  await page
-    .getByLabel('Startup arguments', { exact: true })
-    .fill('/data/server\n--name\n{{SERVER_NAME}}');
+  const startup = page.getByRole('group', { name: 'Startup arguments', exact: true });
+  for (const [i, value] of ['/data/server', '--name', '{{SERVER_NAME}}'].entries()) {
+    if (i > 0) await startup.getByRole('button', { name: 'Add argument', exact: true }).click();
+    await page.getByLabel(`Startup arguments argument ${i}`, { exact: true }).fill(value);
+  }
   await page.getByRole('button', { name: 'Add install step', exact: true }).click();
   await expect(page.getByLabel('Step name', { exact: true })).toHaveValue('New step');
   await page.getByRole('tab', { name: 'Json', exact: true }).click();
@@ -179,6 +181,7 @@ test('remote installation sends a signed ticket and explicit bindings, never a c
     prepared = r.request().postDataJSON();
     return r.fulfill({ json: { ticket: 'test-ticket' } });
   });
+  await page.route('**/api/nodes/test-node/runtime/api/servers/7', r => r.fulfill({ json: { server: { id: 7, status: 'installing', installProgress: { status: 'installing', progress: 25 } } } }));
   await page.route('**/api/nodes/test-node/runtime/api/servers/install', (r) => {
     body = r.request().postDataJSON();
     return r.fulfill({ status: 201, json: { server: { id: 7 } } });
@@ -307,7 +310,7 @@ test('public port dropdown excludes unavailable ports, hides container details a
   await page.getByRole('option', { name: '27020', exact: true }).click();
   await expect(page.getByText('192.0.2.10:27020', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Create server', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Connection: 192.0.2.10:27020');
+  await expect(page.locator('.gp-install-status')).toContainText('192.0.2.10:27020');
   expect(body.bindings).toEqual([{ key: 'game', hostIp: '192.0.2.10', host: 27020 }]);
 });
 

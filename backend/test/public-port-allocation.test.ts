@@ -60,7 +60,9 @@ test('allocation mutation lock rejects overlapping writes and releases idempoten
 test('available-port route is administrator-only and returns uncached runtime inventory', async () => {
     const { rootOnly } = loadWithMocks('../src/middleware/auth.ts', { '../agent/identity.js': {}, '../utils/auth.js': {}, '../database/index.js': {}, '../utils/ids.js': {}, '../utils/logger.js': {}, '../permissions.js': {} });
     const module = loadWithMocks('../src/routes/servers/availablePorts.ts', {
-        express, '../../middleware/auth.js': { rootOnly }, '../../services/templatePortAllocation.js': allocation,
+        '../../database/index.js': {}, '../../permissions.js': { PERMISSIONS: { server: { edit: 'server.edit' } } },
+        '../../providers/runtimeConfig.js': {}, '../../services/hostPortAvailability.js': {}, '../../services/globalSettings.js': {},
+        express, '../../middleware/auth.js': { rootOnly, requireServerPermission: () => rootOnly }, '../../services/templatePortAllocation.js': allocation,
         '../../utils/routeErrors.js': { sendRouteError: (res: any, e: any) => res.status(e.statusCode || 500).json({ error: e.message }) },
     }, { Date });
     const app = express(); app.use((req: any, _res, next) => { req.user = { isRoot: req.headers['x-root'] === 'yes' }; next(); }); app.use(module.createAvailablePortRoutes());

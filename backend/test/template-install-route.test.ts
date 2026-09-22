@@ -24,6 +24,7 @@ test('actual install route verifies target authorization before persistence and 
     let missingImage = false;
     const key = 'test-runtime-ticket-key';
     const module = loadWithMocks('../src/routes/servers/install.ts', {
+        '../../services/cpuTopology.js': { assertCpuBinding: async () => {} },
         '../../services/portAllocationLock.js': allocationLock,
         '../../services/nativeImages.js': { resolveNativeImages: async () => {
             if (missingImage) throw Object.assign(new Error('Installer image is missing'), { statusCode: 409 });

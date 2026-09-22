@@ -13,6 +13,8 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 FROM ${NODE_IMAGE} AS runtime
+# FastDownload Source assets are compressed by the node runtime.
+RUN apk add --no-cache bzip2
 WORKDIR /app/backend
 ENV NODE_ENV=production
 COPY --from=build /app/backend/dist dist

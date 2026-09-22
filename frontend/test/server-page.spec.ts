@@ -49,7 +49,7 @@ test('console height is independent, persisted, and moves charts beside a tall c
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/console');
   const panel = page.locator('.gp-console-panel');
   expect((await panel.boundingBox())!.height).toBeGreaterThan(490);
-  expect((await panel.boundingBox())!.height).toBeLessThan(560);
+  expect(Math.abs((await panel.boundingBox())!.height - (await page.locator('.gp-server-stats').boundingBox())!.height)).toBeLessThan(2);
   const handle = page.getByRole('separator', { name: 'Resize console' });
   const grip = (await handle.boundingBox())!;
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
@@ -167,8 +167,8 @@ test('restart confirmation follows the settings pane with the console open', asy
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/containerconfig');
   await page.getByRole('button', { name: 'Open side console' }).click();
   await page.getByPlaceholder('e.g. 2', { exact: true }).fill('2');
-  await page.getByRole('button', { name: 'Save container config' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Restart required' });
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Save changes' });
   await expect(dialog).toBeVisible();
   const pane = await page.locator('.gp-server-workspace-main').boundingBox();
   const box = await dialog.boundingBox();
@@ -185,7 +185,7 @@ test('workspace and dock fill the viewport with matching bottom edges across tab
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/filemanager');
   await page.getByRole('button', { name: 'Open side console' }).click();
-  for (const name of ['File Editor', 'Game Config', 'Backups', 'Schedules', 'Network', 'Settings', 'Terminal', 'Activity']) {
+  for (const name of ['File Editor', 'Game Config', 'Backups', 'Schedules', 'Settings', 'Terminal', 'Activity']) {
     await page.locator('.gp-server-tabs').getByRole('link', { name, exact: true }).click();
     const main = page.locator('.gp-server-workspace-main > section');
     await expect(main).toBeVisible();
@@ -293,8 +293,9 @@ test('file roots selector is only shown when there is a choice', async ({ page }
   ] } }));
   await page.reload();
   await expect(page.getByRole('combobox', { name: 'Data directory' })).toBeVisible();
-  await page.getByRole('combobox', { name: 'Data directory' }).selectOption('config');
-  await expect(page.getByRole('combobox', { name: 'Data directory' })).toHaveValue('config');
+  await page.getByRole('combobox', { name: 'Data directory' }).click();
+  await page.getByRole('option', { name: '/config', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Data directory' })).toContainText('/config');
 });
 test('Manage opens a real server page; tabs, refresh and browser back retain context', async ({
   page,
@@ -312,8 +313,8 @@ test('Manage opens a real server page; tabs, refresh and browser back retain con
   await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Network', exact: true }).click();
-  await expect(page.getByRole('cell', { name: '27015', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Ports', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to servers' }).click();

@@ -10,6 +10,8 @@ import * as hostname from '../src/utils/docker/hostname.js';
 
 test('Docker inspection retains HostIp and respects edited-container exclusions', async () => {
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        '../../services/cpuTopology.js': { assertCpuBinding: async () => {}, parseCpuList: () => [] },
+        '../../services/gracefulGameStop.js': { tryGracefulGameStop: async () => false, restoreGracefulRestartPolicy: async () => {} },
         './ownership.js': ownership,
         './hostname.js': hostname,
         './portBindings.js': { buildPortMaps },
@@ -39,6 +41,8 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
     let starts = 0, restarts = 0;
     let binding: any = { NetworkMode: 'bridge', PortBindings: { '8080/tcp': [{ HostIp: '192.0.2.10', HostPort: '8080' }] } };
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        '../../services/cpuTopology.js': { assertCpuBinding: async () => {}, parseCpuList: () => [] },
+        '../../services/gracefulGameStop.js': { tryGracefulGameStop: async () => false, restoreGracefulRestartPolicy: async () => {} },
         './ownership.js': ownership,
         './hostname.js': hostname,
         './portBindings.js': { buildPortMaps },
@@ -65,6 +69,8 @@ test('start/restart reject disallowed saved bindings before calling Docker', asy
 test('port inventory ignores deleted containers only; inspection errors fail closed', async () => {
     let statusCode = 503;
     const module = loadWithMocks('../src/utils/docker/containers.ts', {
+        '../../services/cpuTopology.js': { assertCpuBinding: async () => {}, parseCpuList: () => [] },
+        '../../services/gracefulGameStop.js': { tryGracefulGameStop: async () => false, restoreGracefulRestartPolicy: async () => {} },
         './ownership.js': ownership, './hostname.js': hostname, './portBindings.js': { buildPortMaps },
         '../portPolicy.js': portPolicy,
         './client.js': { docker: {

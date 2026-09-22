@@ -68,7 +68,7 @@ test('custom schedule fields have labels and keep content after rejected save', 
   await page.route('**/scheduled-tasks', route => route.fulfill(route.request().method() === 'GET' ? { json: { tasks: [] } } : { status: 400, json: { error: 'Rejected schedule' } }));
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/scheduledtasks');
   await page.getByRole('button', { name: 'Add Task', exact: true }).click();
-  await page.getByRole('button', { name: 'Custom Command', exact: true }).click();
+  await page.getByRole('button', { name: 'Container shell command', exact: true }).click();
   await page.getByLabel('Command', { exact: false }).fill('echo test');
   await page.getByLabel('Working directory', { exact: false }).fill('/data');
   await page.getByRole('button', { name: 'Save task' }).click();

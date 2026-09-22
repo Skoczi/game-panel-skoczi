@@ -2,6 +2,17 @@
 
 This file describes **fork changes only**. [CHANGELOG.md](CHANGELOG.md) records upstream releases.
 
+## 2.0.55 — Server management, CPU binding and FastDownload — 2026-09-22
+
+- Node-local FastDownload with template profiles, direct GoldSrc assets, Source BZIP2 publication, managed cleanup, backup/restore support and a public file browser.
+- CPU affinity selection with node topology, existing assignments and independent vCPU quotas.
+- Scheduled game-console commands with pre/post/cleanup steps; refreshed task state and command-aware activity timeline.
+- Native startup/stop improvements, pending-restart settings and multiline parameter fixes.
+- Consistent server pages, improved installation flow, metric bars, configuration cards and file/editor loading states.
+- Release packaging includes the BZIP2 runtime dependency and a documented optional per-node FDL proxy setup.
+
+See [full release notes](docs/pro/RELEASE-2.0.55.md) for compatibility and upgrade requirements.
+
 ## 1.5.0-skoczi.10 — Game Templates (schema v1 preview) — 2026-09-18
 
 - Added a central root-only **Game Templates** catalog with structured runtime/network/variable/storage editors, immutable draft versions, publish/disable, comparison, duplication and validated JSON import/export. Existing provider installers and legacy server records are preserved.

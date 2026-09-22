@@ -21,7 +21,7 @@ test('native settings expose configuration, backup, tasks and data roots without
   await page.goto('/test/native-settings.fixture.html');
   await expect(page.getByText('External', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Game Config', exact: true })).toBeVisible();
-  await expect(page.getByText('/serverfiles/cstrike/server.cfg', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'server.cfg', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Game Config', exact: true })).toBeVisible();
   await expect(page.getByText(/Installation and startup are managed/)).toHaveCount(0);
   await expect(page.getByText(/Game files remain in the location/)).toHaveCount(0);
@@ -72,7 +72,7 @@ test('declared config opens the actual nested file and native settings fit dark 
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/native-settings-mobile.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const requested = page.waitForRequest(r => new URL(r.url()).pathname.endsWith('/file'));
-  await page.getByRole('button', { name: 'Open in File Manager' }).click();
+  await page.getByRole('button', { name: 'Open Server configuration in File Manager' }).click();
   const url = new URL((await requested).url());
   expect(url.searchParams.get('root')).toBe('data');
   expect(url.searchParams.get('path')).toBe('/serverfiles/cstrike/server.cfg');

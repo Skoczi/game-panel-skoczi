@@ -18,7 +18,8 @@ tasks cannot silently replay after an agent restart.
 - Activity records one confirmed incident and one recovery, including elapsed time.
   Planned operations suppress probing; Docker inspection failures are reported as
   missing observations, not game outages. Monitoring settings and current incident
-  state survive a backend/agent restart.
+  state survive a backend/agent restart. Fresh installations create the same
+  monitoring schema as upgraded runtimes.
 - Probes have bounded timeouts and concurrency. Checks use the node's internal game
   network and do not certify public Internet reachability. There are no automatic
   restarts or external alerts in this release.
@@ -60,7 +61,7 @@ FastDownload, CPU binding, game-console schedules and server-management UI updat
 
 ## Validation
 
-Local validation passed 206 backend tests, 44 targeted browser tests and both
+Local validation passed 207 backend tests, 44 targeted browser tests and both
 production builds before release preparation. Tests include real UDP challenge and
 split-response exchanges, SQLite reopen/configuration races, worker concurrency,
 mobile settings and fleet data scoping. Live deployment verification must also

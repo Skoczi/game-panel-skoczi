@@ -5,11 +5,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import { parseGameInfo, queryGame } from '../src/services/gameQuery.js';
 import { advanceMonitoring, emptySnapshot } from '../src/services/gameMonitoringState.js';
 import * as monitoringState from '../src/services/gameMonitoringState.js';
 import { validateTemplate, templateHash, CS16_TEMPLATE } from '../src/templates/schema.js';
-import { migration } from '../src/database/migrations/0006_game_monitoring.js';
+import { migration, GAME_MONITORING_SQL } from '../src/database/migrations/0006_game_monitoring.js';
+import { DATABASE_MIGRATIONS } from '../src/database/migrations/index.js';
+import { RUNTIME_IDENTITY_SQL } from '../src/database/migrations/0002_server_runtime_identity.js';
 import { loadWithMocks } from './loadWithMocks.js';
 import type { GameMonitoringConfig } from '../src/templates/types.js';
 
@@ -125,6 +129,31 @@ test('SQLite monitoring survives reopening; obsolete observations cannot overwri
     assert.equal((await repo.get(7)).config.enabled, false);
     db.exec('DELETE FROM game_servers WHERE id=7');
     assert.equal(await repo.get(7), null);
+});
+
+test('fresh runtime initialization creates monitoring before marking migrations applied', async t => {
+    const directory = mkdtempSync(join(tmpdir(), 'gp-fresh-monitor-'));
+    const db = new DatabaseSync(join(directory, 'game-panel.db'));
+    t.after(() => { db.close(); rmSync(directory, { recursive: true, force: true }); });
+    const adapter = {
+        exec: async (sql: string) => db.exec(sql),
+        get: async (sql: string, args: any[] = []) => db.prepare(sql).get(...args),
+        all: async (sql: string, args: any[] = []) => db.prepare(sql).all(...args),
+        run: async (sql: string, args: any[] = []) => db.prepare(sql).run(...args),
+    };
+    const init = loadWithMocks('../src/database/init.ts', {
+        sqlite3: {}, sqlite: { open: async () => adapter }, path, 'fs/promises': fs,
+        '../config.js': { getConfig: () => ({ gamepanelDataDir: directory }) },
+        './migrations/index.js': { DATABASE_MIGRATIONS },
+        './migrations/0002_server_runtime_identity.js': { RUNTIME_IDENTITY_SQL },
+        './migrations/0006_game_monitoring.js': { GAME_MONITORING_SQL },
+        '../utils/time.js': { nowIso: () => new Date().toISOString() },
+        '../utils/logger.js': { logInfo() {} },
+    });
+    await init.initializeDatabase();
+    assert.deepEqual(db.prepare('SELECT * FROM game_monitoring').all(), []);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE id='0006_game_monitoring'").get()!.count, 1);
+    assert.equal(await init.initializeDatabase(), adapter);
 });
 
 function workerFixture(total = 1) {

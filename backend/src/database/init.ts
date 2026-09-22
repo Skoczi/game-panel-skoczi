@@ -1,3 +1,4 @@
+import { GAME_MONITORING_SQL } from './migrations/0006_game_monitoring.js';
 import sqlite3 from 'sqlite3';
 import { open, type Database } from 'sqlite';
 import path from 'path';
@@ -438,6 +439,7 @@ async function createSchema(database: Database): Promise<void> {
       ON users(LOWER(username));
     `);
 
+    await database.exec(GAME_MONITORING_SQL);
     await database.exec('COMMIT');
     logInfo('DATABASE', 'Database schema ready');
   } catch (err) {

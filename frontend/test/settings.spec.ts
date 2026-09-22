@@ -361,7 +361,7 @@ test('version dialog keeps bundled notes offline and disables updates on unmanag
   unavailable = true;
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('Version status is unknown');
-  await expect(dialog.getByText(/Automatic restart remains off/)).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: `Game Panel PRO ${packageInfo.version}`, exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: /Update to/ })).toHaveCount(0);
 });
 

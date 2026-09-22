@@ -310,13 +310,13 @@ test('Manage opens a real server page; tabs, refresh and browser back retain con
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Manage', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Game Config', exact: true }).click();
-  await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Server configuration', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Server configuration', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Ports', exact: true })).toBeVisible();
   await page.goBack();
-  await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Server configuration', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Back to servers' }).click();
   await expect(page.getByRole('heading', { name: 'Game Servers', exact: true })).toBeVisible();
   await expect(page.getByText('Node administration', { exact: true })).toHaveCount(0);
@@ -419,7 +419,7 @@ test('unsaved files are protected when leaving by tabs and browser history', asy
 
 test('light theme keeps the configuration page readable and scrollable', async ({ page }) => {
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/gameconfig');
-  await expect(page.getByText('Server configuration', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Server configuration', exact: true })).toBeVisible();
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
   if (process.env.PLAYWRIGHT_SCREENSHOTS === '1') await page.screenshot({ path: 'test-results/server-page-light-config.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

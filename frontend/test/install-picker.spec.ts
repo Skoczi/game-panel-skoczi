@@ -45,9 +45,9 @@ test('native installer preserves the selected remote node and requests its alloc
   const panelName = page.getByLabel('Panel server name', { exact: true });
   const gameName = page.getByLabel('In-game server name (visible to players) *', { exact: true });
   await expect(panelName).toBeVisible();
-  await expect(gameName).toHaveValue('Counter-Strike 1.6 ReHLDS Server');
+  await expect(gameName).toHaveCount(0);
   await panelName.fill('Private panel label');
-  await expect(gameName).toHaveValue('Counter-Strike 1.6 ReHLDS Server');
+  await expect(gameName).toHaveCount(0);
   const ip = page.getByRole('combobox', { name: /Public IP/ });
   const port = page.getByRole('combobox', { name: /Public port/ });
   await expect(ip).toBeVisible();
@@ -71,7 +71,7 @@ test('starting installation replaces the installer, and closing progress returns
   await page.route('**/api/nodes', r => r.fulfill({ json: { nodes: [] } }));
   await page.route('**/allocations', r => r.fulfill({ json: { network: { allocations: [{ ip: '192.0.2.10', alias: 'Local', udp: '27015-27030', tcp: '' }] } } }));
   await page.route('**/api/servers/available-ports?*', r => r.fulfill({ json: { ports: [27015] } }));
-  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1 } }));
+  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, capabilities: { gameConfigEditor: 1 } } }));
   await page.route('**/prepare', r => r.fulfill({ json: { ticket: 'test' } }));
   await page.route('**/api/servers/install', r => r.fulfill({ json: { server: { id: 8 } } }));
   await page.route('**/api/servers/8', r => r.fulfill({ json: { server: { installProgress: { progress: 25, status: 'native_step_0' } } } }));
@@ -117,7 +117,7 @@ for (const outcome of ['completed', 'failed']) {
     await page.route('**/api/nodes', r => r.fulfill({ json: { nodes: [] } }));
     await page.route('**/allocations', r => r.fulfill({ json: { network: { allocations: [{ ip: '192.0.2.10', alias: 'Local', udp: '27015-27030', tcp: '' }] } } }));
     await page.route('**/api/servers/available-ports?*', r => r.fulfill({ json: { ports: [27015, 27016] } }));
-    await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1 } }));
+    await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, capabilities: { gameConfigEditor: 1 } } }));
     await page.route('**/prepare', r => r.fulfill({ json: { ticket: 'test' } }));
     const names: string[] = [];
     await page.route('**/api/servers/install', r => {

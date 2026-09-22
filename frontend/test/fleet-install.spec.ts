@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/game-templates', r => r.fulfill({ json: { templates: [row, { ...row, version: 2 }, { ...row, version: 4, status: 'draft' }] } }));
   await page.route('**/allocations', r => r.fulfill({ json: { network: { allocations: [{ ip: '192.0.2.10', alias: 'Game IP', udp: '27015-27030', tcp: '' }] } } }));
   await page.route('**/api/servers/available-ports?*', r => r.fulfill({ json: { ports: [27015] } }));
-  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1 } }));
+  await page.route('**/api/health', r => r.fulfill({ json: { templatesProtocol: 1, nativeRuntimeProtocol: 1, templateScriptsProtocol: 1, nativeSettingsProtocol: 1, capabilities: { gameConfigEditor: 1 } } }));
   await page.route('**/api/servers/8', r => r.fulfill({ json: { server: { installProgress: { progress: 25, status: 'native_step_0' } } } }));
 });
 for (const scope of ['all', 'local', node]) test(`fleet Add Game Server opens templates and installs on the chosen node: ${scope}`, async ({ page }) => {

@@ -7,6 +7,6 @@ const sql = `CREATE TABLE game_monitoring (
   revision INTEGER NOT NULL DEFAULT 1
 );`;
 export const migration: DatabaseMigration = {
-    id: '0006_game_monitoring', appVersion: '2.0.55', checksum: checksumSql(sql),
+    id: '0006_game_monitoring', appVersion: '2.0.56', checksum: checksumSql(sql),
     async up(database) { await database.exec(sql); },
 };

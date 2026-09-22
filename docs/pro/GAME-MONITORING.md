@@ -1,4 +1,4 @@
-# Game monitoring — unreleased
+# Game monitoring — 2.0.56
 
 This package adds **node-side A2S_INFO checks** for CS 1.6 / ReHLDS and compatible
 Source games. Docker status continues to describe the container. Game monitoring
@@ -52,8 +52,9 @@ and runtime rechecks prevent an obsolete in-flight result overwriting new settin
 ## Compatibility and validation
 
 Nodes advertise `capabilities.gameMonitoring = 1`. The install UI rejects monitoring
-templates on older nodes. Update the panel and agents together when this larger
-release is ready; this change itself has **not been deployed or published**.
+templates on older nodes. Update a runtime agent before enabling monitoring or
+expecting the scheduler fixes on its servers. A central-panel update alone does not
+upgrade remote runtime agents.
 Templates without a monitoring profile retain their canonical representation/hash.
 
 The A2S client handles Source and legacy GoldSrc info, challenge negotiation and

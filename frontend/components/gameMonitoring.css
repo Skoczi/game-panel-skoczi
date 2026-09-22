@@ -14,3 +14,6 @@
 .gp-monitor-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .gp-monitor-fields input { width: 100%; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid #64748b80; background: transparent; color: inherit; }
 @media (max-width: 640px) { .gp-monitor-fields { grid-template-columns: 1fr; } }
+
+.gp-monitor-card { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.gp-monitor-card p { font-size: 13px; line-height: 1.65; color: var(--text-secondary, #94a3b8); margin: 0; }

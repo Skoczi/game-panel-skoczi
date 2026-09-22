@@ -34,7 +34,7 @@ export function GameMonitoringCard({ serverId }: { serverId: number }) {
         catch (e: any) { setError(e.response?.data?.error || 'Could not confirm monitoring settings. Refresh before retrying.'); }
         finally { setBusy(false); }
     };
-    return <section className="gp-settings-card gp-fdl" aria-label="Game monitoring">
+    return <section className="gp-settings-card gp-monitor-card" aria-label="Game monitoring">
         <div className="gp-fdl-heading">
             <div className="gp-fdl-title"><span className="gp-fdl-icon"><Activity size={21} /></span><div><h4>Game monitoring</h4><p>Game response, map and players</p></div></div>
             {draft && <AppToggle label="Enable game monitoring" checked={draft.enabled} disabled={busy || (!data?.ports.length && !draft.enabled)} onChange={enabled => change({ enabled, queryPort: data?.ports.some(p => p.container === draft.queryPort) ? draft.queryPort : data?.ports[0]?.container ?? null })} />}

@@ -357,7 +357,7 @@ test('version dialog keeps bundled notes offline and disables updates on unmanag
   unavailable = true;
   await dialog.getByRole('button', { name: 'Check GitHub' }).click();
   await expect(dialog.getByRole('status')).toContainText('Version status is unknown');
-  await expect(dialog.getByText(/Per-node FastDownload URLs/)).toBeVisible();
+  await expect(dialog.getByText(/Node-side A2S checks/)).toBeVisible();
   await expect(dialog.getByRole('button', { name: /Update to/ })).toHaveCount(0);
 });
 

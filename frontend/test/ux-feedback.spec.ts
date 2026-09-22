@@ -254,7 +254,7 @@ test('interrupted schedule explains uncertainty and stays disabled until explici
   let updates = 0;
   await page.route('**/scheduled-tasks/1', route => { updates++; task.enabled = true; return route.fulfill({ json: { task } }); });
   await page.goto('/test/server-page.fixture.html#/nodes/local/servers/7/scheduledtasks');
-  await expect(page.getByText('Interrupted', { exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Server management section' }).getByText('Interrupted', { exact: true })).toBeVisible();
   await expect(page.getByText(reason, { exact: true })).toBeVisible();
   const toggle = page.getByRole('switch', { name: 'Task enabled' });
   await expect(toggle).toHaveAttribute('aria-checked', 'false');

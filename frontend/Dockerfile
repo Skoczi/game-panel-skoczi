@@ -8,7 +8,7 @@ RUN cd frontend && npm ci
 COPY frontend frontend
 COPY docs/pro/RELEASE-2.0.57.md docs/pro/RELEASE-2.0.57.md
 # Shared template contract and pure startup-command helpers used by the editor.
-COPY backend/src/templates/types.ts backend/src/templates/startupCommand.ts backend/src/templates/
+COPY backend/src/templates/types.ts backend/src/templates/startupCommand.ts backend/src/templates/gameIcons.ts backend/src/templates/
 ARG VITE_DB_API_BASE_URL
 ENV VITE_DB_API_BASE_URL=${VITE_DB_API_BASE_URL}
 ARG NODE_BUILD_HEAP_MB=4096

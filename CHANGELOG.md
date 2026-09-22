@@ -1,5 +1,13 @@
 # Game Panel PRO — Changelog
 
+## 2.0.59
+
+- Opt-in automatic retention and SHA-256-verified external Native backup copies.
+- Dedicated NFS/SMB storage, protected recovery data, explicit transfer failures and import without automatic restore.
+- Backup protection controls for local/remote copy counts and external inventory.
+
+[Full release notes](docs/pro/RELEASE-2.0.59.md). Panel and agent update required for remote features; no database migration. Policies remain disabled until configured.
+
 ## 2.0.57
 
 - Compact server list with game icons beside names and one monitoring-aware status column; card layouts unchanged.

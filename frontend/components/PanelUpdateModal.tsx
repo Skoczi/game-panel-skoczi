@@ -1,5 +1,5 @@
 import './panel-update.css';
-import localReleaseNotes from '../../docs/pro/RELEASE-2.0.58.md?raw';
+import localReleaseNotes from '../../docs/pro/RELEASE-2.0.59.md?raw';
 import { getAppVersion } from '../utils/appInfo';
 import { useState, useEffect } from 'react';
 import { ConfirmationModal } from './ConfirmationModal';

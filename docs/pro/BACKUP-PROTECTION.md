@@ -1,8 +1,8 @@
-# Native backup protection — stage 1 candidate
+# Native backup protection — 2.0.59
 
 This change adds opt-in automatic retention and verified external copies to the
-existing Native backup operation. It is a candidate based on 2.0.58, not a new
-published release. Agents must advertise `nativeBackupPolicy: 1`; older agents
+existing Native backup operation in 2.0.59.
+Agents must advertise `nativeBackupPolicy: 1`; older agents
 retain their existing Backups screen.
 
 ## Operator workflow

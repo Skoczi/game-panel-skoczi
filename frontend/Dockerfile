@@ -6,7 +6,7 @@ WORKDIR /app
 COPY frontend/package*.json frontend/
 RUN cd frontend && npm ci
 COPY frontend frontend
-COPY docs/pro/RELEASE-2.0.58.md docs/pro/RELEASE-2.0.58.md
+COPY docs/pro/RELEASE-2.0.59.md docs/pro/RELEASE-2.0.59.md
 # Shared template contract and pure startup-command helpers used by the editor.
 COPY backend/src/templates/types.ts backend/src/templates/startupCommand.ts backend/src/templates/gameIcons.ts backend/src/templates/gameConfig.ts backend/src/templates/rehldsStartup.ts backend/src/templates/
 ARG VITE_DB_API_BASE_URL
